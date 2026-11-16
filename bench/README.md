@@ -53,6 +53,15 @@ passes when the median, over the scenarios both still hold, of best-card area re
 least 0.90, no route has a vertex gap over 700 m, and every scenario ran in 5 s. A loop over
 30 km is declined with `reason: "too-long"` and shown as skipped.
 
+`bench/out/reference-onfoot.json` holds the numbers of scenarios measured after the baseline was
+saved (today `neustadt-striesen-walk-ab`, the on-foot A to B). Like the baseline it lives in gitignored
+`bench/out/`, because the numbers come from your own `Sync/` and go stale as you walk. compare.js
+reads it as its third argument and exits 2 when it is missing; it holds each scenario in it to the
+same 0.90 ratio, gap and time limits on its own, so the loops' median is unchanged. Measure it, and
+re-measure it after you have walked, with:
+
+    node bench/run.js reference-onfoot walk-ab
+
 ## A to B wanted distance
 
 `node bench/p2p-window.test.js` checks the window maths with no network or fog.

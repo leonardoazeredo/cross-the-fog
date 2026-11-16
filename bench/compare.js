@@ -1,13 +1,17 @@
 // Acceptance check: a candidate bench run against a baseline run (both bench/run.js output).
-//   node bench/compare.js <baseline.json> <candidate.json>
+//   node bench/compare.js <baseline.json> <candidate.json> [reference.json]
 // Passes when the median over scenarios of best-card area vs the baseline is at least
 // MIN_MEDIAN, no route jumps a gap (a stretch the street graph could not have walked),
 // and every scenario ran within MAX_MS. Scenarios the app declines on purpose (a loop
 // longer than it supports), and baseline scenarios no longer in scenarios.js (the removed
-// travel modes'), are listed as skipped, not scored. Run the candidate twice: the first run pays for
+// travel modes'), are listed as skipped, not scored. Scenarios in the reference file (default
+// bench/out/reference-onfoot.json, a bench/run.js output of the scenarios the baseline never held,
+// e.g. A to B on foot) are each held to MIN_MEDIAN on their own, so the loops' median is the one
+// it always was. Run the candidate twice: the first run pays for
 // Overpass fetches, the second (cache warm) is the one whose time means anything.
 "use strict";
 const fs = require("fs");
+const path = require("path");
 
 const MIN_MEDIAN = 0.9;
 const MAX_GAP_M = 700; // real way segments reach ~600 m (bridges) and the BRouter baseline has 446 m; a jump over missing streets is not a single way
@@ -25,9 +29,13 @@ function maxGapM(coords) {
   return gap;
 }
 
-const [baseFile, candFile] = process.argv.slice(2);
-if (!baseFile || !candFile) { console.error("usage: node bench/compare.js <baseline.json> <candidate.json>"); process.exit(2); }
-const base = load(baseFile), cand = load(candFile);
+const [baseFile, candFile, refFile = path.join(__dirname, "out", "reference-onfoot.json")] = process.argv.slice(2);
+if (!baseFile || !candFile) { console.error("usage: node bench/compare.js <baseline.json> <candidate.json> [reference.json]"); process.exit(2); }
+if (!fs.existsSync(refFile)) {
+  console.error(`reference file ${refFile} is missing: measure it with  node bench/run.js reference-onfoot walk-ab`);
+  process.exit(2);
+}
+const base = load(baseFile), cand = load(candFile), ref = load(refFile);
 const current = new Set(require("./scenarios.js").map((s) => s.name));
 
 const ratios = [];
@@ -43,6 +51,16 @@ for (const [name, b] of base) {
   if (gap > MAX_GAP_M || (ms != null && ms > MAX_MS)) failed = true;
   ratios.push(ratio);
   rows.push({ scenario: name, base: bestArea(b), cand: bestArea(c), ratio: +ratio.toFixed(2), maxGapM: Math.round(gap), ms });
+}
+// reference scenarios: each must reach MIN_MEDIAN alone, and obey the same gap and time limits
+for (const [name, b] of ref) {
+  if (!current.has(name)) { rows.push({ scenario: name, base: bestArea(b), cand: "skipped: scenario removed" }); continue; }
+  const c = cand.get(name);
+  const ratio = bestArea(b) > 0 ? bestArea(c) / bestArea(b) : 1;
+  const gap = Math.max(0, ...((c && c.results) || []).map((r) => maxGapM(r.coords)));
+  const ms = c && c.ms != null ? c.ms : null;
+  if (ratio < MIN_MEDIAN || gap > MAX_GAP_M || (ms != null && ms > MAX_MS)) failed = true;
+  rows.push({ scenario: name + " (reference)", base: bestArea(b), cand: bestArea(c), ratio: +ratio.toFixed(2), maxGapM: Math.round(gap), ms });
 }
 console.table(rows);
 ratios.sort((a, b) => a - b);
