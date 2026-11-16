@@ -99,11 +99,11 @@ const T = (x, y) => ({ x, y });
     assert.equal(calls.length, 2);
   }
   { // a phone's existing cache keeps serving: an entry stored under "3:run:" is read, fresh or expired, and
-    // one under the removed "3:bike:" kind never is (LRU eviction takes it); a new answer is stored under "3:run:"
+    // one under the removed "2:bike:" kind never is (LRU eviction takes it); a new answer is stored under "3:run:"
     const { network, calls } = fakeNetwork();
     const store = TileStore.memory({ maxEntries: 10 });
     await store.put("3:run:1:1", { answer: { ways: [], groups: { tag: "run" } }, fetchedAt: 0 });
-    await store.put("3:bike:2:1", { answer: { ways: [], groups: { tag: "bike" } }, fetchedAt: 0 });
+    await store.put("2:bike:2:1", { answer: { ways: [], groups: { tag: "bike" } }, fetchedAt: 0 });
     await store.put("3:run:3:1", { answer: { ways: [], groups: { tag: "run" } }, fetchedAt: -100 * DAY });
     const offline = async () => { throw Object.assign(new Error("offline"), { reason: "offline" }); };
     const warn = console.warn;
@@ -117,7 +117,7 @@ const T = (x, y) => ({ x, y });
     assert.deepEqual(calls.map((x) => x.tiles), [[T(2, 1)]], "the run entry needs no request, the bike one does");
     assert.equal(got.get("2:1").groups.tag, "net");
     assert.equal((await store.get("3:run:2:1")).answer.groups.tag, "net");
-    assert.equal((await store.get("3:bike:2:1")).answer.groups.tag, "bike", "left for LRU eviction");
+    assert.equal((await store.get("2:bike:2:1")).answer.groups.tag, "bike", "left for LRU eviction");
   }
   { // answers stored under "2:run:" carry the id lists of the removed travel modes: they are never read, so
     // none is mixed with a one-list answer; the network is asked and the new answer goes under "3:run:"
