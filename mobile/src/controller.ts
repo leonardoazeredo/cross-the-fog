@@ -102,8 +102,9 @@ export function createController(deps: ControllerDeps): Controller {
       await sendReload();
     } catch (e) {
       await storeReadFailed("could not read the saved fog on ready", e);
-      return;
     }
+    // Runs after a failed read too: the history, unreadable count and link status wait on it, and the page sends
+    // no verdict to wait for (`none` would clear its cached fog, so none is sent).
     flushNotices();
     await deps.flows.ready();
   }

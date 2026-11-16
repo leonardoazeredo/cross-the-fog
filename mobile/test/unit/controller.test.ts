@@ -917,3 +917,13 @@ it("hands a share that waited for the import over when a store read ends it", as
   expect(h.busy).toEqual([true, false, true]);
   expect(h.remounts.count).toBe(2);
 });
+
+it("still runs the flows' ready, and sends no verdict, when the store read fails on ready", async () => {
+  const h = createHarness();
+  await h.c.start();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("x"));
+  await h.c.onWebMessage(ready);
+  expect(h.flows.ready).toHaveBeenCalledTimes(1);
+  expect(h.sent.filter((m) => m.type === "none" || m.type === "reload")).toEqual([]);
+});
