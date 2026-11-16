@@ -47,12 +47,10 @@ export function createFakeWatchLink(): FakeWatchLink {
   const withoutFile = ({
     activityId,
     routeId,
-    travelMode,
     encoderVersion,
   }: ActivityOffer): PendingActivity => ({
     activityId,
     ...(routeId === undefined ? {} : { routeId }),
-    travelMode,
     encoderVersion,
   });
 

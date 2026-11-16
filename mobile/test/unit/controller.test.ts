@@ -685,7 +685,6 @@ const route: Extract<WebToNative, { type: "sendRoute" }>["route"] = {
   id: routeId,
   createdAt: "2026-10-01T09:00:00.000Z",
   mode: "p2p",
-  travelMode: "walk",
   waypoints: [
     { lat: 10, lng: 20 },
     { lat: 10.01, lng: 20.01 },

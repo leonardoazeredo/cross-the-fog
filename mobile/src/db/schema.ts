@@ -70,6 +70,11 @@ const MIGRATIONS: readonly Migration[] = [
     PRIMARY KEY (kind, name)
   );`,
   deflateActivityGpx,
+  // Routes and activities are on foot only, so the travel mode goes. DROP COLUMN needs SQLite 3.35
+  // (expo-sqlite's SQLCipher and node:sqlite bundle 3.53), and fails on a column that is a key,
+  // UNIQUE, CHECKed, indexed or named by a trigger, view or generated column; travel_mode is none of those.
+  `ALTER TABLE activities DROP COLUMN travel_mode;
+  ALTER TABLE routes DROP COLUMN travel_mode;`,
 ];
 
 /** The schema version this build writes; a backup from a higher one is from a newer app. */

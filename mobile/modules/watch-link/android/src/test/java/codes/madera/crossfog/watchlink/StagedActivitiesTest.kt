@@ -22,11 +22,20 @@ class StagedActivitiesTest {
   private fun store(key: SecretKeySpec = sealing) = StagingStore(dir, key, {})
 
   private fun offer(id: String) =
-    """{"activityId":"$id","travelMode":"walk","encoderVersion":"1","gpx":"<gpx/>"}""".toByteArray()
+    """{"activityId":"$id","encoderVersion":"1","gpx":"<gpx/>"}""".toByteArray()
 
   @Test
   fun readableOffersAreListedAndNothingIsUnreadable() {
     store().stage(a, offer(a))
+    val staged = readStagedActivities(store())
+    assertEquals(listOf(a), staged.readable.map { it.activityId })
+    assertEquals(0, staged.unreadable)
+  }
+
+  // Items staged by an older build carry a travelMode; they must still be listed, not counted lost.
+  @Test
+  fun anItemStagedWithATravelModeIsStillListed() {
+    store().stage(a, """{"activityId":"$a","travelMode":"walk","encoderVersion":"1","gpx":"<gpx/>"}""".toByteArray())
     val staged = readStagedActivities(store())
     assertEquals(listOf(a), staged.readable.map { it.activityId })
     assertEquals(0, staged.unreadable)

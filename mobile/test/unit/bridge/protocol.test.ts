@@ -17,7 +17,6 @@ const route: RouteRecord = {
   id: routeId,
   createdAt: "2026-10-01T09:00:00.000Z",
   mode: "loop",
-  travelMode: "walk",
   targetDistanceM: 5000,
   waypoints: [
     { lat: 10, lng: 20 },
@@ -35,7 +34,6 @@ const bareRoute: RouteRecord = {
   id: routeId,
   createdAt: "2026-10-01T09:00:00Z",
   mode: "p2p",
-  travelMode: "bike",
   waypoints: route.waypoints,
   coords: [
     [20, 10],
@@ -47,7 +45,6 @@ const bareRoute: RouteRecord = {
 
 const activity = {
   id: activityId,
-  travelMode: "walk",
   startedAt: "2026-10-01T09:00:00.000Z",
   endedAt: "2026-10-01T10:00:00.000Z",
   routeId,
@@ -213,7 +210,6 @@ const nativeSamples = [
     items: [
       {
         id: activityId,
-        travelMode: "walk",
         startedAt: activity.startedAt,
         endedAt: activity.endedAt,
         stats: { durationS: 60, distanceM: 80 },
@@ -331,10 +327,6 @@ describe("protocol", () => {
         type: "sendRoute",
         route: { ...route, stats: { ...route.stats, distanceM: -1 } },
       }),
-    ],
-    [
-      "a route with an empty travel mode",
-      JSON.stringify({ v: 1, type: "sendRoute", route: { ...route, travelMode: "" } }),
     ],
     [
       "a route without a GPX",
@@ -711,7 +703,6 @@ describe("limits and ranges", () => {
   });
 
   it.each([
-    ["a travel mode over 32 characters", { travelMode: "x".repeat(33) }],
     ["a negative target distance", { targetDistanceM: -1 }],
     ["a negative duration", { stats: { ...route.stats, seconds: -1 } }],
     ["a negative ascent", { stats: { ...route.stats, ascentM: -1 } }],
@@ -724,6 +715,14 @@ describe("limits and ranges", () => {
     ],
   ])("refuses a route with %s", (_, over) => {
     expect(parseWebToNative(send({ ...route, ...over }))).toBeNull();
+  });
+
+  it("accepts a route that still names a travel mode, and drops it", () => {
+    expect(parseWebToNative(send({ ...route, travelMode: "hiking-mountain" }))).toEqual({
+      v: 1,
+      type: "sendRoute",
+      route,
+    });
   });
 
   it("accepts a route at the GPX, coordinate and waypoint caps", () => {
@@ -756,7 +755,6 @@ describe("limits and ranges", () => {
     ["a bad end date", { endedAt: "2026-10-01 10:00:00" }],
     ["a negative duration", { stats: { ...activity.stats, durationS: -1 } }],
     ["a negative distance", { stats: { ...activity.stats, distanceM: -1 } }],
-    ["a travel mode over 32 characters", { travelMode: "x".repeat(33) }],
   ])("refuses an activity with %s", (_, over) => {
     const msg = { v: 1, type: "activities", items: [{ ...activity, ...over }] };
     expect(parseNativeToWeb(JSON.stringify(msg))).toBeNull();

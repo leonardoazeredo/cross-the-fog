@@ -11,7 +11,6 @@ class FrameException(message: String) : Exception(message)
 data class ActivityOffer(
   val activityId: String,
   val routeId: String?,
-  val travelMode: String,
   val encoderVersion: String,
   val gpx: String,
 ) {
@@ -22,7 +21,6 @@ data class ActivityOffer(
   fun summary(): Map<String, Any?> = buildMap {
     put("activityId", activityId)
     if (routeId != null) put("routeId", routeId)
-    put("travelMode", travelMode)
     put("encoderVersion", encoderVersion)
   }
 }
@@ -30,20 +28,20 @@ data class ActivityOffer(
 data class RouteOffer(
   val routeId: String,
   val name: String,
-  val travelMode: String,
   val createdAt: String,
   val gpx: String,
 ) {
   override fun toString() = "RouteOffer"
 }
 
+// Frames staged or queued by an older build still carry a travelMode key; the parsers read named
+// fields only, so they parse as before.
 object Frames {
   fun parseActivityOffer(bytes: ByteArray): ActivityOffer {
     val o = parseObject(bytes)
     return ActivityOffer(
       activityId = o.uuid("activityId"),
       routeId = if (o.isMissing("routeId")) null else o.uuid("routeId"),
-      travelMode = o.text("travelMode", 32),
       encoderVersion = o.text("encoderVersion", 64),
       gpx = o.text("gpx", MAX_FRAME_BYTES),
     )
@@ -54,7 +52,6 @@ object Frames {
     return RouteOffer(
       routeId = o.uuid("routeId"),
       name = o.text("name", 255),
-      travelMode = o.text("travelMode", 32),
       createdAt = o.text("createdAt", 64),
       gpx = o.text("gpx", MAX_FRAME_BYTES),
     )

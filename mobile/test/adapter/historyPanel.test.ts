@@ -54,7 +54,6 @@ const ROUTE = "44444444-4444-4444-8444-444444444444";
 function summary(id: string, startedAt: string, over: Partial<ActivitySummary> = {}) {
   return {
     id,
-    travelMode: "walk",
     startedAt,
     endedAt: startedAt,
     stats: { durationS: 3725, distanceM: 4321, steps: 5400 },
@@ -168,12 +167,11 @@ describe("History tab", () => {
     expect(cards()[0]?.textContent).not.toContain("steps");
   });
 
-  it("shows what the watch called the travel mode as text, never as markup", () => {
-    panel.setActivities([
-      summary(A, "2026-03-01T10:00:00Z", { travelMode: "<img src=x onerror=boom()>" }),
-    ]);
-    expect(document.querySelector("#historyList img")).toBeNull();
-    expect(cards()[0]?.textContent).toContain("<img src=x");
+  it("heads a card with its start time and no travel mode", () => {
+    panel.setActivities([summary(A, "2026-03-01T10:00:00Z")]);
+    const head = cards()[0]?.querySelector(".histTop");
+    expect(head?.textContent).toMatch(/2026/);
+    expect(head?.textContent).not.toMatch(/walk|run|bike/i);
   });
 
   it("asks for the track when a card is tapped and shows the detail", () => {
@@ -416,7 +414,10 @@ describe("Send to watch", () => {
     expect(msg.type).toBe("sendRoute");
     expect(msg.route.gpx).toContain(`<keywords>crossfog-route:${msg.route.id}</keywords>`);
     expect(msg.route.id).toBe(route.routeRecord()?.id);
-    expect(parseWebToNative(encode(msg))).toEqual(msg);
+    // route.js may still add a travelMode; the bridge schema strips unknown keys, so the parsed
+    // route is the sent one without it.
+    const { travelMode: _mode, ...kept } = msg.route as typeof msg.route & { travelMode?: string };
+    expect(parseWebToNative(encode(msg))).toEqual({ ...msg, route: kept });
   });
 
   it("shows what the phone reports for the route it sent", () => {

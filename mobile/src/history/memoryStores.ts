@@ -24,10 +24,9 @@ export function createMemoryActivityStore(): ActivityStore {
     async list() {
       return [...byId.values()]
         .sort((a, b) => newestFirst({ at: a.startedAt, id: a.id }, { at: b.startedAt, id: b.id }))
-        .map(({ id, travelMode, startedAt, endedAt, routeId, stats }) =>
+        .map(({ id, startedAt, endedAt, routeId, stats }) =>
           copy({
             id,
-            travelMode,
             startedAt,
             endedAt,
             ...(routeId === undefined ? {} : { routeId }),
@@ -67,12 +66,11 @@ export function createMemoryRouteStore(deps: { now?: () => Date } = {}): RouteSt
       return [...byId.values()]
         .sort((a, b) => newestFirst({ at: a.createdAt, id: a.id }, { at: b.createdAt, id: b.id }))
         .map(
-          ({ id, createdAt, mode, travelMode, targetDistanceM, stats, sentAt }): RouteSummary =>
+          ({ id, createdAt, mode, targetDistanceM, stats, sentAt }): RouteSummary =>
             copy({
               id,
               createdAt,
               mode,
-              travelMode,
               ...(targetDistanceM === undefined ? {} : { targetDistanceM }),
               stats,
               ...(sentAt === undefined ? {} : { sentAt }),

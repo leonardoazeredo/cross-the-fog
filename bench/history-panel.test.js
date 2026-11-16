@@ -5,7 +5,7 @@
 const assert = require("node:assert/strict");
 global.window = global;
 require("../app/src/history.js");
-const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, modeLabel, statLines, formatStart } = global.HistoryPanel;
+const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines, formatStart } = global.HistoryPanel;
 
 // duration
 {
@@ -40,14 +40,6 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, modeLabel,
   assert.equal(formatPace(null, "metric"), null);
 }
 
-// travel mode
-{
-  assert.equal(modeLabel("walk"), "Walk");
-  assert.equal(modeLabel("hiking-mountain"), "Walk");
-  assert.equal(modeLabel("trekking"), "Mountain bike");
-  assert.equal(modeLabel("some-new-mode"), "some-new-mode", "an unknown mode shows as the watch named it");
-}
-
 // start time
 {
   const s = formatStart("2026-03-03T10:05:00Z", "en-GB", "UTC");
@@ -58,7 +50,7 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, modeLabel,
 
 // the lines under a card's title
 {
-  const base = { id: "11111111-1111-4111-8111-111111111111", travelMode: "walk", startedAt: "2026-03-03T10:00:00Z", endedAt: "2026-03-03T11:02:05Z" };
+  const base = { id: "11111111-1111-4111-8111-111111111111", startedAt: "2026-03-03T10:00:00Z", endedAt: "2026-03-03T11:02:05Z" };
   const full = { ...base, stats: { durationS: 3725, distanceM: 4321, paceSPerKm: 862, steps: 5400, heartRateAvg: 112.4, heartRateMax: 141 } };
   assert.deepEqual(statLines(full, "metric"), ["4.3 km", "1 h 02 min", "14:22 /km", "5400 steps", "♥ 112 avg · 141 max"]);
 

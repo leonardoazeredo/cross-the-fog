@@ -3,7 +3,6 @@ import type { Activity, RouteRecord } from "../../../src/history/types.js";
 export function activity(over: Partial<Activity> = {}): Activity {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    travelMode: "walk",
     startedAt: "2026-03-01T10:00:00Z",
     endedAt: "2026-03-01T11:00:00Z",
     stats: { durationS: 3600, distanceM: 4200, steps: 5000 },
@@ -23,7 +22,6 @@ export function route(over: Partial<RouteRecord> = {}): RouteRecord {
     id: "22222222-2222-4222-8222-222222222222",
     createdAt: "2026-03-01T09:00:00Z",
     mode: "loop",
-    travelMode: "walk",
     targetDistanceM: 5000,
     waypoints: [
       { lat: 48.1, lng: 11.5 },

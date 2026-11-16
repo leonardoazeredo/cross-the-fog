@@ -20,7 +20,7 @@ export type StoredRoute = RouteRecord & { sentAt?: string };
  */
 export type RouteSummary = Pick<
   StoredRoute,
-  "id" | "createdAt" | "mode" | "travelMode" | "targetDistanceM" | "stats" | "sentAt"
+  "id" | "createdAt" | "mode" | "targetDistanceM" | "stats" | "sentAt"
 >;
 
 /** `markSent` for an id the store does not hold; the id is a property, never in the message. */

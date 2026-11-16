@@ -23,7 +23,7 @@ function gpx(start: string): string {
 }
 
 function offer(id: string, start: string, over: Partial<ActivityOffer> = {}): ActivityOffer {
-  return { activityId: id, travelMode: "walk", encoderVersion: "enc-1", gpx: gpx(start), ...over };
+  return { activityId: id, encoderVersion: "enc-1", gpx: gpx(start), ...over };
 }
 
 function setup() {
@@ -43,7 +43,6 @@ describe("hand-off", () => {
     const stored = await activities.get(A);
     expect(stored).toMatchObject({
       id: A,
-      travelMode: "walk",
       routeId: ROUTE,
       startedAt: "2026-03-01T10:00:00.000Z",
       endedAt: "2026-03-01T10:00:03.000Z",

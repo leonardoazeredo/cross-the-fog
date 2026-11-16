@@ -16,6 +16,6 @@ export async function addActivityFromGpx(deps: AddActivityDeps): Promise<void> {
   if (gpx === null) return;
   // An offer the hand-off cannot parse would stay staged for good.
   parseGpx(gpx);
-  await deps.stage({ activityId: deps.newId(), travelMode: "walk", encoderVersion: "dev", gpx });
+  await deps.stage({ activityId: deps.newId(), encoderVersion: "dev", gpx });
   await deps.handOff.run();
 }

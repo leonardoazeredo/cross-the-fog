@@ -13,7 +13,7 @@ class FramesTest {
   private fun activity(
     activityId: String? = "\"$id\"",
     routeId: String? = "\"$route\"",
-    travelMode: String? = "\"walk\"",
+    travelMode: String? = null,
     encoderVersion: String? = "\"1\"",
     gpx: String? = "\"<gpx/>\"",
   ): ByteArray {
@@ -30,7 +30,14 @@ class FramesTest {
   @Test
   fun parsesAnActivityOffer() {
     val offer = Frames.parseActivityOffer(activity())
-    assertEquals(ActivityOffer(id, route, "walk", "1", "<gpx/>"), offer)
+    assertEquals(ActivityOffer(id, route, "1", "<gpx/>"), offer)
+  }
+
+  @Test
+  fun anOfferStagedWithATravelModeStillParses() {
+    val offer = Frames.parseActivityOffer(activity(travelMode = "\"walk\""))
+    assertEquals(ActivityOffer(id, route, "1", "<gpx/>"), offer)
+    assertFalse(offer.summary().containsKey("travelMode"))
   }
 
   @Test
@@ -42,7 +49,7 @@ class FramesTest {
   @Test
   fun theSummaryCarriesNoTrackAndOmitsAMissingRouteId() {
     val summary = Frames.parseActivityOffer(activity(routeId = null)).summary()
-    assertEquals(setOf("activityId", "travelMode", "encoderVersion"), summary.keys)
+    assertEquals(setOf("activityId", "encoderVersion"), summary.keys)
     assertFalse(summary.containsKey("gpx"))
   }
 
@@ -53,8 +60,6 @@ class FramesTest {
       activity(activityId = "\"../x\""),
       activity(activityId = "5"),
       activity(routeId = "\"nope\""),
-      activity(travelMode = "\"\""),
-      activity(travelMode = "\"${"x".repeat(33)}\""),
       activity(encoderVersion = null),
       activity(encoderVersion = "\"${"x".repeat(65)}\""),
       activity(gpx = "\"\""),
@@ -125,14 +130,20 @@ class FramesTest {
 
   @Test
   fun parsesARouteOffer() {
+    val json = """{"routeId":"$route","name":"Route","createdAt":"2026-10-21T10:00:00Z","gpx":"<gpx/>"}"""
+    assertEquals(RouteOffer(route, "Route", "2026-10-21T10:00:00Z", "<gpx/>"), Frames.parseRouteOffer(json.toByteArray()))
+  }
+
+  @Test
+  fun aRouteQueuedWithATravelModeStillParses() {
     val json = """{"routeId":"$route","name":"Route","travelMode":"run","createdAt":"2026-10-21T10:00:00Z","gpx":"<gpx/>"}"""
-    assertEquals(RouteOffer(route, "Route", "run", "2026-10-21T10:00:00Z", "<gpx/>"), Frames.parseRouteOffer(json.toByteArray()))
+    assertEquals(RouteOffer(route, "Route", "2026-10-21T10:00:00Z", "<gpx/>"), Frames.parseRouteOffer(json.toByteArray()))
   }
 
   @Test
   fun rejectsARouteOfferWithABadField() {
-    val ok = mapOf("routeId" to "\"$route\"", "name" to "\"R\"", "travelMode" to "\"run\"", "createdAt" to "\"t\"", "gpx" to "\"g\"")
-    for ((field, value) in listOf("routeId" to "\"../x\"", "name" to "\"\"", "travelMode" to "1", "createdAt" to "null", "gpx" to "\"\"")) {
+    val ok = mapOf("routeId" to "\"$route\"", "name" to "\"R\"", "createdAt" to "\"t\"", "gpx" to "\"g\"")
+    for ((field, value) in listOf("routeId" to "\"../x\"", "name" to "\"\"", "createdAt" to "null", "gpx" to "\"\"")) {
       val json = (ok + (field to value)).entries.joinToString(",", "{", "}") { "\"${it.key}\":${it.value}" }
       assertThrows(field, FrameException::class.java) { Frames.parseRouteOffer(json.toByteArray()) }
     }

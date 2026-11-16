@@ -4,14 +4,12 @@ import type { RouteRecord } from "../bridge/protocol.js";
 export const linkStatusSchema = z.object({ paired: z.boolean(), reachable: z.boolean() });
 
 const uuid = z.uuid();
-const travelMode = z.string().min(1).max(32);
 const encoderVersion = z.string().min(1).max(64);
 
 /** What the list of staged activities carries; the file stays behind `readActivity`. */
 export const pendingActivitySchema = z.object({
   activityId: uuid,
   routeId: uuid.optional(),
-  travelMode,
   encoderVersion,
 });
 

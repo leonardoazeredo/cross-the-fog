@@ -10,7 +10,6 @@ interface Row {
   id: string;
   created_at: string;
   mode: StoredRoute["mode"];
-  travel_mode: string;
   target_distance_m: number | null;
   waypoints_json: string;
   coords_json: string;
@@ -24,7 +23,6 @@ function toSummary(r: Omit<Row, "waypoints_json" | "coords_json" | "gpx">): Rout
     id: r.id,
     createdAt: r.created_at,
     mode: r.mode,
-    travelMode: r.travel_mode,
     ...(r.target_distance_m === null ? {} : { targetDistanceM: r.target_distance_m }),
     stats: JSON.parse(r.stats_json),
     ...(r.sent_at === null ? {} : { sentAt: r.sent_at }),
@@ -37,13 +35,12 @@ export function createRouteStore(db: SqlDriver, deps: { now?: () => Date } = {})
     async save(r) {
       await db.run(
         `INSERT OR REPLACE INTO routes
-           (id, created_at, mode, travel_mode, target_distance_m, waypoints_json, coords_json, stats_json, gpx, sent_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+           (id, created_at, mode, target_distance_m, waypoints_json, coords_json, stats_json, gpx, sent_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
         [
           r.id,
           r.createdAt,
           r.mode,
-          r.travelMode,
           r.targetDistanceM ?? null,
           JSON.stringify(r.waypoints),
           JSON.stringify(r.coords),
@@ -66,7 +63,7 @@ export function createRouteStore(db: SqlDriver, deps: { now?: () => Date } = {})
 
     async list() {
       const rows = await db.all<Omit<Row, "waypoints_json" | "coords_json" | "gpx">>(
-        "SELECT id, created_at, mode, travel_mode, target_distance_m, stats_json, sent_at FROM routes ORDER BY julianday(created_at) DESC, id DESC",
+        "SELECT id, created_at, mode, target_distance_m, stats_json, sent_at FROM routes ORDER BY julianday(created_at) DESC, id DESC",
       );
       return rows.map(toSummary);
     },

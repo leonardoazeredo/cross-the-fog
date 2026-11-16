@@ -59,7 +59,6 @@ export function createHandOffFlow(deps: HandOffDeps): HandOffFlow {
       }
       activity = {
         id: offer.activityId,
-        travelMode: offer.travelMode,
         startedAt: parsed.startedAt,
         endedAt: parsed.endedAt,
         ...(offer.routeId === undefined ? {} : { routeId: offer.routeId }),
