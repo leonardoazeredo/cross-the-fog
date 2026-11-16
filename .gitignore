@@ -16,6 +16,9 @@ design/
 bench/cache/
 bench/out/
 
+# Built from mobile/ sources by `pnpm generate`; a fresh clone gets it from that step, not git
+/generated/
+
 # Local-only Claude settings and scratch config
 .claude/
 .superpowers/

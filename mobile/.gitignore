@@ -2,7 +2,6 @@
 /modules/*/android/build/
 /modules/*/android/.cxx/
 /ios
-generated/
 test/fixtures/out/
 reports/
 .stryker-tmp/
