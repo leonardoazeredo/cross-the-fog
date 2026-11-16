@@ -378,6 +378,25 @@ describe("a store that fails after it opened", () => {
     },
   );
 
+  it.each(writes)(
+    "a %s that aborts with no request error (a full disk) settles and logs the abort's name",
+    async (_name, call) => {
+      const t = tx({});
+      t.error = { name: "QuotaExceededError" };
+      t.objectStore = () => ({ put: () => ({}), clear: () => ({}), delete: () => ({}) });
+      const c = await openFogCache(
+        stubFactory(() => {
+          queueMicrotask(() => queueMicrotask(() => t.onabort?.()));
+          return t;
+        }),
+        true,
+      );
+      expect(await settles(call(c))).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(warn.mock.calls)).toContain("QuotaExceededError");
+    },
+  );
+
   it("an abort after a write completed logs nothing", async () => {
     const t = tx({});
     t.objectStore = () => ({ put: () => ({}), clear: () => ({}), delete: () => ({}) });
