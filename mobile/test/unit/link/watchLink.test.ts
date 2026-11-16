@@ -49,6 +49,24 @@ describe("native watch link", () => {
     warn.mockRestore();
   });
 
+  it("counts a malformed pending entry as unreadable, until a listing without one", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const good = { activityId: id, encoderVersion: "1" };
+    const link = createNativeWatchLink();
+    native.unreadableActivities.mockResolvedValue(2);
+    native.pendingActivities.mockResolvedValue([
+      { ...good, activityId: "../secret" },
+      good,
+      { nope: 1 },
+    ]);
+    await link.pendingActivities();
+    await expect(link.unreadableActivities()).resolves.toBe(4);
+    native.pendingActivities.mockResolvedValue([good]);
+    await link.pendingActivities();
+    await expect(link.unreadableActivities()).resolves.toBe(2);
+    warn.mockRestore();
+  });
+
   it("returns the count of unreadable staged items and rejects anything but a whole number", async () => {
     native.unreadableActivities.mockResolvedValue(2);
     await expect(createNativeWatchLink().unreadableActivities()).resolves.toBe(2);
