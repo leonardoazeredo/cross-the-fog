@@ -451,7 +451,7 @@ const T = (x, y) => ({ x, y });
     assert.equal(puts, 1, "storeDown: no put after the first failed");
   }
   { // the cache name prefix is the tile grid's version: changing TILE_DEG (or the prefix) without the other fails here
-    assert.equal(StreetIndex.TILE_DEG, 0.025, "TILE_DEG changed: bump the \"2:\" prefix of the cache names in streetCache.js and update this pair");
+    assert.equal(StreetIndex.TILE_DEG, 0.025, "TILE_DEG changed: bump the version prefix of the cache names in streetCache.js and update this pair");
     const { network } = fakeNetwork();
     const store = TileStore.memory({ maxEntries: 10 });
     await StreetCache.create({ store, network, now: () => 0 }).fetchStreets([T(1, 1)]);
