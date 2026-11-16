@@ -21,7 +21,7 @@ it("adds the generate task and makes the bundle tasks depend on it and its outpu
 it("declares every source the page is built from", () => {
   const out = applyReleaseBundleInputs(GRADLE);
   expect(out).toContain('inputs.dir("$crossfogRepo/app")');
-  expect(out).toContain('["web-adapter", "scripts", "licenses"]');
+  expect(out).toContain('["web-adapter", "src", "scripts", "licenses"]');
   expect(out).toContain('providers.environmentVariable("CROSSFOG_E2E")');
 });
 

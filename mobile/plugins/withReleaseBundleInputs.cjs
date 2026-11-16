@@ -19,7 +19,7 @@ tasks.register("generateCrossfogPage", Exec) {
     workingDir crossfogMobile
     commandLine "pnpm", "generate"
     inputs.dir("$crossfogRepo/app")
-    ["web-adapter", "scripts", "licenses"].each { inputs.dir("$crossfogMobile/$it") }
+    ["web-adapter", "src", "scripts", "licenses"].each { inputs.dir("$crossfogMobile/$it") }
     inputs.file("$crossfogMobile/package.json")
     inputs.file("$crossfogMobile/pnpm-lock.yaml")
     inputs.file("$crossfogRepo/LICENSE")

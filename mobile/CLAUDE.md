@@ -49,7 +49,7 @@ Android only. iOS is paused until the Android phone app and the Wear OS app are 
 
 ## Build and Maestro gotchas
 
-- `plugins/withReleaseBundleInputs.cjs` adds a Gradle `generateCrossfogPage` task (`pnpm generate`, with `app/`, `web-adapter/`, `scripts/`, `licenses/` and `CROSSFOG_E2E` as inputs) that the bundle tasks depend on, so a release build after a page edit holds the edit with no `--rerun` and no `rm -rf` of the bundle output, also from a raw `gradlew` or `expo run:android`; `pnpm` must be on the PATH Gradle runs with. To check an APK holds a change, grep its bundle: Hermes keeps some strings as UTF-16, so use `grep -a -c -P` on the spaced form.
+- `plugins/withReleaseBundleInputs.cjs` adds a Gradle `generateCrossfogPage` task (`pnpm generate`, with `app/`, `web-adapter/`, `src/` (the adapter imports from it), `scripts/`, `licenses/` and `CROSSFOG_E2E` as inputs) that the bundle tasks depend on, so a release build after a page edit holds the edit with no `--rerun` and no `rm -rf` of the bundle output, also from a raw `gradlew` or `expo run:android`; `pnpm` must be on the PATH Gradle runs with. To check an APK holds a change, grep its bundle: Hermes keeps some strings as UTF-16, so use `grep -a -c -P` on the spaced form.
 - `android-mcp`'s device-side helper holds the UiAutomation connection, so Maestro fails with "Android driver did not start up in time". Kill the `com.wetest.uia2.Main` process on the device before a Maestro run; the next `Snapshot` restarts it.
 - Maestro reports off-screen web view text as visible, so do not guard a swipe with `notVisible`. Use a fixed swipe, and assert that the app was left with `notVisible: "Expand or collapse panel"`.
 
