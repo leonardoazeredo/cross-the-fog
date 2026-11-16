@@ -1,5 +1,5 @@
-// A to B wanted-distance check across every routing profile, on the real fog.
-//   node bench/p2p-target.js [profileFilter]
+// A to B wanted-distance check on the real fog.
+//   node bench/p2p-target.js
 //   P2P_PINS="lat,lng;lat,lng" node bench/p2p-target.js   # pins near your own fog
 // Exits non-zero when a targeted case breaks a check: a result outside the window, an
 // empty result, a clamp or wantKm mismatch, or a fastest route that the header doesn't
@@ -12,40 +12,35 @@ const { makeGain } = require("./lib/gain.js");
 const { runSuggest } = require("./lib/headless.js");
 const { p2pWindow } = SuggestTool._internals;
 
-// the profiles behind the data-p buttons in app/index.html
-const PROFILES = ["trekking", "fastbike", "hiking-mountain", "shortest"];
 const pins = (process.env.P2P_PINS || "51.0681,13.7543;51.0590,13.7829")
   .split(";").map((p) => p.split(",").map(Number));
-const filter = process.argv[2] || "";
-
 let failed = 0;
-const say = (profile, label, verdict, detail) =>
-  console.log(`${verdict.padEnd(4)} ${profile.padEnd(16)} ${label.padEnd(18)} ${detail || ""}`);
+const say = (label, verdict, detail) =>
+  console.log(`${verdict.padEnd(4)} ${label.padEnd(18)} ${detail || ""}`);
 
 (async () => {
   const { fogMap } = loadSync(path.join(__dirname, "..", "Sync"));
   const gain = makeGain(fogMap, FogParser);
-  const run = (profile, buffer, targetM) =>
-    runSuggest(fogMap, gain, { mode: "p2p", a: pins[0], b: pins[1], profile, buffer, targetM });
+  const run = (buffer, targetM) =>
+    runSuggest(fogMap, gain, { mode: "p2p", a: pins[0], b: pins[1], buffer, targetM });
   // informational, does not affect PASS/FAIL
   const extra = (o) => o.results.length
     ? ` | retr max ${Math.max(...o.results.map((r) => r.retracePct))}%, best ${Math.round(Math.max(...o.results.map((r) => r.areaPerKm)))} m2/km, ${o.requests} req`
     : "";
   const kms = (o) => o.results.map((r) => +(r.lenM / 1000).toFixed(2)).join(", ") || "none";
 
-  for (const profile of PROFILES) {
-    if (filter && !profile.includes(filter)) continue;
+  {
     let plain;
-    try { plain = await run(profile, 0.15, 0); } catch (e) { say(profile, "untargeted", "SKIP", e.message); continue; }
+    try { plain = await run(0.15, 0); } catch (e) { say("untargeted", "SKIP", e.message); process.exit(0); }
     if (plain.state.error || plain.state.baseKm == null) {
-      say(profile, "untargeted", "SKIP", plain.state.error ? "routing error" : "no baseline");
-      continue;
+      say("untargeted", "SKIP", plain.state.error ? "routing error" : "no baseline");
+      process.exit(0);
     }
     const baseM = plain.state.baseKm * 1000;
     if (!(plain.state.baseKm > 0) || plain.state.empty) {
-      say(profile, "untargeted", "WARN", `no cards (${plain.state.reason || "empty"}), fog around the pins may be fully defogged`);
+      say("untargeted", "WARN", `no cards (${plain.state.reason || "empty"}), fog around the pins may be fully defogged`);
     } else {
-      say(profile, "untargeted", "PASS", `fastest ${plain.state.baseKm.toFixed(2)} km, cards ${kms(plain)}${extra(plain)}`);
+      say("untargeted", "PASS", `fastest ${plain.state.baseKm.toFixed(2)} km, cards ${kms(plain)}${extra(plain)}`);
     }
 
     const cases = [
@@ -57,9 +52,9 @@ const say = (profile, label, verdict, detail) =>
     for (const c of cases) {
       const win = p2pWindow(baseM, c.targetM, c.buffer);
       let o;
-      try { o = await run(profile, c.buffer, c.targetM); } catch (e) { say(profile, c.label, "SKIP", e.message); continue; }
+      try { o = await run(c.buffer, c.targetM); } catch (e) { say(c.label, "SKIP", e.message); continue; }
       const s = o.state;
-      if (s.error) { say(profile, c.label, "SKIP", "routing error"); continue; }
+      if (s.error) { say(c.label, "SKIP", "routing error"); continue; }
       const problems = [];
       if (s.empty) problems.push(`empty (${s.reason})`); // counted as a failure; only expected where the corridor is fully defogged, check by hand
       for (const r of o.results) {
@@ -77,7 +72,7 @@ const say = (profile, label, verdict, detail) =>
         problems.push("only the fastest route shown but fallback not flagged");
       if (s.fallback && !(o.results.length === 1 && o.results[0].isBase)) problems.push("fallback flagged with other cards");
       if (problems.length) failed++;
-      say(profile, c.label, problems.length ? "FAIL" : "PASS", `${problems.join("; ")} cards ${kms(o)}${s.fallback ? " (fallback)" : ""}${extra(o)}`);
+      say(c.label, problems.length ? "FAIL" : "PASS", `${problems.join("; ")} cards ${kms(o)}${s.fallback ? " (fallback)" : ""}${extra(o)}`);
     }
   }
   process.exit(failed ? 1 : 0);

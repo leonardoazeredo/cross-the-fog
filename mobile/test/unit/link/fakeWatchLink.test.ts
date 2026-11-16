@@ -5,7 +5,6 @@ import { route as routeRecord } from "../history/fixtures";
 
 const offer = (n: number, extra: Partial<ActivityOffer> = {}): ActivityOffer => ({
   activityId: `0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a000${n}`,
-  travelMode: "walk",
   encoderVersion: "1",
   gpx: `<gpx>${n}</gpx>`,
   ...extra,
@@ -19,7 +18,7 @@ describe("fake watch link", () => {
     link.stage(offer(1));
     expect(seen).toHaveBeenCalledExactlyOnceWith({ activityId: offer(1).activityId });
     expect(await link.pendingActivities()).toEqual([
-      { activityId: offer(1).activityId, travelMode: "walk", encoderVersion: "1" },
+      { activityId: offer(1).activityId, encoderVersion: "1" },
     ]);
   });
 
@@ -109,9 +108,9 @@ describe("fake watch link", () => {
     const link = createFakeWatchLink();
     link.stage(offer(1));
     const [first] = await link.pendingActivities();
-    Object.assign(first ?? {}, { travelMode: "run" });
+    Object.assign(first ?? {}, { encoderVersion: "2" });
     expect(await link.pendingActivities()).toEqual([
-      { activityId: offer(1).activityId, travelMode: "walk", encoderVersion: "1" },
+      { activityId: offer(1).activityId, encoderVersion: "1" },
     ]);
   });
 });

@@ -61,7 +61,7 @@ function setupWithRestore(restore: (swap: () => void) => Promise<boolean>) {
 describe("composed flows", () => {
   it("hands off what is already staged when started and publishes the history", async () => {
     const { link, sent, flows } = setup();
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     sent.length = 0;
     flows.start();
     await settle();
@@ -78,13 +78,13 @@ describe("composed flows", () => {
     const stop = flows.start();
     await settle();
 
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     await settle();
     expect(await activities.get(A)).not.toBeNull();
 
     stop();
     const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    link.stage({ activityId: B, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: B, encoderVersion: "e", gpx: GPX });
     await settle();
     expect(await activities.get(B)).toBeNull();
   });
@@ -113,7 +113,7 @@ describe("composed flows", () => {
 
   it("hands off now and publishes once an activity was stored", async () => {
     const { link, activities, sent, flows } = setup();
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     sent.length = 0;
 
     await flows.handOffNow();
@@ -209,14 +209,14 @@ describe("composed flows", () => {
 
   it("finishes the hand-off that was running when stopped, and starts no other", async () => {
     const { link, activities, flows } = setup();
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     const stop = flows.start();
     stop();
     await settle();
     expect(await activities.get(A)).not.toBeNull();
 
     const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    link.stage({ activityId: B, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: B, encoderVersion: "e", gpx: GPX });
     await settle();
     expect(await activities.get(B)).toBeNull();
   });
@@ -244,7 +244,7 @@ describe("composed flows", () => {
     });
     const { link, activities, flows } = setupWithRestore(async (swap) => {
       await confirmation;
-      link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+      link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
       await flows.handOffNow();
       swap();
       return true;
@@ -291,7 +291,7 @@ describe("composed flows", () => {
       },
       now: () => 0,
     });
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     const handOff = flows.handOffNow();
     await settle();
 
@@ -316,7 +316,7 @@ describe("composed flows", () => {
 
     const restored = flows.restore();
     await settle();
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     await settle();
     expect(await activities.get(A)).toBeNull();
 
@@ -340,7 +340,7 @@ describe("composed flows", () => {
 
     const restored = flows.restore();
     await settle();
-    link.stage({ activityId: A, travelMode: "walk", encoderVersion: "e", gpx: GPX });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     await settle();
     expect(await activities.get(A)).toBeNull();
     expect(await link.pendingActivities()).toHaveLength(1);

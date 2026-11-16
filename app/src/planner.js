@@ -65,7 +65,7 @@
     };
   }
 
-  // usable: wayId -> may this travel class use the way; dirOf: wayId -> 1 when the way
+  // usable: wayId -> may the graph hold the way; dirOf: wayId -> 1 when the way
   // may only be travelled along its node order, -1 against it, 0 both ways
   // fogVersion: () -> a number that changes whenever the fog does; the graph's rewards are rebuilt when it moves
   function GraphPlanner(streets, newFrac, usable, dirOf, fogVersion) {

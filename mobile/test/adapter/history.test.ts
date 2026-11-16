@@ -91,7 +91,6 @@ function summary(
 ): ActivitySummary {
   return {
     id,
-    travelMode: "walk",
     startedAt: "2026-01-01T10:00:00Z",
     endedAt: changes.endedAt ?? "2026-01-01T11:00:00Z",
     stats: { durationS: 3600, distanceM: changes.distanceM ?? 1000 },

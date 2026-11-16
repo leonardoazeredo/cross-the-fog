@@ -22,13 +22,13 @@ function fresh(opts) { return new RouteTool(global.fakeMap(), opts || {}); }
 
 // a handed-over route
 {
-  const tool = fresh({ profile: "hiking-mountain" });
+  const tool = fresh();
   tool.setFixedRoute(pins, C, stats);
   const rec = tool.routeRecord();
   assert.match(rec.id, UUID);
   assert.match(rec.createdAt, ISO);
   assert.equal(rec.mode, "p2p", "start and end are apart");
-  assert.equal(rec.travelMode, "hiking-mountain");
+  assert.equal("travelMode" in rec, false, "a route has no travel mode");
   assert.deepEqual(rec.waypoints, [{ lat: 51, lng: 13.7 }, { lat: 51, lng: 13.71 }]);
   assert.deepEqual(rec.coords, C);
   assert.deepEqual(rec.stats, { distanceM: 700, seconds: 520, ascentM: 3.5, descentM: 5 });

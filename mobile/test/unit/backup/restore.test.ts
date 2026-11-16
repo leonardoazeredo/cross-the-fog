@@ -1,6 +1,7 @@
-import { writeFileSync } from "node:fs";
+import { copyFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackupFlow } from "../../../src/backup/backup.js";
 import { createDatabaseReplacer } from "../../../src/backup/replace.js";
@@ -166,6 +167,28 @@ describe("restore flow", () => {
     expect(await ids(target)).toEqual([activity().id]);
     expect(await createActivityStore(target.db).gpx(activity().id)).toBe(gpx);
     expect((await target.fogStore.current())?.name).toBe("Sync.zip");
+  });
+
+  // A backup a first-release phone wrote (schema 1, with a travel mode), the one history-release.yaml restores.
+  it("restores the saved schema-1 backup fixture, whose walk still lists and reads", async () => {
+    const fixture = fileURLToPath(
+      new URL("../../fixtures/history-walk-backup.db", import.meta.url),
+    );
+    const r = restore({
+      copyFromUri: async (_u, dest) => {
+        copyFileSync(fixture, dest);
+        return { size: statSync(fixture).size, head: PLAIN };
+      },
+    });
+    expect(await r.run()).toBe("restored");
+    const [v] = await target.db.all<{ user_version: number }>("PRAGMA user_version");
+    expect(v?.user_version).toBe(SCHEMA_VERSION);
+    const store = createActivityStore(target.db);
+    const [walk, ...rest] = await store.list();
+    expect(rest).toEqual([]);
+    expect(walk).not.toHaveProperty("travelMode");
+    expect((await store.get(walk?.id as string))?.track.length).toBeGreaterThan(1);
+    expect(await store.gpx(walk?.id as string)).toMatch(/<trkpt/);
   });
 
   it("calls a backup from a newer schema not a backup", async () => {

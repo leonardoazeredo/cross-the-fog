@@ -4,7 +4,6 @@ import type { ActivityDetail, ActivityStore, ActivitySummary } from "./types.js"
 
 interface Row {
   id: string;
-  travel_mode: string;
   started_at: string;
   ended_at: string;
   route_id: string | null;
@@ -15,14 +14,13 @@ interface Row {
   encoder_version: string;
 }
 
-const SUMMARY_COLUMNS = "id, travel_mode, started_at, ended_at, route_id, stats_json";
+const SUMMARY_COLUMNS = "id, started_at, ended_at, route_id, stats_json";
 
 function toSummary(
-  r: Pick<Row, "id" | "travel_mode" | "started_at" | "ended_at" | "route_id" | "stats_json">,
+  r: Pick<Row, "id" | "started_at" | "ended_at" | "route_id" | "stats_json">,
 ): ActivitySummary {
   return {
     id: r.id,
-    travelMode: r.travel_mode,
     startedAt: r.started_at,
     endedAt: r.ended_at,
     ...(r.route_id === null ? {} : { routeId: r.route_id }),
@@ -35,12 +33,11 @@ export function createActivityStore(db: SqlDriver): ActivityStore {
     async add(a) {
       const { changes } = await db.run(
         `INSERT INTO activities
-           (id, travel_mode, started_at, ended_at, route_id, gpx_deflated, track_json, stats_json, received_at, encoder_version)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, started_at, ended_at, route_id, gpx_deflated, track_json, stats_json, received_at, encoder_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING`,
         [
           a.id,
-          a.travelMode,
           a.startedAt,
           a.endedAt,
           a.routeId ?? null,

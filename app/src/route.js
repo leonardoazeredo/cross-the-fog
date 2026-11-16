@@ -33,9 +33,8 @@
   function RouteTool(map, opts) {
     opts = opts || {};
     this.map = map;
-    this.profile = opts.profile || "trekking";
     this.onChange = opts.onChange || null;       // stats
-    this.routeWaypoints = opts.routeWaypoints || null; // (pins [{lat,lng}], travelMode, onProgress({done, total})) -> Promise<{coords, stats} | {error, why}>
+    this.routeWaypoints = opts.routeWaypoints || null; // (pins [{lat,lng}], onProgress({done, total}), stale()) -> Promise<{coords, stats} | {error, why}>
     this.onWaypoints = opts.onWaypoints || null; // waypoint list changed
     this.isNew = opts.isNew || null;         // (lon,lat) -> true if the point is new ground
     this.fogReady = opts.fogReady || null;   // () -> is fog data loaded?
@@ -95,7 +94,6 @@
     this.map.getContainer().style.cursor = on ? "crosshair" : "";
   };
 
-  RouteTool.prototype.setProfile = function (p) { this.profile = p; this._recalc(); };
 
   RouteTool.prototype._makeWp = function (latlng, index) {
     const marker = L.marker(latlng, { draggable: true, icon: wpIcon(index + 1) }).addTo(this.map);
@@ -347,7 +345,7 @@
     // {done, total}, with waitUntil while a busy server is waited out
     const onProgress = (p) => { if (!stale()) this._emit(Object.assign({ points: this.wps.length, loading: true }, p)); };
     let res;
-    try { res = this.routeWaypoints ? await this.routeWaypoints(pins, this.profile, onProgress, stale) : INTERNAL; }
+    try { res = this.routeWaypoints ? await this.routeWaypoints(pins, onProgress, stale) : INTERNAL; }
     catch (e) {
       // the class only: an error message can carry tile numbers, which locate the route
       console.error("[route] routeWaypoints threw", e && e.name);
@@ -398,7 +396,7 @@
 
   // ----- export ----------------------------------------------------------------
   RouteTool.prototype.toGPX = function () {
-    const name = "FogToMaps route (" + this.profile + ")";
+    const name = "FogToMaps route";
     // GPX 1.1 metadata keywords carry the route id, so no extension namespace is needed; the watch reads it back to match an activity to this route
     const keywords = /^[0-9a-f-]{36}$/i.test(this.routeId) ? `\n    <keywords>crossfog-route:${this.routeId}</keywords>` : "";
     const pts = this.routeCoords.map((c) => {
@@ -441,7 +439,6 @@ ${pts}
       id: this.routeId,
       createdAt: this.routeCreatedAt,
       mode: closed ? "loop" : "p2p",
-      travelMode: this.profile,
       waypoints: pins,
       coords: this.routeCoords.map((c) => (Number.isFinite(c[2]) ? [wrapLng(c[0]), clampLat(c[1]), c[2]] : [wrapLng(c[0]), clampLat(c[1])])),
       stats: { distanceM: s.km * 1000, seconds: num(s.seconds), ascentM: num(s.ascent), descentM: num(s.descent) },

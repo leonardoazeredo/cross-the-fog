@@ -1,19 +1,15 @@
-// Distance, filtered ascent and travel time for a routed line, ported from BRouter (MIT, see
+// Distance, filtered ascent and walking time for a routed line, ported from BRouter (MIT, see
 // mobile/licenses/brouter-LICENSE.txt): CheapRuler, RoutingEngine.recalcTrack, StdPath.computeKinematic.
 // Arithmetic follows BRouter's int and float steps; bench/estimates.test.js holds the figures against its
 // recorded answers. Ascent differs by the filter choice noted at DEFAULT_ASCENT_FILTER_M.
 (function (global) {
   const SCALE_BUCKET = 100000; // ilat span of one cached cosine series
   const SCALE_BUCKETS = 1800;
-  const GRAVITY = 9.81;
   // BRouter picks 5 or 10 per node by its own elevation data (RoutingEngine.elevationFilter), which the phone
   // cannot know; 10 had half the mean ascent error of 5 over the local cache (see bench/estimates-cache.test.js)
   const DEFAULT_ASCENT_FILTER_M = 10;
 
-  const FOOT = { kind: "foot", maxSpeed: 6 / 3.6 };
-  // RoutingContext's defaults, which the trekking and fastbike profiles keep
-  const BIKE = { kind: "bike", maxSpeed: 45 / 3.6, totalMass: 90, sCx: 0.225, rollResistance: 0.01, bikerPower: 100 };
-  const MODES = { trekking: BIKE, fastbike: BIKE, "hiking-mountain": FOOT, shortest: FOOT };
+  const MAX_WALK_SPEED = 6 / 3.6; // m/s, on the gentle downhill where Tobler's function peaks
 
   const scaleCache = [];
   function scalesAt(ilat) {
@@ -74,25 +70,8 @@
     return Math.trunc(total);
   }
 
-  // StdPath.solveCubic: the speed at which a * v^3 + c * v = d, by Newton's method
-  // (start 8 m/s, doubled while the cubic's value minus d is below 0.1; BRouter's 10 iterations are kept)
-  function solveCubic(a, c, d) {
-    let v = 8;
-    let findingStart = true;
-    for (let i = 0; i < 10; i++) {
-      const y = (a * v * v + c) * v - d;
-      if (y < 0.1) {
-        if (findingStart) { v *= 2; continue; }
-        break;
-      }
-      findingStart = false;
-      v -= y / (3 * a * v * v + c);
-    }
-    return v;
-  }
-
   // StdPath.computeKinematic over every link; the buffer and the running time are floats in BRouter
-  function travelSeconds(links, heights, mode) {
+  function travelSeconds(links, heights) {
     const f32 = Math.fround;
     let buffer = 0;
     let total = 0;
@@ -105,20 +84,14 @@
       const incline = (buffer - next) / dist;
       buffer = next;
 
-      let speed = mode.maxSpeed;
-      if (mode.kind === "foot") {
-        // Tobler's hiking function
-        speed = mode.maxSpeed * Math.exp(-3.5 * Math.abs(incline + 0.05));
-      } else if (mode.kind === "bike") {
-        const roll = mode.totalMass * GRAVITY * (mode.rollResistance + incline);
-        speed = Math.min(solveCubic(mode.sCx, roll, mode.bikerPower), mode.maxSpeed);
-      }
+      // Tobler's hiking function
+      const speed = MAX_WALK_SPEED * Math.exp(-3.5 * Math.abs(incline + 0.05));
       total = f32(total + f32(dist / speed));
     }
     return total;
   }
 
-  // The filtered climb of a height profile, for callers that have heights and no travel mode.
+  // The filtered climb of a list of heights, for callers that have heights and no line.
   function climb(heights, opts) {
     const filterM = filterOf(opts);
     const h = fillHeights(heights.length, heights);
@@ -133,25 +106,22 @@
   }
 
   // The {km, seconds, ascent, descent} the route editor shows. With no real height the climb is null:
-  // a profile of zeros would claim flat ground.
+  // heights of zero would claim flat ground.
   function routeStats(est) {
     const known = est.elevationKnown > 0;
     return { km: est.distanceM / 1000, seconds: est.seconds, ascent: known ? est.ascentM : null, descent: known ? est.descentM : null };
   }
 
   // coords: [[lon, lat]]; elevation: metres per point (one per point, or empty), null where unknown, or omitted.
-  // opts.ascentFilterM overrides the default buffer. A travel mode that is not a string throws; a name with
-  // no model (a saved mode that was removed) gets distance and heights but `seconds: null`.
-  function estimate(coords, travelMode, elevation, opts) {
+  // opts.ascentFilterM overrides the default buffer.
+  function estimate(coords, elevation, opts) {
     if (!Array.isArray(coords)) throw new TypeError("estimate: coords must be an array");
     if (elevation != null && (!Array.isArray(elevation) || (elevation.length && elevation.length !== coords.length))) {
       throw new TypeError("estimate: elevation needs one entry per point");
     }
     const pts = coords;
-    // one NaN would turn every total into NaN, which serialises as null and reads as "no model"
+    // one NaN would turn every total into NaN, which serialises as null
     if (!pts.every((p) => p && Number.isFinite(p[0]) && Number.isFinite(p[1]))) throw new TypeError("estimate: every point needs a finite lon and lat");
-    if (typeof travelMode !== "string") throw new TypeError("estimate: travelMode must be a string");
-    const mode = Object.hasOwn(MODES, travelMode) ? MODES[travelMode] : null;
     const filterM = filterOf(opts);
     const heights = fillHeights(pts.length, elevation);
     const known = pts.reduce((n, _, i) => n + (Number.isFinite(elevation && elevation[i]) ? 1 : 0), 0);
@@ -166,7 +136,7 @@
     return {
       coords: pts.map((p, i) => [p[0], p[1], heights[i]]),
       distanceM: distance,
-      seconds: mode ? Math.round(travelSeconds(links, heights, mode)) : null,
+      seconds: Math.round(travelSeconds(links, heights)),
       ascentM: c.ascentM,
       descentM: c.descentM,
       // callers cannot otherwise tell flat ground from heights that never arrived
@@ -174,5 +144,5 @@
     };
   }
 
-  global.Estimates = { estimate, climb, routeStats, distanceM, MODES };
+  global.Estimates = { estimate, climb, routeStats, distanceM };
 })(window);

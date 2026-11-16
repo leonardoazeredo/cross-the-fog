@@ -33,7 +33,7 @@ describe("native watch link", () => {
   });
 
   it("lists pending activities and rejects an entry that is not an offer summary", async () => {
-    const summary = { activityId: id, routeId, travelMode: "walk", encoderVersion: "1" };
+    const summary = { activityId: id, routeId, encoderVersion: "1" };
     native.pendingActivities.mockResolvedValue([summary]);
     await expect(createNativeWatchLink().pendingActivities()).resolves.toEqual([summary]);
     native.pendingActivities.mockResolvedValue("nope");
@@ -42,7 +42,7 @@ describe("native watch link", () => {
 
   it("skips one malformed pending entry and still lists the others, warning without its content", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const good = { activityId: id, travelMode: "walk", encoderVersion: "1" };
+    const good = { activityId: id, encoderVersion: "1" };
     native.pendingActivities.mockResolvedValue([{ ...good, activityId: "../secret" }, good]);
     await expect(createNativeWatchLink().pendingActivities()).resolves.toEqual([good]);
     expect(JSON.stringify(warn.mock.calls)).not.toContain("secret");
@@ -59,16 +59,27 @@ describe("native watch link", () => {
   });
 
   it("reads an activity by parsing the offer JSON the native side returns", async () => {
-    const offer = { activityId: id, travelMode: "walk", encoderVersion: "1", gpx: "<gpx/>" };
+    const offer = { activityId: id, encoderVersion: "1", gpx: "<gpx/>" };
     native.readActivity.mockResolvedValue(JSON.stringify(offer));
     await expect(createNativeWatchLink().readActivity(id)).resolves.toEqual(offer);
     expect(native.readActivity).toHaveBeenCalledWith(id);
   });
 
+  // An older build staged offers with a travel mode; they are still on phones and must hand off.
+  it("lists and reads an activity staged with a travel mode, without it", async () => {
+    const offer = { activityId: id, encoderVersion: "1", gpx: "<gpx/>" };
+    native.pendingActivities.mockResolvedValue([
+      { activityId: id, travelMode: "walk", encoderVersion: "1" },
+    ]);
+    await expect(createNativeWatchLink().pendingActivities()).resolves.toEqual([
+      { activityId: id, encoderVersion: "1" },
+    ]);
+    native.readActivity.mockResolvedValue(JSON.stringify({ ...offer, travelMode: "walk" }));
+    await expect(createNativeWatchLink().readActivity(id)).resolves.toEqual(offer);
+  });
+
   it("rejects an offer without a file, and text that is not JSON", async () => {
-    native.readActivity.mockResolvedValue(
-      JSON.stringify({ activityId: id, travelMode: "walk", encoderVersion: "1" }),
-    );
+    native.readActivity.mockResolvedValue(JSON.stringify({ activityId: id, encoderVersion: "1" }));
     await expect(createNativeWatchLink().readActivity(id)).rejects.toThrow();
     native.readActivity.mockResolvedValue('{"gpx":"secret-track');
     const e = await createNativeWatchLink()
@@ -92,13 +103,12 @@ describe("native watch link", () => {
 
   it("queues a route as the routeOffer of the link contract", async () => {
     native.queueRoute.mockResolvedValue(undefined);
-    const r = route({ createdAt: "2026-03-01T23:30:00Z", travelMode: "run", gpx: "<gpx>r</gpx>" });
+    const r = route({ createdAt: "2026-03-01T23:30:00Z", gpx: "<gpx>r</gpx>" });
     await createNativeWatchLink().queueRoute(r);
     const offer = JSON.parse(native.queueRoute.mock.calls[0]?.[0]);
     expect(offer).toEqual({
       routeId: r.id,
       name: expect.stringMatching(/^Route \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
-      travelMode: "run",
       createdAt: "2026-03-01T23:30:00Z",
       gpx: "<gpx>r</gpx>",
     });

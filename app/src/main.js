@@ -322,9 +322,7 @@
   const drawBtn = $("drawToggle"), statsWrap = $("statsWrap"), routeHint = $("routeHint");
   const reverseBtn = $("reverse");
   const elevEl = $("elev"), elevHead = $("elevHead"), wpListEl = $("wpList"), wpHead = $("wpHead");
-  const MODE_LABEL = { trekking: "bike route", fastbike: "road bike route", "hiking-mountain": "walk", shortest: "direct line" };
   const IDLE = "Hit Start drawing, then tap the map to drop waypoints. Drag the line to bend it, drag a pin to move it, tap a pin to remove it.";
-  let profile = "trekking";
   let units = localStorage.getItem("f2m_units") || "metric";
   let lastStats = null, lastGain = null;
 
@@ -404,7 +402,7 @@
     const gain = lastGain && lastGain.area > 0
       ? `<div class="statline gain"><span>defogs ~${fmtArea(lastGain.area)}</span><span>${fmtPct(lastGain.newPct)} new ground</span></div>` : "";
     statsWrap.innerHTML =
-      `<div class="card"><span class="statbig">${fmtDist(s.km)}</span> <span class="statsub">${MODE_LABEL[profile] || ""}</span>` +
+      `<div class="card"><span class="statbig">${fmtDist(s.km)}</span>` +
       (s.ascent != null ? `<div class="statline"><span>↑ ${fmtEle(s.ascent)}</span><span>↓ ${fmtEle(s.descent)}</span></div>` : "") + `${gain}</div>`;
   }
 
@@ -470,12 +468,12 @@
   function routeErrorHint(why) {
     const reason = why && why.reason, tail = " This is a straight line for now.";
     return reason === "streets-fetch" ? StreetMessages.describe(why.download, Date.now()) + tail
-      : reason === "no-street-data" ? "No streets this travel mode can use were found around here." + tail
-      : reason === "off-network" ? `Pin ${why.point + 1} is more than ${fmtDist(LocalRouter.SNAP_M / 1000)} from any street this mode can use. Move it closer to a street.` + tail
-      : reason === "one-way" ? "One-way streets block every way between two of the pins for this mode." + tail
+      : reason === "no-street-data" ? "No walkable streets were found around here." + tail
+      : reason === "off-network" ? `Pin ${why.point + 1} is more than ${fmtDist(LocalRouter.SNAP_M / 1000)} from any walkable street. Move it closer to a street.` + tail
+      : reason === "one-way" ? "One-way streets block every way between two of the pins." + tail
       : reason === "too-far" ? "Two pins are more than " + fmtDist(30) + " apart: the street map between them is too big to download. Place pins closer together." + tail
       : reason === "internal" ? "Something went wrong while routing. Reload the page and try again." + tail
-      : reason === "no-path" ? "Two of the pins sit on separate pieces of the street map for this mode. Try another mode or move a pin." + tail
+      : reason === "no-path" ? "Two of the pins sit on separate pieces of the street map. Move a pin." + tail
       : "Couldn't find a route." + tail;
   }
 
@@ -493,8 +491,7 @@
   BackupButtons.install({ doc: document, win: window });
 
   const route = new RouteTool(map, {
-    profile,
-    routeWaypoints: RouteLocal.create({ streets, plannerFor: (p) => suggest.plannerFor(p), elevation, estimates: Estimates, streetKind: SuggestTool.streetKind }),
+    routeWaypoints: RouteLocal.create({ streets, streetGraph: () => suggest.streetGraph(), elevation, estimates: Estimates }),
     isNew: cellIsNew,                       // colour the path: new ground vs already defogged
     fogReady: () => fogMap.hasFog(),
     onWaypoints: renderWps,
@@ -581,9 +578,9 @@
       const pin = (i) => (suggest.mode === "loop" ? "The start" : i ? "B" : "A");
       const msg = s.reason === "streets-fetch" ? StreetMessages.describe(s.download, Date.now())
         : s.reason === "no-street-data" ? "No streets were found around here."
-        : s.reason === "off-network" ? `${pin(w.point)} is more than ${fmtDist(0.6)} from any street junction or end this mode can use. Move the pin closer to a street.`
-        : s.reason === "one-way" ? "A and B are on the same street network, but one-way streets block every way between them for this mode."
-        : s.reason === "no-path" ? `A and B sit on separate pieces of the street map for this mode${w.gap ? ` (about ${fmtDist(w.gap.m / 1000)} apart)` : ""}. Try another mode or move a pin.`
+        : s.reason === "off-network" ? `${pin(w.point)} is more than ${fmtDist(0.6)} from any walkable street junction or end. Move the pin closer to a street.`
+        : s.reason === "one-way" ? "A and B are on the same street network, but one-way streets block every way between them."
+        : s.reason === "no-path" ? `A and B sit on separate pieces of the street map${w.gap ? ` (about ${fmtDist(w.gap.m / 1000)} apart)` : ""}. Move a pin.`
         : s.reason === "internal" ? "Something went wrong while planning. Reload the page and try again."
         : "Couldn't find a route. Try again in a moment.";
       sugResults.innerHTML = `<div class="muted" style="margin-top:10px">${msg}</div>`;
@@ -646,10 +643,10 @@
   async function adoptRoute({ wps, coords }) {
     let token;
     try {
-      const flat = Estimates.estimate(coords, profile, []);
+      const flat = Estimates.estimate(coords, []);
       token = route.setFixedRoute(wps, coords, Estimates.routeStats(flat), { refining: true });
       const heights = await Elevation.within(elevation.elevationAt(coords), HEIGHTS_WAIT_MS, []);
-      const est = Estimates.estimate(coords, profile, heights);
+      const est = Estimates.estimate(coords, heights);
       if (est.elevationKnown) route.refineFixedRoute(token, est.coords, Estimates.routeStats(est));
     } catch (e) {
       console.warn("[route] adopting a suggestion failed", e && e.name); // the class only: no positions in a log
@@ -709,20 +706,9 @@
 
   sugGo.addEventListener("click", () => {
     route.clear(); // don't leave a hand-drawn route tangled under the previews
-    suggest.suggest(profile, { buffer: sugBuffer / 100, distM: loopKm * 1000, targetM: p2pKm ? p2pKm * 1000 : 0 });
+    suggest.suggest({ buffer: sugBuffer / 100, distM: loopKm * 1000, targetM: p2pKm ? p2pKm * 1000 : 0 });
   });
   sugReset.addEventListener("click", () => suggest.reset());
-
-  const modeBtns = document.querySelectorAll("#modes button");
-  function setMode(p) {
-    profile = p;
-    modeBtns.forEach((b) => b.classList.toggle("active", b.dataset.p === p));
-    route.setProfile(p);
-    streetsLayer.setMode(p); // streets this mode can't take are drawn faintly
-    suggest.clearResults(); // suggestions were ranked for the old mode
-  }
-  modeBtns.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.p)));
-  setMode("trekking");
 
   // units toggle (km / mi)
   const unitSeg = $("unitSeg");

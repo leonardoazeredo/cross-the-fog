@@ -50,8 +50,8 @@
     this.lines = [];                       // their preview polylines
     this.selected = -1;
     this._runId = 0;
-    this._planners = {};                   // travel class -> GraphPlanner
-    this._hold = null;                     // {runId, key, planner}: the graph the running suggestion plans on
+    this._planner = null;                  // GraphPlanner over the walkable streets
+    this._hold = null;                     // {runId, planner}: the graph the running suggestion plans on
     this._onClick = (e) => this._place(e.latlng);
   }
 
@@ -144,17 +144,17 @@
 
   // ----- shared plumbing --------------------------------------------------------
 
-  // Local shortest path through the points over the street graph for the profile;
+  // Local shortest path through the points over the street graph;
   // null when there is no street data, a point is off the network, or no path exists.
   // opts.avoid: Set of graph edge ids to discourage (a leg's `edges`).
-  SuggestTool.prototype._route = async function (latlngs, profile, opts) {
-    const planner = this._graphFor(profile);
+  SuggestTool.prototype._route = async function (latlngs, opts) {
+    const planner = this._graph();
     return planner ? new global.LocalRouter(planner).route(latlngs, opts) : null;
   };
 
   // Explained so the error can name the pin or pieces that failed, not just fail.
-  SuggestTool.prototype._noRoute = function (latlngs, profile) {
-    const planner = this._graphFor(profile);
+  SuggestTool.prototype._noRoute = function (latlngs) {
+    const planner = this._graph();
     if (!planner) return { error: true, reason: "no-street-data" };
     const why = new global.LocalRouter(planner).explain(latlngs);
     return { error: true, reason: why.reason || "no-path", why };
@@ -163,10 +163,10 @@
   // Re-ask the leg after the via with the outbound streets avoided. null means keep the
   // original: not a via route, no way home routed, or the way home is the same.
   // The caller decides whether the new way home is worth taking.
-  SuggestTool.prototype._rerouteReturn = async function (route, via, B, profile) {
+  SuggestTool.prototype._rerouteReturn = async function (route, via, B) {
     if (route.legs.length !== 2) return null;
     const [out, home] = route.legs;
-    const back = await this._route([via, B], profile, { avoid: new Set(out.edges) });
+    const back = await this._route([via, B], { avoid: new Set(out.edges) });
     if (!back || !back.coords.length) return null;
     // the new route also starts with a stub from the via pin, so compare tails
     const tail = back.coords.slice(-home.coords.length);
@@ -253,20 +253,14 @@
     return { kx: 111320 * Math.cos(lat * Math.PI / 180), ky: 110540 };
   }
 
-  // Which street classes matter: on foot everything walkable, on wheels not
-  // footways/paths (also keeps the bigger bike-range downloads sane).
-  function streetKind(profile) { return profile === "hiking-mountain" ? "run" : "bike"; }
-  SuggestTool.streetKind = streetKind; // route editing fetches the same street class for a mode
-
   // Make sure the streets for the rects are loaded. Resolves true when they are and the run is
   // still current; false when it is stale, or the error state was emitted because the download
   // failed. A stale run asks for no further tile, so a newer run is not queued behind it.
-  SuggestTool.prototype._loadStreets = async function (rects, profile, emit, stale) {
-    const kind = streetKind(profile);
+  SuggestTool.prototype._loadStreets = async function (rects, emit, stale) {
     // progress is heard only while some tile is missing from the index, so a rerun over covered
     // ground stays silent; waitUntil is set while a busy server is waited out
     const onProgress = (p) => emit(Object.assign({ loading: true, phase: "streets" }, p));
-    try { await this.streets.ensureRects(rects, kind, { onProgress, stale, holdAs: "suggest" }); } catch (e) {
+    try { await this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" }); } catch (e) {
       if (global.StreetIndex.isSuperseded(e)) return false;
       // a bug is not a failed download: the class only, as a message can name tiles. Logged even
       // when the run is stale, which only keeps it from being shown.
@@ -283,34 +277,29 @@
     return !stale();
   };
 
-  const travelClass = (profile) => global.StreetIndex.MODE_CLASS[profile] || "foot";
-
-  // The street graph for a profile: what planning and routing (suggestions and the route editor)
-  // run on. One per travel class, because each may use different ways;
+  // The street graph: what planning and routing (suggestions and the route editor) run on;
   // built lazily, rebuilt when new streets arrive or the fog changes.
-  SuggestTool.prototype.plannerFor = function (profile) {
+  SuggestTool.prototype.streetGraph = function () {
     if (!this.streets || !global.GraphPlanner || !this.streets.ways.length) return null;
-    // usableFor and onewayFor depend only on the travel class, so profiles sharing one share the graph
-    const key = travelClass(profile);
-    const had = this._planners[key];
+    const had = this._planner;
     // a held graph stays with its suggestion: once the streets or the fog outgrew it, the slot gets a
     // fresh planner; any other one is rebuilt in place by build()
     if (!had || (had.held && !had.isCurrent()))
-      this._planners[key] = new global.GraphPlanner(this.streets, this.streets.newFrac, this.streets.usableFor(profile), this.streets.onewayFor(profile), () => this.fogMap.version || 0);
-    return this._planners[key];
+      this._planner = new global.GraphPlanner(this.streets, this.streets.newFrac, (id) => this.streets.walkable(id), undefined, () => this.fogMap.version || 0);
+    return this._planner;
   };
 
   // A suggestion plans on one graph from its first route to its last: a tile another run merges
   // meanwhile (the route editor's, the "Streets in fog" download's) would rebuild it in place and
   // renumber the edges, and a leg's `edges`, the avoid set of the way home, would name other streets.
   // A fog change waits too; the gain is still scored on the fog as it is.
-  SuggestTool.prototype._holdGraph = function (profile, runId) {
+  SuggestTool.prototype._holdGraph = function (runId) {
     this._releaseGraph();
-    const planner = this.plannerFor(profile);
+    const planner = this.streetGraph();
     if (!planner) return null;
     planner.build();
     planner.held = true;
-    this._hold = { runId, key: travelClass(profile), planner };
+    this._hold = { runId, planner };
     return planner;
   };
   // runId: let go only of that run's graph (undefined: of whichever run holds one)
@@ -320,9 +309,9 @@
     h.planner.held = false;
     this._hold = null;
   };
-  SuggestTool.prototype._graphFor = function (profile) {
+  SuggestTool.prototype._graph = function () {
     const h = this._hold;
-    return h && h.key === travelClass(profile) ? h.planner : this.plannerFor(profile);
+    return h ? h.planner : this.streetGraph();
   };
 
   // Defoggable area (m²) reachable via the ways within rM of the point, or
@@ -480,11 +469,11 @@
     }));
   };
 
-  SuggestTool.prototype.suggest = async function (profile, o) {
+  SuggestTool.prototype.suggest = async function (o) {
     o = o || {};
     const buffer = o.buffer || DEFAULT_BUFFER;
     const before = this._runId;
-    const run = this.mode === "loop" ? this._suggestLoop(profile, o.distM, buffer) : this._suggestP2P(profile, buffer, o.targetM);
+    const run = this.mode === "loop" ? this._suggestLoop(o.distM, buffer) : this._suggestP2P(buffer, o.targetM);
     // a run starts (clearResults) before its first await; one that never started holds nothing, and
     // the graph it would let go of is a running suggestion's
     const runId = this._runId;
@@ -586,7 +575,7 @@
     return { list, fallback: win.want != null && !baseFits && list.length === 1 && list[0] === base };
   }
 
-  SuggestTool.prototype._suggestP2P = async function (profile, buffer, targetM) {
+  SuggestTool.prototype._suggestP2P = async function (buffer, targetM) {
     if (!this.a || !this.b) return;
     this.clearResults();
     const runId = this._runId;
@@ -612,12 +601,12 @@
       s: Math.min(sa.lat, sb.lat) - m / ky, n: Math.max(sa.lat, sb.lat) + m / ky,
       w: Math.min(sa.lng, sb.lng) - m / kx, e: Math.max(sa.lng, sb.lng) + m / kx
     }];
-    if (!(await this._loadStreets(rects, profile, emit, stale))) return;
-    this._holdGraph(profile, runId);
+    if (!(await this._loadStreets(rects, emit, stale))) return;
+    this._holdGraph(runId);
 
-    const base = await this._route([A, B], profile);
+    const base = await this._route([A, B]);
     if (stale()) return;
-    if (!base) { emit(this._noRoute([A, B], profile)); return; }
+    if (!base) { emit(this._noRoute([A, B])); return; }
     const win = p2pWindow(base.lenM, targetM, buffer);
     const { want, clamped, budget, floor, aim } = win;
     const rawVias = this._viaCandidates(budget);
@@ -627,7 +616,7 @@
     // the ceiling.
     let planned = [];
     if (budget <= 12000) {
-      const planner = this._graphFor(profile);
+      const planner = this._graph();
       if (planner) {
         const mid = L.latLng((A.lat + B.lat) / 2, (A.lng + B.lng) / 2);
         try {
@@ -662,7 +651,7 @@
         // detour overshot twice over and was binned, leaving only the plain
         // fastest route and the planner's walks.
         let ll = v.latlng, d = v.d;
-        let r = await this._route([A, ll, B], profile);
+        let r = await this._route([A, ll, B]);
         let best = r, bestLl = ll;
         for (let k = 0; k < VIA_RETRIES; k++) {
           // 3: past this the via is in the wrong place entirely, not just too far out
@@ -671,7 +660,7 @@
           const d2 = d * shrink;
           const ll2 = d2 >= 120 ? this._viaPoint(v.t, v.side, d2) : null;
           if (!ll2) break;
-          const r2 = await this._route([A, ll2, B], profile);
+          const r2 = await this._route([A, ll2, B]);
           if (!r2 || !r2.lenM) break;
           // pulling the via in usually shortens the route but not always, so keep
           // the shortest seen rather than the last: the loop stops at the first
@@ -684,7 +673,7 @@
         if (want && r && r.lenM && r.lenM < floor && r.lenM > base.lenM) {
           const grow = Math.max(1.1, Math.min(3, (aim - base.lenM) / (r.lenM - base.lenM)));
           const ll2 = this._viaPoint(v.t, v.side, d * grow);
-          const r2 = ll2 ? await this._route([A, ll2, B], profile) : null;
+          const r2 = ll2 ? await this._route([A, ll2, B]) : null;
           if (r2 && r2.lenM && r2.lenM > r.lenM && r2.lenM <= budget * 1.02) { r = r2; ll = ll2; }
         }
         // 1.02: don't bin a route for skimming the budget by metres
@@ -694,7 +683,7 @@
         const retrace = overlapFrac(r.coords, false);
         if (retrace >= RETRACE_REROUTE_MIN && reroutes < MAX_RETRACE_REROUTES) {
           reroutes++;
-          const rr = await this._rerouteReturn(r, ll, B, profile);
+          const rr = await this._rerouteReturn(r, ll, B);
           if (stale()) return null;
           if (rr && rr.lenM >= floor && rr.lenM <= budget * 1.02 &&
               rankKey(gainOf(rr), overlapFrac(rr.coords, false)) > rankKey(gainOf(r), retrace)) {
@@ -948,7 +937,7 @@
     return best;
   }
 
-  SuggestTool.prototype._suggestLoop = async function (profile, distM, buffer) {
+  SuggestTool.prototype._suggestLoop = async function (distM, buffer) {
     if (!this.a || !distM) return;
     this.clearResults();
     const runId = this._runId;
@@ -971,8 +960,8 @@
     const c = this.streets.snapPoint(S);
     const half = Math.min(distM * 0.45 + 800, 9000);
     const rects = [{ s: c.lat - half / ky, n: c.lat + half / ky, w: c.lng - half / kx, e: c.lng + half / kx }];
-    if (!(await this._loadStreets(rects, profile, emit, stale))) return;
-    const planner = this._holdGraph(profile, runId);
+    if (!(await this._loadStreets(rects, emit, stale))) return;
+    const planner = this._holdGraph(runId);
     if (!planner) { emit({ error: true, reason: "no-street-data" }); return; }
 
     // Search the street network itself for high-defog loops (thin shapes, odd
@@ -1021,7 +1010,7 @@
       // both judge the CLEANED length, so a loop whose snips pull it under target gets regrown, not binned
       const prep = async (d) => {
         const vias = mk(d);
-        const raw = await this._route(loopWps(vias), profile);
+        const raw = await this._route(loopWps(vias));
         if (!raw || !raw.lenM) return null;
         const snip = snipOldSpurs(raw.coords, this.computeGain, floor);
         return snip.coords

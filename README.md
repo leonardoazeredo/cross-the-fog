@@ -16,13 +16,13 @@ uploaded anywhere.
 - **Fog look:** shade the ground you've visited (colour, opacity, and **Widen** to fatten
   thin tracks), or switch to **Streets in fog**, which keeps that shading and highlights the
   streets and paths still covered by fog, heatmap-style. Only the stretches still in fog
-  light up, so a half-done street shows just its missing half, and the ones your Plan mode
-  can't take are faded rather than hidden. Pick the highlight colour and strength; works
+  light up, so a half-done street shows just its missing half, and motorways, which are never
+  walked, are faded rather than hidden. Pick the highlight colour and strength; works
   zoomed in to about a town at a time, and unlocks a dark basemap where the streets glow.
 - **Live "% defogged"** of the current view in the header.
-- **Route planning** snapped to real streets by a router that runs in your browser (bike / road /
-  walk): draggable & line-insertable waypoints, a **Reverse** button that
-  re-routes the trip the other way round, distance, time + elevation profile,
+- **Route planning** on foot, snapped to real streets by a router that runs in your browser:
+  draggable & line-insertable waypoints, a **Reverse** button that
+  re-routes the trip the other way round, distance, walking time + elevation profile,
   and an estimate of the **new area a route would defog**. Export the route as GPX.
   km/mi units.
 - **Suggested routes ("surprise me"):** Pick **A → B** and get up
@@ -38,7 +38,7 @@ uploaded anywhere.
 Your Fog of World data is parsed and drawn in your browser and is never sent
 to any server. Some features do make outbound requests, and only with the coordinates needed
 for that feature (not your fog data). No routing service is involved: **drawing a route by hand**
-(and editing a pin of a suggested route, switching its mode or reversing it) and **route
+(and editing a pin of a suggested route or reversing it) and **route
 suggestions** are routed entirely on your device and send nothing but the bounding box of the
 **street map around your pins** (a kilometre beyond them; a hand-drawn route also asks for its
 heights, see **Route elevation** below). The **Streets in fog** look is drawn from the streets

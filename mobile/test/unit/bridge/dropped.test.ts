@@ -17,7 +17,6 @@ const route = {
   id: routeId,
   createdAt: "2026-10-01T09:00:00.000Z",
   mode: "loop",
-  travelMode: "walk",
   waypoints: [
     { lat: SECRET_LAT, lng: 11.5 },
     { lat: SECRET_LAT, lng: 11.51 },

@@ -2,7 +2,6 @@
 // .routeStatus, .linkStatus); everything it asks of the phone goes out through callbacks, so it holds no
 // reference to window.crossfog, which the adapter installs after this file has run.
 (function (global) {
-  const MODE_LABELS = { trekking: "Mountain bike", fastbike: "Road bike", "hiking-mountain": "Walk", walk: "Walk", "car-fast": "Car", shortest: "Direct line" };
   const MIN_PACE_M = 100; // a pace over less ground than this is noise
   const CONFIRM_MS = 5000; // how long the first tap on Delete stays armed
   // How long a track or a route send waits for the phone's first answer. Both are a local read or write,
@@ -45,9 +44,6 @@
     return m + ":" + String(s).padStart(2, "0") + (units === "imperial" ? " /mi" : " /km");
   }
 
-  // The mode arrives from the watch as a free string, so an unknown one is shown as it came.
-  function modeLabel(travelMode) { return MODE_LABELS[travelMode] || String(travelMode); }
-
   function formatStart(iso, locale, timeZone) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
@@ -82,7 +78,7 @@
     let armTimer = null;
     let trackTimer = null;
 
-    // Text only, never markup: the travel mode and every figure come from the watch.
+    // Text only, never markup: every figure comes from the watch.
     function el(tag, className, text) {
       const e = doc.createElement(tag);
       if (className) e.className = className;
@@ -98,8 +94,7 @@
 
     function summaryHead(s) {
       const head = el("div", "histTop");
-      head.appendChild(el("b", null, modeLabel(s.travelMode)));
-      head.appendChild(el("span", "muted", formatStart(s.startedAt)));
+      head.appendChild(el("b", null, formatStart(s.startedAt)));
       return head;
     }
     function summaryFacts(s) {
@@ -343,5 +338,5 @@
     return { panel, send };
   }
 
-  global.HistoryPanel = { REPLY_TIMEOUT_MS, install, create, createSendControl, formatDuration, formatDistance, paceSecondsPerKm, formatPace, modeLabel, formatStart, statLines };
+  global.HistoryPanel = { REPLY_TIMEOUT_MS, install, create, createSendControl, formatDuration, formatDistance, paceSecondsPerKm, formatPace, formatStart, statLines };
 })(window);

@@ -34,7 +34,7 @@ describe("developer add activity", () => {
     await addActivityFromGpx(deps);
 
     const stored = await activities.get(ID);
-    expect(stored).toMatchObject({ id: ID, travelMode: "walk", encoderVersion: "dev" });
+    expect(stored).toMatchObject({ id: ID, encoderVersion: "dev" });
     expect(await activities.gpx(ID)).toBe(WALK);
     expect(stored?.track.length).toBeGreaterThan(1);
     expect(await activities.list()).toHaveLength(1);
@@ -66,9 +66,7 @@ describe("developer add activity", () => {
 
     await addActivityFromGpx(deps);
 
-    expect(staged).toEqual([
-      { activityId: ID, travelMode: "walk", encoderVersion: "dev", gpx: WALK },
-    ]);
+    expect(staged).toEqual([{ activityId: ID, encoderVersion: "dev", gpx: WALK }]);
   });
 
   it("does not hand off when staging fails", async () => {

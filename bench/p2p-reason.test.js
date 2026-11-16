@@ -13,15 +13,15 @@ function streetsWith(ways) {
   const s = new StreetIndex({ newFrac: () => 1 });
   s._anchor(51);
   for (const [id, nodes, p, q] of ways) s._addWay({ id, nodes, geometry: [ll(...p), ll(...q)] });
-  s._cover(StreetIndex.tilesCovering({ s: 50.9, n: 51.1, w: 13.6, e: 13.8 }), "run");
+  s._cover(StreetIndex.tilesCovering({ s: 50.9, n: 51.1, w: 13.6, e: 13.8 }));
   return s;
 }
-async function run(streets, a, b, profile = "hiking-mountain") {
+async function run(streets, a, b) {
   const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets });
   tool.mode = "p2p"; tool.a = pin(...a); tool.b = pin(...b);
   let last = null;
   tool.onResults = (s) => { if (s && !s.loading) last = s; };
-  await tool.suggest(profile, { buffer: 0.15 });
+  await tool.suggest({ buffer: 0.15 });
   return last;
 }
 const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]];
@@ -50,7 +50,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     let handed = null, holdAs = null;
-    s.ensureRects = async (rects, kind, opts) => {
+    s.ensureRects = async (rects, opts) => {
       handed = opts.stale;
       holdAs = opts.holdAs;
       tool._runId++; // a newer run started
@@ -59,7 +59,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     const seen = [], logged = [], orig = console.warn;
     tool.onResults = (r) => seen.push(r);
     console.warn = (...a) => logged.push(a);
-    await tool.suggest("hiking-mountain", { buffer: 0.15 });
+    await tool.suggest({ buffer: 0.15 });
     console.warn = orig;
     assert.equal(typeof handed, "function");
     assert.equal(handed(), true);
@@ -87,21 +87,21 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     const seen = [], logged = [], orig = console.error;
     tool.onResults = (r) => seen.push(r);
     console.error = (...a) => logged.push(a);
-    await tool.suggest("hiking-mountain", { buffer: 0.15 });
+    await tool.suggest({ buffer: 0.15 });
     console.error = orig;
     assert.ok(!seen.some((r) => r && r.error), "no error state for a replaced run");
     assert.deepEqual(logged, [["[suggest] reading streets threw", "TypeError"]]);
   }
   { // the download's progress is emitted while the tiles come in, and stops when they are in
     const states = [];
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles, kind, onTile) => {
+    const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles, onTile) => {
       for (const t of tiles) onTile(t, { ways: [], groups: {} });
       return new Map();
     } });
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     tool.onResults = (st) => states.push(st);
-    await tool.suggest("hiking-mountain", { buffer: 0.15 });
+    await tool.suggest({ buffer: 0.15 });
     const dl = states.filter((st) => st && st.phase === "streets");
     assert.ok(dl.length >= 2);
     const total = dl[0].total;
@@ -130,11 +130,10 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     assert.equal(r.empty, true);
     assert.equal(r.reason, "too-far");
   }
-  { // one graph per travel class: walk and shortest share one, each wheeled class has its own
+  { // one street graph, handed out again while it is current
     const t = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: streetsWith(street) });
-    assert.equal(t.plannerFor("shortest"), t.plannerFor("hiking-mountain"));
-    assert.notEqual(t.plannerFor("trekking"), t.plannerFor("fastbike"));
-    assert.notEqual(t.plannerFor("trekking"), t.plannerFor("hiking-mountain"));
+    assert.ok(t.streetGraph());
+    assert.equal(t.streetGraph(), t.streetGraph());
   }
   { // a loop longer than the street download can cover says so, without downloading anything
     const st = streetsWith(street);
@@ -143,7 +142,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     tool.mode = "loop"; tool.a = pin(0, 0);
     let last = null;
     tool.onResults = (x) => { if (x && !x.loading) last = x; };
-    await tool.suggest("hiking-mountain", { distM: 50000, buffer: 0.15 });
+    await tool.suggest({ distM: 50000, buffer: 0.15 });
     assert.equal(last.empty, true);
     assert.equal(last.reason, "too-long");
   }
@@ -152,14 +151,14 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     s.tiles.clear();
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
-    s.ensureRects = async (rects, kind, opts) => {
+    s.ensureRects = async (rects, opts) => {
       opts.onProgress({ done: 1, total: 4, waitUntil: 99000 });
       opts.onProgress({ done: 1, total: 4 });
       throw StreetIndex.downloadError(1, 4, Object.assign(new Error("x"), { reason: "superseded" }));
     };
     const states = [];
     tool.onResults = (st) => states.push(st);
-    await tool.suggest("hiking-mountain", { buffer: 0.15 });
+    await tool.suggest({ buffer: 0.15 });
     const dl = states.filter((st) => st && st.phase === "streets");
     assert.deepEqual(dl.map((st) => [st.done, st.total, st.waitUntil]).slice(-2), [[1, 4, 99000], [1, 4, undefined]]);
     assert.ok(!("waitUntil" in dl[dl.length - 1]), "no waitUntil field on a plain count");
@@ -176,7 +175,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     const seen = [], logged = [], orig = console.warn;
     tool.onResults = (r) => seen.push(r);
     console.warn = (...a) => logged.push(a);
-    try { await tool.suggest("hiking-mountain", { buffer: 0.15 }); } finally { console.warn = orig; }
+    try { await tool.suggest({ buffer: 0.15 }); } finally { console.warn = orig; }
     assert.ok(!seen.some((r) => r && r.error), "no error state for a replaced run");
     assert.deepEqual(logged, []);
   }

@@ -67,14 +67,14 @@ const sum = (a) => a.reduce((s, v) => s + v, 0);
   assert.notEqual(planner.builtStamp, stamp);
   assert.ok(sum(planner.reward) < reward * 0.5, `reward ${sum(planner.reward)} vs ${reward}`);
 }
-{ // SuggestTool hands its planners the fog version: a reveal changes the rewards of the planner plannerFor hands out, without a new planner
+{ // SuggestTool hands its planners the fog version: a reveal changes the rewards of the planner streetGraph hands out, without a new planner
   const { fogMap, streets } = world();
   const tool = new SuggestTool({}, { fogMap, streets, computeGain: () => null });
-  const planner = tool.plannerFor("trekking");
+  const planner = tool.streetGraph();
   planner.build();
   const reward = sum(planner.reward);
   fogMap.addCells(walkAlongStreet());
-  assert.equal(tool.plannerFor("trekking"), planner, "same planner, rebuilt in place");
+  assert.equal(tool.streetGraph(), planner, "same planner, rebuilt in place");
   planner.build();
   assert.ok(sum(planner.reward) < reward * 0.5, `reward ${sum(planner.reward)} vs ${reward}`);
 }

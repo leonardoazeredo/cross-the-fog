@@ -4,23 +4,22 @@
 (function (global) {
   const DAY_MS = 24 * 3600 * 1000;
 
-  // Own key format, not StreetIndex.tileKey, so persisted keys do not follow changes to the
+  // Own key format, not StreetIndex.tileId, so persisted keys do not follow changes to the
   // in-memory one. The leading version is the tile grid's: bump it whenever TILE_DEG in streets.js
   // changes, or answers fetched for the old grid are read as tiles of the new one.
   // The same prefix is the schema version of a stored entry: change the answer format and the prefix
   // together, and old entries are never read (sweepLegacy leaves them; they go only when LRU eviction reaches them, once the store is full).
   const KEY_VERSION = "2:";
   const idOf = (t) => t.x + ":" + t.y;
-  const keyOf = (kind, t) => KEY_VERSION + kind + ":" + idOf(t);
+  // "run" names the on-foot answer, the only one asked for now; it stays in the key so a phone's
+  // cache keeps serving. Entries under the removed "bike" kind are never read and go by LRU eviction.
+  const keyOf = (t) => KEY_VERSION + "run:" + idOf(t);
   // old keys removed per open: the sweep must not hold up a store that still has hundreds
   const LEGACY_SWEEP_MAX = 256;
   // what a failed download carries (Overpass.post's reasons, and the default source's "streets-partial"
   // when some tiles arrived first): only these stand for an outage; any other throw is a bug and
   // must not be answered with old streets. Kept here, not read from streets.js, which loads after.
   const OUTAGE_REASONS = new Set(["busy", "blocked", "stalled", "offline", "server", "streets-partial"]);
-  // a run tile also stands in for bike, as in StreetIndex._uncovered: the run query drops foot=no
-  // ways, so the answer can miss a few bike-only ways.
-  const kindsFor = (kind) => (kind === "bike" ? ["bike", "run"] : [kind]);
 
   function create(opts) {
     const { store, network, now } = opts;
@@ -35,24 +34,19 @@
 
     // The stored answer for a tile: {answer, stale}, or null. A store that throws counts as
     // empty for the rest of the call, so one dead database costs one failure, not one per tile.
-    async function lookup(tile, kind, state) {
-      let stale = null;
-      for (const k of kindsFor(kind)) {
-        if (state.storeDown) return stale;
-        let entry;
-        try { entry = await store.get(keyOf(k, tile)); }
-        catch (e) { storeFailed(state, "read", e); return stale; }
-        // only the top-level shape StreetIndex reads (ways, groups); a stored answer without them would otherwise fail every run in the area
-        const a = entry && entry.answer;
-        if (!a || !Array.isArray(a.ways) || !a.groups || typeof entry.fetchedAt !== "number") continue;
-        // the deeper check: a way that is not an object, or a group that cannot be iterated, would fail every run in the area too: a miss, and removed (a malformed field inside a way is not checked)
-        if (!sound(a)) { store.delete(keyOf(k, tile)).catch(() => {}); continue; }
-        // a stamp ahead of now (clock moved back) cannot be trusted as fresh: refetch and overwrite it
-        const age = now() - entry.fetchedAt;
-        if (age >= 0 && age < maxAgeMs) return { answer: a, stale: false };
-        stale = stale || { answer: entry.answer, stale: true };
-      }
-      return stale;
+    async function lookup(tile, state) {
+      if (state.storeDown) return null;
+      let entry;
+      try { entry = await store.get(keyOf(tile)); }
+      catch (e) { storeFailed(state, "read", e); return null; }
+      // only the top-level shape StreetIndex reads (ways, groups); a stored answer without them would otherwise fail every run in the area
+      const a = entry && entry.answer;
+      if (!a || !Array.isArray(a.ways) || !a.groups || typeof entry.fetchedAt !== "number") return null;
+      // the deeper check: a way that is not an object, or a group that cannot be iterated, would fail every run in the area too: a miss, and removed (a malformed field inside a way is not checked)
+      if (!sound(a)) { store.delete(keyOf(tile)).catch(() => {}); return null; }
+      // a stamp ahead of now (clock moved back) cannot be trusted as fresh: refetch and overwrite it
+      const age = now() - entry.fetchedAt;
+      return { answer: a, stale: !(age >= 0 && age < maxAgeMs) };
     }
 
     // The street source contract of StreetIndex: onTile hears each tile as it arrives, cached tiles
@@ -64,7 +58,7 @@
     // daily share. The run's other opts (its clock, busy wait and stale) go to the network source, so a
     // busy wait keeps to the run's deadline and stop, and a replaced run's posts still waiting for a slot
     // are not sent.
-    async function fetchStreets(tiles, kind, onTile, opts) {
+    async function fetchStreets(tiles, onTile, opts) {
       const state = { storeDown: false };
       const out = new Map();
       const missing = [];
@@ -77,7 +71,7 @@
         try { if (cached) onTile(t, answer, { cached: true }); else onTile(t, answer); } catch (e) { stopped = true; throw e; }
       };
       for (const t of tiles) {
-        const hit = await lookup(t, kind, state);
+        const hit = await lookup(t, state);
         if (hit && !hit.stale) deliver(t, hit.answer, true);
         else {
           missing.push(t);
@@ -93,7 +87,7 @@
       const puts = [];
       const keep = (t, answer) => {
         if (!answer || out.has(idOf(t))) return;
-        if (!state.storeDown) puts.push(store.put(keyOf(kind, t), { answer, fetchedAt: now() }).catch((e) => storeFailed(state, "write", e)));
+        if (!state.storeDown) puts.push(store.put(keyOf(t), { answer, fetchedAt: now() }).catch((e) => storeFailed(state, "write", e)));
         deliver(t, answer);
       };
       // a throw from the run's busy wait is the caller's stop too, like one from onTile
@@ -103,7 +97,7 @@
       } }) : opts;
       let fresh;
       try {
-        fresh = await network(missing, kind, keep, netOpts);
+        fresh = await network(missing, keep, netOpts);
       } catch (e) {
         await Promise.all(puts);
         const left = missing.filter((t) => !out.has(idOf(t)));

@@ -38,7 +38,6 @@ export function createNativeWatchLink(): WatchLink {
         JSON.stringify({
           routeId: route.id,
           name: routeName(route),
-          travelMode: route.travelMode,
           createdAt: route.createdAt,
           gpx: route.gpx,
         }),

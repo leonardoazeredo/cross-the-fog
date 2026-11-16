@@ -59,8 +59,8 @@ function line(...pts) {
   const tool = Object.create(SuggestTool.prototype);
   // a re-routed leg starts with a stub from the via pin, then the street vertex the outbound leg ended on
   const viaPin = [13.7 + 1000 / KX, LAT + 5 / KY, 0];
-  tool._route = async (pts, profile, opts) => { calls.push({ pts, opts }); return opts.avoid.size ? { coords: [viaPin].concat(homeStreet) } : { coords: [viaPin].concat(back) }; };
-  const r = await tool._rerouteReturn(route, via, Bll, "trekking");
+  tool._route = async (pts, opts) => { calls.push({ pts, opts }); return opts.avoid.size ? { coords: [viaPin].concat(homeStreet) } : { coords: [viaPin].concat(back) }; };
+  const r = await tool._rerouteReturn(route, via, Bll);
   assert.equal(calls.length, 1);
   assert.deepEqual([...calls[0].opts.avoid].sort(), [1, 2]);
   assert.deepEqual(calls[0].pts, [via, Bll]);
@@ -69,11 +69,11 @@ function line(...pts) {
   assert.equal(r.lenM, statsFromCoords(out.concat(homeStreet.slice(1))).lenM);
   assert.ok(r.coords.every((p, i) => i === 0 || p[0] !== r.coords[i - 1][0] || p[1] !== r.coords[i - 1][1]), "repeated vertex at the join");
   tool._route = async () => null;
-  assert.equal(await tool._rerouteReturn(route, via, Bll, "trekking"), null);
+  assert.equal(await tool._rerouteReturn(route, via, Bll), null);
   tool._route = async () => ({ coords: [viaPin].concat(back) }); // same way home again
-  assert.equal(await tool._rerouteReturn(route, via, Bll, "trekking"), null);
+  assert.equal(await tool._rerouteReturn(route, via, Bll), null);
   tool._route = async () => { throw new Error("must not be called"); };
-  assert.equal(await tool._rerouteReturn(Object.assign({}, route, { legs: [route.legs[0]] }), via, Bll, "trekking"), null);
+  assert.equal(await tool._rerouteReturn(Object.assign({}, route, { legs: [route.legs[0]] }), via, Bll), null);
 }
 console.log("retrace.test.js ok");
 })();

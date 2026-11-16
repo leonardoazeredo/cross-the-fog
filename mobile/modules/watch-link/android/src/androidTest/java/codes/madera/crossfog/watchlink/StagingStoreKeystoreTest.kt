@@ -61,7 +61,7 @@ class StagingStoreKeystoreTest {
   // and stay on disk.
   @Test
   fun aLostStagingAliasLeavesItsItemsCountedAndKept() {
-    val offer = """{"activityId":"$id","travelMode":"walk","encoderVersion":"1","gpx":"<gpx/>"}"""
+    val offer = """{"activityId":"$id","encoderVersion":"1","gpx":"<gpx/>"}"""
     store().stage(id, offer.toByteArray())
     assertEquals(listOf(id), readStagedActivities(store()).readable.map { it.activityId })
 

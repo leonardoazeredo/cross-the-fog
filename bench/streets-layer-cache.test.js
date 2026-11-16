@@ -37,14 +37,14 @@ function fakeLayer(fetchStreets, view = TWO) {
 function countRuns(streets) {
   const runs = { n: 0 };
   const ensure = streets.ensureRects.bind(streets);
-  streets.ensureRects = (rects, kind, opts) => { if (!(opts && opts.cacheOnly)) runs.n++; return ensure(rects, kind, opts); };
+  streets.ensureRects = (rects, opts) => { if (!(opts && opts.cacheOnly)) runs.n++; return ensure(rects, opts); };
   return runs;
 }
 
 // A street source holding the given tiles ("x:y"), and fetching anything over the "network" when not cache-only.
 function source(held, net) {
   const calls = [];
-  const fn = async (tiles, kind, onTile, opts) => {
+  const fn = async (tiles, onTile, opts) => {
     const cacheOnly = !!(opts && opts.cacheOnly);
     calls.push({ tiles: tiles.map((t) => t.x + ":" + t.y), cacheOnly });
     const out = new Map();
@@ -82,7 +82,7 @@ function source(held, net) {
     const { layer, state, streets } = fakeLayer(src.fn);
     const runs = [];
     const ensure = streets.ensureRects.bind(streets);
-    streets.ensureRects = (rects, kind, opts) => { runs.push(!!(opts && opts.cacheOnly)); return ensure(rects, kind, opts); };
+    streets.ensureRects = (rects, opts) => { runs.push(!!(opts && opts.cacheOnly)); return ensure(rects, opts); };
     await layer._update();
     assert.equal(state.drawn, 1, "the cached tile is painted without a download");
     assert.deepEqual(state.said.pop(), ["Street map known for 1 of 2 pieces here.", "Download this area"]);
@@ -120,7 +120,7 @@ function source(held, net) {
     assert.match(state.said.pop()[0], /^Got 2 of 3 pieces of the street map before the server got too slow\./);
   }
   { // a wait for a busy server shows in the badge, then the count again
-    const src = async (tiles, kind, onTile, opts) => {
+    const src = async (tiles, onTile, opts) => {
       const out = new Map();
       if (opts && opts.cacheOnly) return out;
       assert.equal(await opts.wait(Date.now() + 15000), true);
@@ -141,7 +141,7 @@ function source(held, net) {
       const warned = [], orig = console.warn;
       console.warn = (...a) => warned.push(a);
       let asked = 0;
-      const src = async (tiles, kind, onTile, opts) => {
+      const src = async (tiles, onTile, opts) => {
         const out = new Map();
         if (opts && opts.cacheOnly) return out;
         asked++;
@@ -170,7 +170,7 @@ function source(held, net) {
     const { layer, streets } = fakeLayer(src.fn);
     let runs = 0;
     const ensure = streets.ensureRects.bind(streets);
-    streets.ensureRects = (rects, kind, opts) => { if (!(opts && opts.cacheOnly)) runs++; return ensure(rects, kind, opts); };
+    streets.ensureRects = (rects, opts) => { if (!(opts && opts.cacheOnly)) runs++; return ensure(rects, opts); };
     await layer._update();
     const first = layer._download();
     const second = layer._download();
@@ -234,7 +234,7 @@ function source(held, net) {
     const { layer, state, streets } = fakeLayer(source(new Set(), async () => {}).fn);
     await layer._update();
     const ensure = streets.ensureRects.bind(streets);
-    streets.ensureRects = async (r, k, opts) => { if (!(opts && opts.cacheOnly)) throw new TypeError("tile 273:1020"); return ensure(r, k, opts); };
+    streets.ensureRects = async (r, opts) => { if (!(opts && opts.cacheOnly)) throw new TypeError("tile 273:1020"); return ensure(r, opts); };
     console.error = (...a) => logged.push(a);
     await layer._download();
     console.error = orig;
@@ -300,7 +300,7 @@ function source(held, net) {
     let release;
     const gate = new Promise((r) => { release = r; });
     const ensure = streets.ensureRects.bind(streets);
-    streets.ensureRects = async (r, k, o) => { await gate; return ensure(r, k, o); };
+    streets.ensureRects = async (r, o) => { await gate; return ensure(r, o); };
     const pass = layer._update();
     view.b = BIG;
     layer._moved();
@@ -415,7 +415,7 @@ function source(held, net) {
   }
   { // a suggestion's run refreshes an expired tile the layer drew from: the lines are redrawn from the fresh ways only
     const KY = 110540, line = (id, y) => ({ id, nodes: [id, id + 1], geometry: [{ lat: 51 + y / KY, lon: 13.7 }, { lat: 51 + y / KY, lon: 13.7 + 400 / (111320 * Math.cos(51 * Math.PI / 180)) }] });
-    const fetchStreets = async (tiles, kind, onTile, opts) => {
+    const fetchStreets = async (tiles, onTile, opts) => {
       const out = new Map();
       for (const t of tiles) {
         if (t.x !== 548) continue;
@@ -430,7 +430,7 @@ function source(held, net) {
     await layer._update();
     const lats = (list = layer.runs) => [...new Set(list.map((r) => r.id + "@" + Math.round((r.ll[0][0] - 51) * KY)))].sort();
     assert.deepEqual([lats(), lats(layer.doneRuns)], [["5@500"], ["1@100"]], "drawn from the expired copy, way 1 already defogged");
-    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }], "run");
+    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }]);
     await new Promise((r) => setTimeout(r, 20)); // onWaysChanged -> refresh() -> _update() repaints the layer; the timer lets that microtask run
     assert.deepEqual([lats(), lats(layer.doneRuns)], [["1@300"], []], "the replaced way is drawn once, at its new place, the dropped one is gone, and the defogged stretch of the old line no longer counts");
   }
@@ -462,14 +462,14 @@ function source(held, net) {
     const { layer, state, streets } = fakeLayer(source(new Set(), async () => {}).fn);
     await layer._update();
     assert.deepEqual(state.said.pop(), ["Street map known for 0 of 2 pieces here.", "Download this area"]);
-    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }], "run");
+    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }]);
     await tick(); await tick();
     assert.deepEqual(state.said.pop(), ["Street map known for 1 of 2 pieces here.", "Download this area"]);
   }
   { // a fresh piece replacing an expired one's ways judges only the ways that changed, not every way
     const KY = 110540, KX = 111320 * Math.cos(51 * Math.PI / 180);
     const line = (id, lon, y) => ({ id, nodes: [id, id + 1], geometry: [{ lat: 51 + y / KY, lon }, { lat: 51 + y / KY, lon: lon + 400 / KX }] });
-    const fetchStreets = async (tiles, kind, onTile, opts) => {
+    const fetchStreets = async (tiles, onTile, opts) => {
       const out = new Map();
       for (const t of tiles) {
         const cacheOnly = opts && opts.cacheOnly;
@@ -485,7 +485,7 @@ function source(held, net) {
     await layer._update();
     assert.deepEqual([...new Set(judged)].sort(), [100, 500]);
     judged.length = 0;
-    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }], "run");
+    await streets.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }]);
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual([...new Set(judged)], [300], "only the replaced way is judged again");
     assert.deepEqual(layer.runs.map((r) => r.id).sort(), [1, 2], "the untouched way keeps its runs, the replaced one has new ones");
@@ -500,7 +500,7 @@ function source(held, net) {
     const { layer, state, streets } = fakeLayer(source(new Set(), () => new Promise(() => {})).fn);
     let progress;
     const ensure = streets.ensureRects.bind(streets);
-    streets.ensureRects = (rects, kind, opts) => { if (opts && opts.onProgress) progress = opts.onProgress; return ensure(rects, kind, opts); };
+    streets.ensureRects = (rects, opts) => { if (opts && opts.onProgress) progress = opts.onProgress; return ensure(rects, opts); };
     await layer._update();
     layer._download();
     await tick();

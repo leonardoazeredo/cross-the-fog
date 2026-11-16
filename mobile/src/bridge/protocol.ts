@@ -43,7 +43,6 @@ const ROUTE_MAX_WAYPOINTS = 500;
 const ROUTE_MAX_GPX_CHARS = 10_000_000;
 
 const uuid = z.uuid();
-const travelMode = z.string().min(1).max(32);
 const nonNegative = z.number().min(0);
 const lat = z.number().min(-90).max(90);
 const lon = z.number().min(-180).max(180);
@@ -53,14 +52,13 @@ const routeCoords = z
   .min(2)
   .max(ROUTE_MAX_POINTS);
 
-// `seconds` is null when the travel mode has no time model (app/src/estimates.js); `ascentM` and
-// `descentM` are null when no elevation arrived (app/src/routeLocal.js). The schema accepts them so
-// such a route is sent rather than rejected.
+// `ascentM` and `descentM` are null when no elevation arrived (app/src/routeLocal.js). The page gives every
+// route a walking time (app/src/estimates.js), but a null `seconds` is accepted too: a route without
+// one is sent rather than rejected.
 const routeRecord = z.object({
   id: uuid,
   createdAt: isoDate,
   mode: z.enum(["loop", "p2p"]),
-  travelMode,
   targetDistanceM: nonNegative.optional(),
   waypoints: z
     .array(z.object({ lat, lng: lon }))
@@ -78,7 +76,6 @@ const routeRecord = z.object({
 
 const activitySummary = z.object({
   id: uuid,
-  travelMode,
   startedAt: isoDate,
   endedAt: isoDate,
   routeId: uuid.optional(),
