@@ -1,6 +1,5 @@
 const UTI_MAP: Record<string, string> = {
   ".gpx": "com.topografix.gpx",
-  ".kml": "com.google.earth.kml",
 };
 
 export function utiFor(filename: string): string | undefined {

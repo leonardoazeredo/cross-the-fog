@@ -23,8 +23,8 @@ uploaded anywhere.
 - **Route planning** snapped to real streets by a router that runs in your browser (bike / road /
   walk): draggable & line-insertable waypoints, a **Reverse** button that
   re-routes the trip the other way round, distance, time + elevation profile,
-  and an estimate of the **new area a route would defog**. Export the route as GPX / KML,
-  or open it in Google Maps. km/mi units.
+  and an estimate of the **new area a route would defog**. Export the route as GPX.
+  km/mi units.
 - **Suggested routes ("surprise me"):** Pick **A → B** and get up
   to three options, routed on the street map in your browser, that maximise defogging within a length budget (fastest
   route + 5/15/30%, your pick), or pick a **start + distance** and get loops that head
@@ -61,8 +61,7 @@ no answer between. As the main instance's usage policy asks, the phone app's web
 app to the server by its User-Agent and Referer. That server also caps each app's and each network
 address's daily use, and answers 406 once the share is used up: the app then leaves that server
 alone for an hour, longer if the server says so. They only see bounding boxes, the same class of information the basemap tile servers already
-get, and the streets are compared against your fog entirely on your device; and **"Maps ↗"** opens
-your waypoints in Google Maps. The street map it fetches is kept as a street cache in your
+get, and the streets are compared against your fog entirely on your device. The street map it fetches is kept as a street cache in your
 browser's storage (IndexedDB, as plain data, never uploaded and left out of backups), so planning in
 an area you have planned in before needs no connection. After 90 days a copy is out of date:
 **Streets in fog** still draws it, and a suggestion in that area fetches it fresh,
@@ -84,8 +83,8 @@ passphrase nobody can open that backup, and if you lose the phone without a back
 Exports are plain files and happen only when you tap them, each after a warning you can cancel (Cancel
 sends nothing). **Export for Fog of World** (phone app) writes the cells you have explored, imported and
 from activities, in Fog of World's own format, which has no encryption and no times; the phone app zips
-the tiles under `Sync/` and asks where to save the zip. **GPX** and **KML** write the route you planned,
-point by point, and **"Maps ↗"** hands its start, end and stops to Google Maps. The crash log and the
+the tiles under `Sync/` and asks where to save the zip. **GPX** writes the route you planned,
+point by point. The crash log and the
 page's log lines carry no positions: a decimal number with three or more places is replaced by `[n]`
 before the crash log is written.
 The site also counts visits with [GoatCounter](https://www.goatcounter.com/), a
@@ -104,7 +103,7 @@ app/
   index.html        UI (map + sidebar: fog look / plan tabs)
   src/parser.js     Fog of World format → visited cells (+ tile↔lat/lng math)
   src/fogLayer.js   Leaflet GridLayer that paints the fog, with the look/blend/widen options
-  src/route.js      draw-your-own route tool (GPX/KML export)
+  src/route.js      draw-your-own route tool (GPX export)
   src/routeLocal.js routes the tool's pins on the street map, with heights and estimates
   src/suggest.js    suggested routes: candidate generation, defog scoring, loop shaping
   src/unzip.js      minimal ZIP reader so a Fog of World backup .zip loads directly

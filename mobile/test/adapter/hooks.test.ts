@@ -49,9 +49,9 @@ it("leaves other clicks alone", () => {
 
 it("window.open sends openExternal and returns null", () => {
   installLinks(window, document, send);
-  expect(window.open("https://www.google.com/maps/dir/?api=1", "_blank", "noopener")).toBeNull();
+  expect(window.open("https://www.openstreetmap.org/copyright", "_blank", "noopener")).toBeNull();
   expect(sent).toEqual([
-    { v: 1, type: "openExternal", url: "https://www.google.com/maps/dir/?api=1" },
+    { v: 1, type: "openExternal", url: "https://www.openstreetmap.org/copyright" },
   ]);
 });
 
@@ -63,10 +63,9 @@ it("help links open outside the app", () => {
   expect(sent).toEqual([{ v: 1, type: "openExternal", url: "https://drive.google.com/" }]);
 });
 
-it.each([
-  ["fogtomaps-route.gpx", "application/gpx+xml"],
-  ["fogtomaps-route.kml", "application/vnd.google-earth.kml+xml"],
-])("captures route.js saveBlob for %s", async (filename, mime) => {
+it("captures route.js saveBlob for a GPX", async () => {
+  const filename = "fogtomaps-route.gpx";
+  const mime = "application/gpx+xml";
   installDownloads(window, document, send);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["<route/>"], { type: mime }));

@@ -25,8 +25,6 @@ it.skipIf(!!process.env.STRYKER_MUTATOR_WORKER)("finds exactly the reviewed host
     "szapalak.goatcounter.com",
     "tile.openstreetmap.org",
     "www.cyclosm.org",
-    "www.google.com",
-    "www.opengis.net",
     "www.openstreetmap.org",
     "www.topografix.com",
   ]);
