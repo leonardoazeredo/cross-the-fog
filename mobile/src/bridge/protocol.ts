@@ -52,9 +52,9 @@ const routeCoords = z
   .min(2)
   .max(ROUTE_MAX_POINTS);
 
-// `seconds` is null when the page has no time estimate for the route (app/src/estimates.js); `ascentM` and
-// `descentM` are null when no elevation arrived (app/src/routeLocal.js). The schema accepts them so
-// such a route is sent rather than rejected.
+// `ascentM` and `descentM` are null when no elevation arrived (app/src/routeLocal.js). The page gives every
+// route a walking time (app/src/estimates.js), but a null `seconds` is accepted too: a route without
+// one is sent rather than rejected.
 const routeRecord = z.object({
   id: uuid,
   createdAt: isoDate,

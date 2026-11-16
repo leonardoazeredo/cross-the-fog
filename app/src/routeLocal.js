@@ -26,21 +26,21 @@
     };
   }
 
-  // streets: StreetIndex (ensureRects); plannerFor(travelMode) -> GraphPlanner|null; elevation:
-  // {elevationAt}; estimates: Estimates; streetKind(travelMode) -> "run"|"bike".
-  function create({ streets, plannerFor, elevation, estimates, streetKind }) {
-    // points: [{lat, lng}] (at least two), travelMode as the mode buttons name it;
+  // streets: StreetIndex (ensureRects); streetGraph() -> GraphPlanner|null; elevation:
+  // {elevationAt}; estimates: Estimates.
+  function create({ streets, streetGraph, elevation, estimates }) {
+    // points: [{lat, lng}] (at least two);
     // onProgress({done, total, waitUntil?}) hears the street download, if one is needed; stale()
     // true means a newer request replaced this one, so the download asks for nothing further.
     // -> {coords, stats: {km, seconds, ascent, descent}} or {error: true, why}
-    return async function routeWaypoints(points, travelMode, onProgress, stale) {
+    return async function routeWaypoints(points, onProgress, stale) {
       const rects = [];
       for (let i = 1; i < points.length; i++) {
         if (legM(points[i - 1], points[i]) > MAX_LEG_M) return TOO_FAR;
         rects.push(legRect(points[i - 1], points[i]));
       }
       // a failed download logs its reason, a bug its class, never a message: messages name tiles
-      try { await streets.ensureRects(rects, streetKind(travelMode), { onProgress, stale, holdAs: "route" }); } catch (e) {
+      try { await streets.ensureRects(rects, { onProgress, stale, holdAs: "route" }); } catch (e) {
         if (global.StreetIndex.isSuperseded(e)) return SUPERSEDED; // replaced by a newer request, which route.js ignores; nothing to log
         // a bug is logged even when the request is stale: staleness only keeps it from being shown
         if (!global.StreetIndex.isDownloadError(e)) {
@@ -51,7 +51,7 @@
         console.warn("[route] streets unavailable", e.reason);
         return { error: true, why: { reason: "streets-fetch", download: global.StreetIndex.downloadFacts(e) } };
       }
-      const planner = plannerFor(travelMode);
+      const planner = streetGraph();
       if (!planner) return NO_STREETS;
       const router = new global.LocalRouter(planner);
       const route = router.route(points);
@@ -64,8 +64,8 @@
         if (!warnedHeights) { warnedHeights = true; console.warn("[route] heights unavailable", e && e.name); }
         heights = [];
       }
-      const est = estimates.estimate(route.coords, travelMode, heights);
-      // no height arrived: keep the 2D route.coords (routeStats gives the null climb), not a profile that claims flat ground
+      const est = estimates.estimate(route.coords, heights);
+      // no height arrived: keep the 2D route.coords (routeStats gives the null climb), not heights that claim flat ground
       return { coords: est.elevationKnown > 0 ? est.coords : route.coords, stats: estimates.routeStats(est) };
     };
   }

@@ -1,7 +1,6 @@
 // Point-to-point routing over the street graph GraphPlanner builds from the
 // Overpass ways, so suggestions never need a routing server. Cost is plain
-// length: the cached ways carry no surface tags, so profiles differ only in which
-// ways the graph holds and which direction of a one-way they may take.
+// length: the cached ways carry no surface tags.
 (function (global) {
   const SNAP_M = 600;     // a point farther than this from every street is off the network
   const GRID_M = 100;     // spatial grid of edges, for snapping

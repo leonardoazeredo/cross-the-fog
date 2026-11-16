@@ -5,17 +5,11 @@
 
 module.exports = [
   // Heavily defogged home turf: the hard case, new ground is rare.
-  { name: "neustadt-run-10k", mode: "loop", a: [51.0681, 13.7543], distM: 10000, profile: "hiking-mountain", buffer: 0.15, note: "dense 37%" },
-  { name: "neustadt-bike-50k", mode: "loop", a: [51.0681, 13.7543], distM: 50000, profile: "trekking", buffer: 0.15, note: "dense 37%" },
+  { name: "neustadt-run-10k", mode: "loop", a: [51.0681, 13.7543], distM: 10000, buffer: 0.15, note: "dense 37%" },
   // Partially defogged: remnants and gaps, the "interesting middle".
-  { name: "striesen-run-10k", mode: "loop", a: [51.0590, 13.7829], distM: 10000, profile: "hiking-mountain", buffer: 0.15, note: "medium 19%" },
-  { name: "dd-north-run-10k", mode: "loop", a: [51.1133, 13.7543], distM: 10000, profile: "hiking-mountain", buffer: 0.15, note: "sparse 4%" },
+  { name: "striesen-run-10k", mode: "loop", a: [51.0590, 13.7829], distM: 10000, buffer: 0.15, note: "medium 19%" },
+  { name: "dd-north-run-10k", mode: "loop", a: [51.1133, 13.7543], distM: 10000, buffer: 0.15, note: "sparse 4%" },
   // Barely touched big cities: fog everywhere, shape quality is what matters.
-  { name: "berlin-run-10k", mode: "loop", a: [52.52, 13.405], distM: 10000, profile: "hiking-mountain", buffer: 0.15, note: "sparse 1%" },
-  { name: "london-run-10k", mode: "loop", a: [51.507, -0.128], distM: 10000, profile: "hiking-mountain", buffer: 0.15, note: "sparse 2%" },
-  // One p2p for regression context (p2p already benchmarked well in v4).
-  { name: "neustadt-p2p", mode: "p2p", a: [51.0681, 13.7543], b: [51.0590, 13.7829], profile: "trekking", buffer: 0.30, note: "dense to medium" },
-  // Not in the BRouter baseline (compare.js only scores what the baseline has): wheeled classes, one-ways, motorways, a loop between 10 and 30 km.
-  { name: "neustadt-p2p-fastbike", mode: "p2p", a: [51.0681, 13.7543], b: [51.0590, 13.7829], profile: "fastbike", buffer: 0.30, note: "road bike" },
-  { name: "neustadt-bike-20k", mode: "loop", a: [51.0681, 13.7543], distM: 20000, profile: "trekking", buffer: 0.15, note: "dense 37%, between 10 and 30 km" },
+  { name: "berlin-run-10k", mode: "loop", a: [52.52, 13.405], distM: 10000, buffer: 0.15, note: "sparse 1%" },
+  { name: "london-run-10k", mode: "loop", a: [51.507, -0.128], distM: 10000, buffer: 0.15, note: "sparse 2%" },
 ];

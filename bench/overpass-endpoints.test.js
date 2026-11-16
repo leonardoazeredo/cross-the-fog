@@ -545,7 +545,7 @@ const realFetch = global.fetch;
     reset();
     global.fetch = routed({ [M]: status(406), [N]: silent });
     const streets = new StreetIndex({ newFrac: () => 1 });
-    const e = await played(streets.ensureRects([{ s: 51, w: 13.7, n: 51.01, e: 13.71 }], "run").then(() => assert.fail("expected a rejection"), (x) => x));
+    const e = await played(streets.ensureRects([{ s: 51, w: 13.7, n: 51.01, e: 13.71 }]).then(() => assert.fail("expected a rejection"), (x) => x));
     assert.deepEqual([e.reason, e.done, typeof e.retryAt], ["blocked", 0, "number"]);
     const text = StreetMessages.describe(StreetIndex.downloadFacts(e), t);
     assert.equal(text, "The street server has blocked this network for today: it caps each network's daily use. Try another network, or try again tomorrow.");

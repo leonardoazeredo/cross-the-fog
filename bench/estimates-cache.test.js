@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 require("./lib/load.js");
 const { Estimates } = global;
-const { compare, profileOf, hasElevation, TIME_TOLERANCE, DIST_TOLERANCE, ASCENT_TOLERANCE_M } = require("./lib/brouterCheck.js");
+const { compare, profileOf, hasElevation, WALK_PROFILE, TIME_TOLERANCE, DIST_TOLERANCE, ASCENT_TOLERANCE_M } = require("./lib/brouterCheck.js");
 
 const DIR = process.env.CROSSFOG_BROUTER_CACHE || path.join(__dirname, "cache", "brouter");
 if (!fs.existsSync(DIR) || !fs.statSync(DIR).isDirectory()) {
@@ -34,13 +34,13 @@ for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith(".json")).sort()) {
     feature = j && j.ok && j.body && Array.isArray(j.body.features) ? j.body.features[0] : null;
   } catch (e) { corrupt++; continue; } // not counted as merely unusable: a cache of broken files must not pass as skipped
   const profile = feature && profileOf(feature);
-  if (!feature || !profile || !Estimates.MODES[profile] || !hasElevation(feature)) { unusable++; continue; }
+  // answers of BRouter's other profiles were cached for the removed travel modes: not a walking time
+  if (!feature || profile !== WALK_PROFILE || !hasElevation(feature)) { unusable++; continue; }
 
-  const r = compare(Estimates, feature, profile);
-  const lo = compare(Estimates, feature, profile, { ascentFilterM: 5 }).est.ascentM;
+  const r = compare(Estimates, feature);
+  const lo = compare(Estimates, feature, { ascentFilterM: 5 }).est.ascentM;
   assert.ok(r.distPct <= DIST_TOLERANCE * 100, `${profile}: distance ${r.est.distanceM} vs ${r.want.distanceM}`);
-  const tol = TIME_TOLERANCE[profile];
-  assert.ok(r.timePct <= tol * 100, `${profile}: time ${r.est.seconds} vs ${r.want.seconds}`);
+  assert.ok(r.timePct <= TIME_TOLERANCE * 100, `${profile}: time ${r.est.seconds} vs ${r.want.seconds}`);
   // the filter BRouter applies depends on its data per node, so its figure lies between the two constants
   assert.ok(r.want.ascentM >= r.est.ascentM - ASCENT_TOLERANCE_M && r.want.ascentM <= lo + ASCENT_TOLERANCE_M, `${profile}: ascent ${r.est.ascentM}..${lo} vs ${r.want.ascentM}`);
 
@@ -66,5 +66,5 @@ for (const [profile, w] of Object.entries(worst).sort()) {
 }
 // the between-bounds check above passes a large miss; this catches the model drifting from the 10 m filter BRouter mostly applies
 assert.ok(ascentErrSum / used <= MAX_MEAN_ASCENT_ERR_M, `mean ascent error ${(ascentErrSum / used).toFixed(1)} m`);
-console.log(`${used} answers used, ${unusable} without elevation or a known profile; default 10 m filter within ${ASCENT_TOLERANCE_M} m of BRouter on ${wellMatched}, mean error ${(ascentErrSum / used).toFixed(1)} m; 5 m filter within ${ASCENT_TOLERANCE_M} m on ${loMatched}, mean error ${(loErrSum / used).toFixed(1)} m`);
+console.log(`${used} answers used, ${unusable} without elevation or not BRouter's walking profile; default 10 m filter within ${ASCENT_TOLERANCE_M} m of BRouter on ${wellMatched}, mean error ${(ascentErrSum / used).toFixed(1)} m; 5 m filter within ${ASCENT_TOLERANCE_M} m on ${loMatched}, mean error ${(loErrSum / used).toFixed(1)} m`);
 console.log("estimates-cache.test.js ok");

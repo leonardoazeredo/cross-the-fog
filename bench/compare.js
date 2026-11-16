@@ -3,7 +3,8 @@
 // Passes when the median over scenarios of best-card area vs the baseline is at least
 // MIN_MEDIAN, no route jumps a gap (a stretch the street graph could not have walked),
 // and every scenario ran within MAX_MS. Scenarios the app declines on purpose (a loop
-// longer than it supports) are listed as skipped, not scored. Run the candidate twice: the first run pays for
+// longer than it supports), and baseline scenarios no longer in scenarios.js (the removed
+// travel modes'), are listed as skipped, not scored. Run the candidate twice: the first run pays for
 // Overpass fetches, the second (cache warm) is the one whose time means anything.
 "use strict";
 const fs = require("fs");
@@ -27,12 +28,14 @@ function maxGapM(coords) {
 const [baseFile, candFile] = process.argv.slice(2);
 if (!baseFile || !candFile) { console.error("usage: node bench/compare.js <baseline.json> <candidate.json>"); process.exit(2); }
 const base = load(baseFile), cand = load(candFile);
+const current = new Set(require("./scenarios.js").map((s) => s.name));
 
 const ratios = [];
 const rows = [];
 let failed = false;
 for (const [name, b] of base) {
   const c = cand.get(name);
+  if (!current.has(name)) { rows.push({ scenario: name, base: bestArea(b), cand: "skipped: scenario removed" }); continue; }
   if (c && c.empty && c.reason === "too-long") { rows.push({ scenario: name, base: bestArea(b), cand: "skipped: too long" }); continue; }
   const ratio = bestArea(b) > 0 ? bestArea(c) / bestArea(b) : 1;
   const gap = Math.max(0, ...((c && c.results) || []).map((r) => maxGapM(r.coords)));

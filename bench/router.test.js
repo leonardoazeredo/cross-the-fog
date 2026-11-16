@@ -89,7 +89,7 @@ const A = pt(0, 0), B = pt(1000, 0);
   const back = router(straight.concat(parallel), (id) => (id === 100 || id === 101 ? 1 : 0)).route([B, A]);
   assert.ok(back && Math.abs(back.lenM - 1400) < 5, `way back ${back && back.lenM}`);
 }
-{ // a profile that leaves no usable street at all is "no street data", not an infinite distance
+{ // a graph left with no usable street at all is "no street data", not an infinite distance
   assert.equal(router([]).explain([A, B]).reason, "no-street-data");
 }
 { // pins snap onto the street itself, not only to junctions: mid-way on a 1.4 km way

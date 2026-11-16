@@ -414,10 +414,8 @@ describe("Send to watch", () => {
     expect(msg.type).toBe("sendRoute");
     expect(msg.route.gpx).toContain(`<keywords>crossfog-route:${msg.route.id}</keywords>`);
     expect(msg.route.id).toBe(route.routeRecord()?.id);
-    // route.js may still add a travelMode; the bridge schema strips unknown keys, so the parsed
-    // route is the sent one without it.
-    const { travelMode: _mode, ...kept } = msg.route as typeof msg.route & { travelMode?: string };
-    expect(parseWebToNative(encode(msg))).toEqual({ ...msg, route: kept });
+    expect(msg.route).not.toHaveProperty("travelMode");
+    expect(parseWebToNative(encode(msg))).toEqual(msg);
   });
 
   it("shows what the phone reports for the route it sent", () => {

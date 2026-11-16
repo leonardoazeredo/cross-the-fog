@@ -2,12 +2,12 @@
 // Shared by estimates.test.js (committed fixtures) and estimates-cache.test.js (local cache).
 "use strict";
 
-// BRouter profile -> time tolerance: foot time is held to 2 %, bikes get a wider band for the way
-// speed limits BRouter applies, which are not on the phone
-const TIME_TOLERANCE = { "hiking-mountain": 0.02, shortest: 0.02, trekking: 0.1, fastbike: 0.1 };
+// BRouter's walking profile, the one whose answers Estimates reproduces; answers of its other profiles are not compared
+const WALK_PROFILE = "hiking-mountain";
+const TIME_TOLERANCE = 0.02;
 const DIST_TOLERANCE = 0.003;
 // the committed fixtures fix the model's constants, so they are held far tighter than the cache
-const FIXTURE_TIME_TOLERANCE = { "hiking-mountain": 0.002, shortest: 0.002, trekking: 0.01, fastbike: 0.01 };
+const FIXTURE_TIME_TOLERANCE = 0.002;
 const FIXTURE_DIST_TOLERANCE = 0.0001;
 const ASCENT_TOLERANCE_M = 2;
 
@@ -25,10 +25,10 @@ function hasElevation(feature) {
 // |got - want| as a percent of want (the plain difference when want is 0)
 const pct = (got, want) => (want === 0 ? Math.abs(got - want) : (Math.abs(got - want) / want) * 100);
 
-function compare(Estimates, feature, profile, opts) {
+function compare(Estimates, feature, opts) {
   const c = feature.geometry.coordinates;
   const p = feature.properties;
-  const est = Estimates.estimate(c.map((q) => [q[0], q[1]]), profile, c.map((q) => q[2]), opts);
+  const est = Estimates.estimate(c.map((q) => [q[0], q[1]]), c.map((q) => q[2]), opts);
   const want = { distanceM: Number(p["track-length"]), ascentM: Number(p["filtered ascend"]), seconds: Number(p["total-time"]) };
   return {
     est,
@@ -39,4 +39,4 @@ function compare(Estimates, feature, profile, opts) {
   };
 }
 
-module.exports = { compare, profileOf, hasElevation, TIME_TOLERANCE, DIST_TOLERANCE, FIXTURE_TIME_TOLERANCE, FIXTURE_DIST_TOLERANCE, ASCENT_TOLERANCE_M };
+module.exports = { compare, profileOf, hasElevation, WALK_PROFILE, TIME_TOLERANCE, DIST_TOLERANCE, FIXTURE_TIME_TOLERANCE, FIXTURE_DIST_TOLERANCE, ASCENT_TOLERANCE_M };

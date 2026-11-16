@@ -14,9 +14,9 @@ const A = L.latLng(51, 13.7), B = L.latLng(51, 13.71), C = L.latLng(51.001, 13.7
 const line = [[13.7, 51, 100], [13.705, 51.001, 110], [13.71, 51, 105]];
 const stats = { km: 0.7, seconds: 540, ascent: 10, descent: 5 };
 
-function tool(routeWaypoints, profile) {
+function tool(routeWaypoints) {
   const emitted = [];
-  const t = new RouteTool(global.fakeMap(), { onChange: (s) => emitted.push(s), routeWaypoints, profile });
+  const t = new RouteTool(global.fakeMap(), { onChange: (s) => emitted.push(s), routeWaypoints });
   return { t, emitted, last: () => emitted[emitted.length - 1] };
 }
 
@@ -26,16 +26,15 @@ function tool(routeWaypoints, profile) {
     for (const f of require("node:fs").readdirSync(dir))
       assert.ok(!/brouter\.de/.test(require("node:fs").readFileSync(require("node:path").join(dir, f), "utf8")), `${f} names brouter.de`);
   }
-  { // two pins: routed through routeWaypoints with the pins and the travel mode, stats emitted as given
+  { // two pins: routed through routeWaypoints with the pins, stats emitted as given
     const calls = [];
-    const { t, last } = tool(async (pts, mode) => { calls.push([pts, mode]); return { coords: line, stats }; }, "hiking-mountain");
+    const { t, last } = tool(async (pts) => { calls.push([pts]); return { coords: line, stats }; });
     t.add(A);
     assert.equal(calls.length, 0, "one pin is not a route");
     t.add(B);
     await tick();
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0][0].map((p) => [p.lat, p.lng]), [[51, 13.7], [51, 13.71]]);
-    assert.equal(calls[0][1], "hiking-mountain");
     assert.deepEqual(last(), { points: 2, ...stats });
     assert.deepEqual(t.routeCoords, line, "the routed line keeps its elevation");
   }
@@ -62,7 +61,7 @@ function tool(routeWaypoints, profile) {
     assert.deepEqual(missing.last(), { points: 2, error: true, why: { reason: "internal" } });
   }
   { // a reply still in flight is dropped when the route was cleared, shortened to one pin or edited; errors too
-    const supersedes = [["clear", (t) => t.clear()], ["undo", (t) => t.undo()], ["edit", (t) => t.setProfile("fastbike")]];
+    const supersedes = [["clear", (t) => t.clear()], ["undo", (t) => t.undo()], ["edit", (t) => t.reverse()]];
     const replies = [{ coords: line, stats }, { error: true, why: { reason: "no-path" } }];
     for (const [name, supersede] of supersedes) for (const reply of replies) {
       const first = deferred();
@@ -83,7 +82,7 @@ function tool(routeWaypoints, profile) {
     const { t, last } = tool(() => pending.shift().promise);
     t.add(A); t.add(B);             // request 1
     const r1 = [[13.7, 51], [13.71, 51]];
-    t.setProfile("fastbike");       // request 2 supersedes it
+    t.reverse();                    // request 2 supersedes it
     second.resolve({ coords: line, stats });
     await tick();
     first.resolve({ coords: r1, stats: { km: 9, seconds: 1, ascent: 0, descent: 0 } });
@@ -121,21 +120,19 @@ function tool(routeWaypoints, profile) {
     t.undo(); // down to one pin: no route left to refine
     assert.equal(t.refineFixedRoute(third, line, stats), false, "removing a pin supersedes the hand-off");
   }
-  { // a pin added after routing re-asks with the new pins; reverse and mode changes too
+  { // a pin added after routing re-asks with the new pins; a reverse too
     const calls = [];
-    const { t } = tool(async (pts, mode) => { calls.push([pts.map((p) => p.lat + "," + p.lng).join("|"), mode]); return { coords: line, stats }; });
+    const { t } = tool(async (pts) => { calls.push(pts.map((p) => p.lat + "," + p.lng).join("|")); return { coords: line, stats }; });
     t.add(A); t.add(B); t.add(C);
     await tick();
     t.reverse();
-    t.setProfile("fastbike");
     await tick();
-    assert.equal(calls.length, 4); // the second pin, the third, the reverse, the mode
-    assert.equal(calls[2][0], "51.001,13.72|51,13.71|51,13.7");
-    assert.equal(calls[3][1], "fastbike");
+    assert.equal(calls.length, 3); // the second pin, the third, the reverse
+    assert.equal(calls[2], "51.001,13.72|51,13.71|51,13.7");
   }
   { // the street download's progress reaches the loading state; a superseded request's progress does not
     const first = deferred(), progress = [];
-    const { t, emitted } = tool(async (pts, mode, onProgress) => { progress.push(onProgress); await first.promise; return { coords: line, stats }; });
+    const { t, emitted } = tool(async (pts, onProgress) => { progress.push(onProgress); await first.promise; return { coords: line, stats }; });
     t.add(A); t.add(B);
     await tick();
     progress[0]({ done: 1, total: 3 });
@@ -151,7 +148,7 @@ function tool(routeWaypoints, profile) {
   }
   { // a wait for a busy server reaches the loading state; the request hears when a newer one replaced it
     const first = deferred(), calls = [];
-    const { t, emitted } = tool(async (pts, mode, onProgress, stale) => { calls.push({ onProgress, stale }); await first.promise; return { coords: line, stats }; });
+    const { t, emitted } = tool(async (pts, onProgress, stale) => { calls.push({ onProgress, stale }); await first.promise; return { coords: line, stats }; });
     t.add(A); t.add(B);
     await tick();
     calls[0].onProgress({ done: 1, total: 3, waitUntil: 15000 });

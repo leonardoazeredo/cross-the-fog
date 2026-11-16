@@ -8,7 +8,7 @@ const { installTileFetch } = require("./tileFetch.js");
 
 function pin(lat, lng) { const ll = L.latLng(lat, lng); return { getLatLng: () => ll }; }
 
-// scenario: { mode, a:[lat,lng], b?, distM?, targetM? (p2p wanted distance), profile, buffer, noStreets? }
+// scenario: { mode, a:[lat,lng], b?, distM?, targetM? (p2p wanted distance), buffer, noStreets? }
 function runSuggest(fogMap, gain, scenario) {
   cache.install();
   const streets = scenario.noStreets ? null : new StreetIndex({ newFrac: gain.corridorNewFrac });
@@ -38,7 +38,7 @@ function runSuggest(fogMap, gain, scenario) {
     tool.mode = scenario.mode;
     tool.a = pin(scenario.a[0], scenario.a[1]);
     if (scenario.b) tool.b = pin(scenario.b[0], scenario.b[1]);
-    tool.suggest(scenario.profile, { distM: scenario.distM, targetM: scenario.targetM, buffer: scenario.buffer || 0.15 })
+    tool.suggest({ distM: scenario.distM, targetM: scenario.targetM, buffer: scenario.buffer || 0.15 })
       .catch(reject);
     const guard = setTimeout(() => reject(new Error("suggest timed out")), 600000);
     guard.unref(); // don't hold the process open after results resolve

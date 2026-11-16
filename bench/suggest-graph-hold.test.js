@@ -32,18 +32,18 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
       // another run's tile lands between two of the suggestion's routes
       s._addWay({ id: 9, nodes: [3, 9], geometry: [ll(1000, 0), ll(1500, 0)] });
       s.version++;
-      editor = tool.plannerFor("hiking-mountain");
+      editor = tool.streetGraph();
       editor.build();
     }
     return out;
   };
-  await tool.suggest("hiking-mountain", { buffer: 0.15 });
+  await tool.suggest({ buffer: 0.15 });
   global.LocalRouter.prototype.route = route;
   assert.ok(seen.length > 1, `routes ${seen.length}`);
   assert.ok(seen.every(([p, stamp]) => p === seen[0][0] && stamp === seen[0][1]), "one graph for the whole suggestion");
   assert.notEqual(editor, seen[0][0], "the editor is not handed the graph the suggestion holds");
   assert.equal(editor.edges.length, seen[0][2] + 1, "the editor's graph has the new street");
-  const after = tool.plannerFor("hiking-mountain");
+  const after = tool.streetGraph();
   after.build();
   assert.equal(after.edges.length, seen[0][2] + 1, "once the suggestion ends, its graph is current again");
   assert.equal(after.held, false);
@@ -53,8 +53,8 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
     t.mode = "p2p"; t.a = pin(0, 0); t.b = pin(1000, 0);
     let held = null;
     const orig = t._route;
-    t._route = async function (...a) { held = held || this._graphFor("hiking-mountain"); this.clearResults(); return orig.apply(this, a); };
-    await t.suggest("hiking-mountain", { buffer: 0.15 });
+    t._route = async function (...a) { held = held || this._graph(); this.clearResults(); return orig.apply(this, a); };
+    await t.suggest({ buffer: 0.15 });
     assert.equal(held.held, false);
   }
   { // an older run that ends while a newer one plans leaves the newer run's graph held
@@ -71,8 +71,8 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
       if (!parked) { parked = this._hold; await newGate; }
       return orig.apply(this, a);
     };
-    const older = t.suggest("hiking-mountain", { buffer: 0.15 });
-    const newer = t.suggest("hiking-mountain", { buffer: 0.15 });
+    const older = t.suggest({ buffer: 0.15 });
+    const newer = t.suggest({ buffer: 0.15 });
     await new Promise((r) => setImmediate(r));
     assert.ok(parked && parked.planner.held, "the newer run holds its graph");
     openOld();
@@ -89,20 +89,20 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
     tool.mode = "loop"; tool.a = pin(0, 0);
     const held = [];
     let editor = null, injected = false;
-    const graphFor = tool._graphFor;
-    tool._graphFor = function (...a) {
+    const graphFor = tool._graph;
+    tool._graph = function (...a) {
       const p = graphFor.apply(this, a);
       if (p) held.push([p, p.held]);
       if (p && !injected) {
         injected = true;
         st._addWay({ id: 9, nodes: [3, 9], geometry: [ll(1000, 0), ll(1500, 0)] });
         st.version++;
-        editor = tool.plannerFor("hiking-mountain");
+        editor = tool.streetGraph();
         editor.build();
       }
       return p;
     };
-    await tool.suggest("hiking-mountain", { distM: 3000, buffer: 0.15 });
+    await tool.suggest({ distM: 3000, buffer: 0.15 });
     assert.ok(held.length > 0 && editor, "the loop run planned on a held graph");
     assert.ok(held.every(([p, isHeld]) => p === held[0][0] && isHeld === true), "one held graph for the whole loop run");
     assert.notEqual(editor, held[0][0], "the editor is not handed the loop's graph");

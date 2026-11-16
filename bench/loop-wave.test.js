@@ -59,7 +59,7 @@ async function run(routable, opts = {}) {
   let last = null;
   const progress = [];
   tool.onResults = (x) => { if (x && x.loading) progress.push(x); if (x && !x.loading) last = x; };
-  await tool.suggest("hiking-mountain", { distM: 10000, buffer: 0.15 });
+  await tool.suggest({ distM: 10000, buffer: 0.15 });
   return { last, tool, asked, progress };
 }
 

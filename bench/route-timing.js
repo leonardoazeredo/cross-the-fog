@@ -2,7 +2,7 @@
 //   node bench/route-timing.js [scenario]      default scenario: berlin-run-10k
 // The streets come from bench/cache/ through the bench tile fetch (the scenario's own run warms them),
 // then every fetch is cut off: a drag whose padded rects reach a tile the warm-up did not cover counts
-// as a live request and fails the script. Heights are a synthetic profile, since the real source
+// as a live request and fails the script. Heights are a synthetic curve, since the real source
 // fetches from the network; the page logs the real timing on a device.
 "use strict";
 const { SuggestTool, StreetIndex, FogParser } = require("./lib/load.js");
@@ -30,7 +30,7 @@ const pct = (xs, q) => xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, 
     tool.onResults = (s) => { if (s && !s.loading) resolve(); };
     tool.mode = sc.mode;
     tool.a = { getLatLng: () => global.L.latLng(sc.a[0], sc.a[1]) };
-    tool.suggest(sc.profile, { distM: sc.distM, buffer: sc.buffer || 0.15 }).catch(reject);
+    tool.suggest({ distM: sc.distM, buffer: sc.buffer || 0.15 }).catch(reject);
   });
   const warm = cache.counters();
   if (warm.misses) { console.error(`warm-up made ${warm.misses} live requests: the scenario is not in bench/cache/`); process.exit(1); }
@@ -39,12 +39,12 @@ const pct = (xs, q) => xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, 
   streets.fetchStreets = async () => { live++; throw new Error("live street fetch"); };
   const elevation = { elevationAt: async (pts) => pts.map((_, i) => 100 + 15 * Math.sin(i / 15)) };
   const routeWaypoints = global.RouteLocal.create({
-    streets, plannerFor: (p) => tool.plannerFor(p), elevation, estimates: global.Estimates, streetKind: SuggestTool.streetKind,
+    streets, streetGraph: () => tool.streetGraph(), elevation, estimates: global.Estimates,
   });
 
   // a 5 km route: end pin along a bearing until the routed length lands in 4.5-5.5 km, via pin on the street halfway
   const A = { lat: sc.a[0], lng: sc.a[1] };
-  const router = new global.LocalRouter(tool.plannerFor(sc.profile));
+  const router = new global.LocalRouter(tool.streetGraph());
   let base = null;
   for (let d = 3000; d <= 5000 && !base; d += 250) {
     const B = offset(A, d * Math.cos(Math.PI / 6), d * Math.sin(Math.PI / 6));
@@ -56,7 +56,7 @@ const pct = (xs, q) => xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, 
   const M = { lat: mid[1], lng: mid[0] };
 
   const first = performance.now();
-  const r0 = await routeWaypoints([A, M, base.B], sc.profile);
+  const r0 = await routeWaypoints([A, M, base.B]);
   const firstMs = performance.now() - first;
   if (r0.error) { console.error(`first route failed: ${r0.why && r0.why.reason}`); process.exit(1); }
 
@@ -65,7 +65,7 @@ const pct = (xs, q) => xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, 
   for (let i = 0; i < DRAGS; i++) {
     const a = (i / DRAGS) * 2 * Math.PI;
     const t = performance.now();
-    const r = await routeWaypoints([A, offset(M, DRAG_M * Math.cos(a), DRAG_M * Math.sin(a)), base.B], sc.profile);
+    const r = await routeWaypoints([A, offset(M, DRAG_M * Math.cos(a), DRAG_M * Math.sin(a)), base.B]);
     ms.push(performance.now() - t);
     if (r.error) failed++;
   }

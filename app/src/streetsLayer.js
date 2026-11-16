@@ -13,9 +13,8 @@
 // Drawing is a glow: a wide translucent halo under a thin bright core, on a
 // canvas pane between the fog and the route overlays. The colour is the user's
 // own, deepened a little on a light map, and never the fog swatch colour, which
-// would read as "already defogged". Stretches the chosen way of travelling
-// can't take are drawn faintly rather than dropped, so a walk-only alley still
-// shows while you're planning a bike ride.
+// would read as "already defogged". Motorways, which are never walked, are drawn
+// faintly rather than dropped.
 (function (global) {
   const MAX_TILES = 48;      // no higher: the shared index evicts nothing under a pass while it runs, so past its MAX_SEGS the view's own ways are cut short
   const FETCH_MAX_TILES = 16; // the most missing pieces one tap downloads
@@ -30,9 +29,7 @@
     light: { coreOp: 0.78, haloOp: 0.14, shade: 0.82 },
     dark: { coreOp: 0.9, haloOp: 0.3, shade: 1 }
   };
-  const DIM_OP = 0.45; // strength of stretches the chosen transport can't use
-  // Which travel class each Plan mode needs; the rest can go anywhere on foot.
-  const MODE_CLASS = global.StreetIndex.MODE_CLASS;
+  const DIM_OP = 0.45; // strength of stretches that cannot be walked
   function shade(hex, f) {
     const h = hex.replace("#", "");
     const c = [0, 2, 4].map((i) => Math.round(parseInt(h.substr(i, 2), 16) * f));
@@ -66,7 +63,6 @@
     this.look = "light";
     this.color = DEFAULT_COLOR;
     this.opacity = 1;
-    this.travelClass = null;       // null = draw every stretch at full strength
     this.runs = [];                // stretches still to do: [{ll: [[lat, lng], ...], m, s, w, n, e}]
     this.doneRuns = [];            // stretches already defogged (kept for the "% of streets in fog" readout)
     this._cursor = 0;              // how many of streets.ways have been classified
@@ -125,13 +121,6 @@
   StreetsInFogLayer.prototype.setLook = function (look) {
     this.look = OPS[look] ? look : "light";
     this._restyle();
-  };
-  // Plan-tab transport mode: stretches it can't use are drawn faintly.
-  StreetsInFogLayer.prototype.setMode = function (profile) {
-    const c = MODE_CLASS[profile] || null;
-    if (c === this.travelClass) return;
-    this.travelClass = c;
-    if (this.enabled) this._draw();
   };
   StreetsInFogLayer.prototype.setColor = function (hex) {
     this.color = /^#[0-9a-f]{6}$/i.test(hex || "") ? hex : DEFAULT_COLOR;
@@ -256,7 +245,7 @@
       if (this._busy) { this._dirty = true; return; }
       this._busy = true;
       try {
-        const cached = await this.streets.ensureRects(tiles, "run", { cacheOnly: true });
+        const cached = await this.streets.ensureRects(tiles, { cacheOnly: true });
         if (!current()) return;
         this._missingRects = cached.missing.map(global.StreetIndex.tileBounds);
         this._known = cached.done;
@@ -300,7 +289,7 @@
     // the download belongs to the view it was tapped in: once the map moves or the look is switched off
     // it asks nothing further, so it does not keep the server busy through its busy waits
     const stale = () => view !== this._view || !this.enabled;
-    try { await this.streets.ensureRects(rects, "run", { onProgress, stale }); }
+    try { await this.streets.ensureRects(rects, { onProgress, stale }); }
     catch (e) {
       const download = global.StreetIndex.isDownloadError(e);
       if (!download) console.error("[streets layer] downloading streets threw", e && e.name);
@@ -380,9 +369,7 @@
   StreetsInFogLayer.prototype._draw = function () {
     const b = this.map.getBounds().pad(0.2);
     const s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast();
-    // a way we haven't classified yet counts as usable, so nothing fades in late
-    const usable = (id) => !this.streets.motorway.has(id) &&
-      (!this.travelClass || !this.streets.classified.has(id) || this.streets.classIds[this.travelClass].has(id));
+    const usable = (id) => this.streets.walkable(id);
     const shown = [], faint = [];
     for (const r of this.runs)
       if (r.m >= MIN_RUN_M && r.n >= s && r.s <= n && r.e >= w && r.w <= e) (usable(r.id) ? shown : faint).push(r.ll);

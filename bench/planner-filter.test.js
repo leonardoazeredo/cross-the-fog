@@ -1,4 +1,4 @@
-// Given a usable-way predicate, the planner graph holds only ways the travel class may use; synthetic streets, no network.
+// Given a usable-way predicate, the planner graph holds only the ways it allows; synthetic streets, no network.
 //   node bench/planner-filter.test.js
 "use strict";
 const assert = require("node:assert/strict");
@@ -14,41 +14,26 @@ streets.ways = [
 ];
 streets.classified = new Set([10, 11]);
 streets.classIds.bike = new Set([10]);
+streets.motorway = new Set([11]);
 
-{ // profile -> usable-way predicate
-  const bike = streets.usableFor("trekking");
-  assert.equal(bike(10), true);
-  assert.equal(bike(11), false);
-  assert.equal(streets.usableFor("hiking-mountain")(11), true);
-  assert.equal(bike(99), true, "unclassified way counts as usable");
+{ // every way but a motorway is walked, whatever travel class lists it
+  assert.equal(streets.walkable(10), true);
+  assert.equal(streets.walkable(11), false);
+  assert.equal(streets.walkable(99), true, "a way no list names");
 }
-{ // the graph skips ways the class can't use, and edges remember their way
-  const p = new GraphPlanner(streets, () => 1, streets.usableFor("trekking"));
+{ // the graph skips ways the predicate refuses, and edges remember their way
+  const p = new GraphPlanner(streets, () => 1, (id) => streets.walkable(id));
   p.build();
   assert.equal(p.edges.length, 1);
   assert.equal(p.edges[0].way, 10);
 }
-{ // one-way tags only bind the classes that travel on wheels
-  streets.oneWay = new Set([10]);
-  streets.reverseWay = new Set([11]);
-  const wheels = streets.onewayFor("trekking");
-  assert.equal(wheels(10), 1);
-  assert.equal(wheels(11), -1);
-  assert.equal(wheels(12), 0);
-  assert.equal(streets.onewayFor("hiking-mountain")(10), 0);
-  assert.equal(streets.onewayFor("shortest")(10), 0);
-}
-{ // bikes may ride contraflow where tagged
-  streets.bikeBoth = new Set([10]);
-  assert.equal(streets.onewayFor("trekking")(10), 0);
-  assert.equal(streets.onewayFor("fastbike")(10), 0);
-}
-{ // no mode may use a motorway
-  streets.motorway = new Set([12]);
-  assert.equal(streets.usableFor("fastbike")(12), false, "road bike");
-  assert.equal(streets.usableFor("hiking-mountain")(12), false, "walk");
-  assert.equal(streets.usableFor("trekking")(12), false, "bike");
-  assert.equal(streets.usableFor("shortest")(12), false, "direct");
+{ // one-way tags do not bind walkers
+  const st = new StreetIndex({ newFrac: () => 1 });
+  st.ways = [{ id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] }];
+  st.oneWay = new Set([10]);
+  const p = new GraphPlanner(st, () => 1, (id) => st.walkable(id));
+  p.build();
+  assert.equal(p.edges[0].dir, 0);
 }
 { // distances run in the direction of travel: out along a one-way is finite, back is not
   const ow = { ways: [{ id: 10, nodes: [1, 2], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51, lon: 13.71 }] }] };
@@ -60,15 +45,15 @@ streets.classIds.bike = new Set([10]);
   assert.ok(isFinite(p._plainTo(n2)[n1]), "1 can reach 2");
   assert.ok(!isFinite(p._plainTo(n1)[n2]), "2 cannot reach 1");
 }
-{ // a later fetch that only adds class or one-way lists (no new ways) still reaches the graph
+{ // a later fetch that only adds an ID list (no new ways) still reaches the graph
   const st = new StreetIndex({ newFrac: () => 1 });
   st.ways = [{ id: 10, nodes: [1, 2], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51, lon: 13.71 }] }];
-  const p = new GraphPlanner(st, () => 1, st.usableFor("trekking"), st.onewayFor("trekking"));
+  const p = new GraphPlanner(st, () => 1, (id) => st.walkable(id));
   p.build();
-  assert.equal(p.edges[0].dir, 0);
-  st.oneWay.add(10);
+  assert.equal(p.edges.length, 1);
+  st.motorway.add(10);
   st.version++; // what ensureRects does when a fetch has been read
   p.build();
-  assert.equal(p.edges[0].dir, 1);
+  assert.equal(p.edges.length, 0);
 }
 console.log("planner-filter.test.js ok");
