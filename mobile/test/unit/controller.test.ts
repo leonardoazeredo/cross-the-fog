@@ -816,3 +816,104 @@ it("does nothing for the developer add-activity message in a debug app with no h
   expect(h.devAddActivity).not.toHaveBeenCalled();
   expect(h.sent).toEqual([]);
 });
+
+// A store read can fail while an import waits for the page's verdict; WebShell does not await onWebMessage,
+// so a rejection here would be unhandled and leave the import busy.
+const importingHarness = async (): Promise<Harness> => {
+  const h = createHarness();
+  h.picks.push({ uri: bSrc, name: "b.zip" });
+  await h.c.start();
+  await h.c.onWebMessage(pickBackup);
+  return h;
+};
+const loadedB: WebToNative = { v: 1, type: "loaded", fingerprint: sha(B), ok: true, tiles: 2 };
+
+it("ends the import and says so when the store read fails on loaded", async () => {
+  const h = await importingHarness();
+  await h.c.onWebMessage(ready);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("secret detail"));
+  await expect(h.c.onWebMessage(loadedB)).resolves.toBeUndefined();
+  expect(h.busy).toEqual([true, false]);
+  expect(h.notified).toEqual([COPY.importFailed]);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("secret detail");
+  vi.restoreAllMocks();
+  h.picks.push({ uri: cSrc, name: "c.zip" });
+  await h.c.onWebMessage(pickBackup);
+  expect(h.pickFile).toHaveBeenCalledTimes(2);
+});
+
+it("ends the import when the current copy read fails on loaded", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  await h.c.start();
+  await h.c.onWebMessage(ready);
+  vi.spyOn(h.store, "current").mockRejectedValue(new Error("x"));
+  await expect(
+    h.c.onWebMessage({ v: 1, type: "loaded", fingerprint: sha(A), ok: true, tiles: 1 }),
+  ).resolves.toBeUndefined();
+  expect(h.notified).toEqual([]);
+});
+
+it("ends the import and says so when the store read fails on ready", async () => {
+  const h = await importingHarness();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("x"));
+  await expect(h.c.onWebMessage(ready)).resolves.toBeUndefined();
+  expect(h.busy).toEqual([true, false]);
+  expect(h.notified).toEqual([COPY.importFailed]);
+});
+
+it("ends the import and says so when the store read fails on needBytes", async () => {
+  const h = await importingHarness();
+  await h.c.onWebMessage(ready);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "current").mockRejectedValue(new Error("x"));
+  await expect(
+    h.c.onWebMessage({ v: 1, type: "needBytes", fingerprint: sha(B) }),
+  ).resolves.toBeUndefined();
+  expect(h.busy).toEqual([true, false]);
+  expect(h.notified).toEqual([COPY.importFailed]);
+});
+
+it("does not tell the user an import failed when a store read fails with no import running", async () => {
+  const h = createHarness();
+  await h.c.start();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("x"));
+  await expect(h.c.onWebMessage(ready)).resolves.toBeUndefined();
+  expect(h.notified).toEqual([]);
+  expect(h.busy).toEqual([]);
+});
+
+it("leaves a pick that is still choosing a file alone when a store read fails", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const pick = deferred<SourceFile | null>();
+  h.pickFile.mockReturnValueOnce(pick.promise);
+  const picking = h.c.onWebMessage(pickBackup);
+  await vi.waitFor(() => expect(h.pickFile).toHaveBeenCalled());
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("x"));
+  await h.c.onWebMessage(ready);
+  vi.restoreAllMocks();
+  expect(h.notified).toEqual([]);
+  await h.c.onWebMessage(pickBackup);
+  expect(h.pickFile).toHaveBeenCalledTimes(1);
+  pick.resolve({ uri: bSrc, name: "b.zip" });
+  await picking;
+  expect(h.remounts.count).toBe(1);
+});
+
+it("hands a share that waited for the import over when a store read ends it", async () => {
+  const h = await importingHarness();
+  await h.c.onWebMessage(ready);
+  await h.c.onIncoming({ uri: cSrc, name: "c.zip" });
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValue(new Error("x"));
+  await h.c.onWebMessage(loadedB);
+  vi.restoreAllMocks();
+  expect(h.busy).toEqual([true, false, true]);
+  expect(h.remounts.count).toBe(2);
+});

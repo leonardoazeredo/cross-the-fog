@@ -3,9 +3,10 @@ import type { NativeToWeb, WebToNative } from "./bridge/protocol.js";
 import { COPY } from "./copy.js";
 import { createImportFlow } from "./flows/importFlow.js";
 import type { Flows } from "./flows/types.js";
+import { warnClass } from "./flows/warn.js";
 import type { FileStore } from "./fog/fileStore.js";
 import type { ReloadGuard } from "./fog/reloadGuard.js";
-import type { FogStore, SourceFile } from "./fog/store.js";
+import type { CopyMeta, FogStore, SourceFile } from "./fog/store.js";
 import { zipName } from "./fog/store.js";
 import { streamCopy } from "./fog/transfer.js";
 
@@ -89,7 +90,25 @@ export function createController(deps: ControllerDeps): Controller {
     remount: doRemount,
   });
 
+  // WebShell does not await onWebMessage: a store read that rejects here would be unhandled and leave the
+  // import busy until the app restarts.
+  async function storeReadFailed(what: string, e: unknown): Promise<void> {
+    warnClass("controller", what, e);
+    await importFlow.fail();
+  }
+
   async function handleReady(): Promise<void> {
+    try {
+      await sendReload();
+    } catch (e) {
+      await storeReadFailed("could not read the saved fog on ready", e);
+      return;
+    }
+    flushNotices();
+    await deps.flows.ready();
+  }
+
+  async function sendReload(): Promise<void> {
     const pending = await store.pending();
     if (pending) {
       activeFingerprint = pending.sha256;
@@ -126,16 +145,24 @@ export function createController(deps: ControllerDeps): Controller {
         deps.send({ v: 1, type: "none" });
       }
     }
-    flushNotices();
-    await deps.flows.ready();
   }
 
   async function handleNeedBytes(fingerprint: string): Promise<void> {
     if (fingerprint !== activeFingerprint) return;
-    const current = await store.current();
-    const pending = await store.pending();
-    const meta =
-      pending?.sha256 === fingerprint ? pending : current?.sha256 === fingerprint ? current : null;
+    let meta: CopyMeta | null;
+    try {
+      const current = await store.current();
+      const pending = await store.pending();
+      meta =
+        pending?.sha256 === fingerprint
+          ? pending
+          : current?.sha256 === fingerprint
+            ? current
+            : null;
+    } catch (e) {
+      await storeReadFailed("could not read the saved fog for the page", e);
+      return;
+    }
     if (!meta) return;
     const abort = new AbortController();
     activeAbort = abort;
@@ -150,14 +177,19 @@ export function createController(deps: ControllerDeps): Controller {
   }
 
   async function handleLoaded(msg: Extract<WebToNative, { type: "loaded" }>): Promise<void> {
-    const pending = await store.pending();
-    if (!pending || pending.sha256 !== msg.fingerprint) {
-      if (pending === null) {
-        const current = await store.current();
-        if (current?.sha256 === msg.fingerprint) {
-          await guard.onLoaded();
+    try {
+      const pending = await store.pending();
+      if (!pending || pending.sha256 !== msg.fingerprint) {
+        if (pending === null) {
+          const current = await store.current();
+          if (current?.sha256 === msg.fingerprint) {
+            await guard.onLoaded();
+          }
         }
+        return;
       }
+    } catch (e) {
+      await storeReadFailed("could not read the saved fog on loaded", e);
       return;
     }
     await importFlow.loaded(msg);
