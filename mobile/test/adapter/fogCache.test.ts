@@ -293,7 +293,6 @@ describe("a store that fails after it opened", () => {
     objectStore: () => unknown;
   }
 
-  // An IDBFactory whose open succeeds with a stub db; `transaction` is what each test breaks.
   function stubFactory(transaction: () => StubTx): IDBFactory {
     return {
       open: () => {
@@ -344,7 +343,6 @@ describe("a store that fails after it opened", () => {
     expect(JSON.stringify(warn.mock.calls)).toContain("AbortError");
   });
 
-  // The write methods and what each calls on the stub's object store.
   const writes: [string, (c: Awaited<ReturnType<typeof openFogCache>>) => Promise<void>][] = [
     ["putOnly", (c) => c.putOnly(A, a)],
     ["putReveal", (c) => c.putReveal(ACT, stamp(1), new Int32Array(0))],
