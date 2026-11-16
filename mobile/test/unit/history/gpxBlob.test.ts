@@ -4,7 +4,7 @@ import { deflateGpx, inflateGpx } from "../../../src/history/gpxBlob.js";
 
 const GPX = `<gpx>${'<trkpt lat="48.1" lon="11.5"/>'.repeat(40)}</gpx>`;
 
-// positions in the deflate body whose flip still inflates, to different bytes
+// fflate does not check the adler32, so a flip in the deflate body that still inflates to other bytes is caught only by the checksum
 function silentFlips(blob: Uint8Array): number[] {
   const original = unzlibSync(blob);
   const found: number[] = [];
