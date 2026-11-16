@@ -34,7 +34,6 @@ function fogScope(over) {
     fogLayer: null,
     fogMap: { hasFog: () => true, tileCount: 0, latLngBounds: () => ({ b: 1 }) },
     streets: { invalidateFrac: () => calls.push("invalidateFrac") },
-    streetsLayer: { invalidateFog: () => calls.push("invalidateFog") },
     updateDefog: () => calls.push("updateDefog"),
     syncSug: () => calls.push("syncSug"),
     map: { fitBounds: () => { calls.push("fitBounds"); s.mapTouched = true; } }, // Leaflet fires movestart for it
@@ -66,7 +65,7 @@ function liftFogChanged(s) {
   const { s, calls } = fogScope({});
   s.streets.invalidateFrac = () => { throw new TypeError("boom"); };
   liftFogChanged(s)();
-  assert.ok(calls.includes("invalidateFog") && calls.includes("updateDefog") && calls.includes("syncSug"), calls.join());
+  assert.ok(calls.includes("updateDefog") && calls.includes("syncSug"), calls.join());
   assert.ok(calls.includes("warn:TypeError"), "logs the class only");
 }
 {
@@ -104,6 +103,6 @@ assert.match(src, /map\.on\("movestart", \(\) => \{ mapTouched = true; \}\)/);
 {
   const body = fnText("finishLoad");
   assert.match(body, /fogChanged\(\)/);
-  assert.doesNotMatch(body, /invalidateFrac|invalidateFog|syncSug|updateDefog/, "no second copy of the refresh");
+  assert.doesNotMatch(body, /invalidateFrac|syncSug|updateDefog/, "no second copy of the refresh");
 }
 console.log("main-fog-status ok");

@@ -47,8 +47,8 @@
   // the requests open with it are still running, so it ends the same whichever of them lands first
   const BUSY_RETRY_MS = [15000, 30000, 60000];
   // how often a waiting run checks stale() (a busy wait, whose deadline is checked before it starts) or
-  // stale() and its deadline (a wait for another run's tile): a replaced run must not hold its tiles,
-  // or the "Streets in fog" button, until a busy wait runs out or the other run ends
+  // stale() and its deadline (a wait for another run's tile): a replaced run must not hold its tiles
+  // until a busy wait runs out or the other run ends
   const STALE_POLL_MS = 1000;
   // the reasons a street source fails with (Overpass.post's, "superseded" among them, which the run's
   // own stop also uses); an error with none of them is a bug, which is never worded or wrapped as a
@@ -59,7 +59,7 @@
   function StreetIndex(opts) {
     this.newFrac = opts.newFrac; // (lon,lat) -> 0..1 share of the corridor stamp still fogged
     // the street source: (tiles, onTile, opts) -> Map "x:y" -> answer, calling onTile(tile, answer) as
-    // each arrives (a source may return some tiles in the Map alone); opts is {cacheOnly: true} or {now, wait, stale}
+    // each arrives (a source may return some tiles in the Map alone); opts is {now, wait, stale}
     this.fetchStreets = opts.fetchStreets || StreetIndex.overpassFetch;
     this.now = opts.now || Date.now; // the clock the run deadline is measured on
     this.sleep = opts.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -67,15 +67,6 @@
     this.every = opts.every || ((fn, ms) => { const id = setInterval(fn, ms); return () => clearInterval(id); });
     this.segs = new Map();       // "gx,gy" -> [{x,y,lon,lat,lenM,frac}]
     this.tiles = new Set();      // fetched coverage, StreetIndex.tileId
-    this.staleTiles = new Set(); // expired cached tiles a cache-only read drew from: not coverage, so a normal run fetches them again
-    // ways held only because an expired copy brought them: id -> {from: the staleTiles keys of the expired copies that still list it,
-    // segs: its scoring segments}. A fresh answer replaces them (see _read); a way any fresh tile brought is not here.
-    this.staleWays = new Map();
-    // the ways a fresh answer dropped: an expired copy does not add them back, since an expired copy is
-    // always older than a fresh one; a fresh answer listing the way removes it
-    this.goneWays = new Set();
-    this.onWaysChanged = null;   // called once a read has dropped or replaced ways, and once a normal run ends if the index version moved while it ran, for a reader that drew them (the Streets in fog look)
-    this.wayEpoch = 0;           // bumped when a way leaves the index or is replaced, so a reader that went through `ways` once starts over
     this.wayIds = new Set();     // dedupe across overlapping fetches
     // the query's ID lists (see CLASS_HW); walking reads only motorway
     this.classIds = { bike: new Set(), road: new Set(), car: new Set() };
@@ -89,7 +80,7 @@
     this.segCount = 0;
     this.maxSegs = opts.maxSegs || MAX_SEGS;
     // what a piece's eviction needs: id -> {from: the tile keys whose answer lists the way, segs: its scoring
-    // segments} for every way held (staleWays shares these entries), and "x:y" -> the ids of the ways a read
+    // segments} for every way held, and "x:y" -> the ids of the ways a read
     // of that piece listed (it can still name ways dropped since)
     this.wayFrom = new Map();
     this.pieceWays = new Map();
@@ -112,12 +103,10 @@
     return holds(this.tiles, StreetIndex.tileOf(lng, lat));
   };
 
-  // entry, when given, is the way's wayFrom entry made beforehand (one an expired copy brought is in
-  // staleWays before its segments are added)
-  StreetIndex.prototype._addWay = function (w, entry) {
+  StreetIndex.prototype._addWay = function (w) {
     if (!w.geometry || w.geometry.length < 2 || this.wayIds.has(w.id)) return;
     this.wayIds.add(w.id);
-    entry = entry || { from: new Set(), segs: [] };
+    const entry = { from: new Set(), segs: [] };
     this.wayFrom.set(w.id, entry);
     if (w.nodes && w.nodes.length === w.geometry.length) this.ways.push({ id: w.id, nodes: w.nodes, geometry: w.geometry });
     for (let i = 1; i < w.geometry.length && this.segCount < this.maxSegs; i++) {
@@ -140,9 +129,8 @@
     }
   };
 
-  // Takes ways out of the index: ones an expired copy brought, or ones no piece lists after an eviction.
-  // The MAX_SEGS share must be given back and every list the way joined must forget it, or a replaced
-  // way would count twice.
+  // Takes out the ways no piece lists after an eviction. The MAX_SEGS share must be given back and every
+  // list the way joined must forget it, or a way read again would count twice.
   StreetIndex.prototype._dropWays = function (ids) {
     if (!ids.length) return;
     const gone = new Set(ids), dead = new Map();
@@ -153,7 +141,6 @@
         dead.get(key).add(seg);
       }
       this.wayFrom.delete(id);
-      this.staleWays.delete(id);
       this.wayIds.delete(id);
       this.classified.delete(id);
       for (const name of GROUP_ORDER) (this.classIds[name] || this[name]).delete(id);
@@ -164,7 +151,6 @@
       this.segCount -= segs.size;
     }
     this.ways = this.ways.filter((w) => !gone.has(w.id));
-    this.wayEpoch++;
   };
 
   StreetIndex.prototype._use = function (pos) {
@@ -173,9 +159,7 @@
   };
 
   // Near the cap, drops the least recently used pieces that no running or held run covers: the piece
-  // stops counting as held (a run asks for it again, a cache-only read reads it again), and a
-  // way goes once no held piece lists it, fresh or expired; one left listed by expired copies alone is
-  // in staleWays again, so a fresh answer can replace it.
+  // stops counting as held (a run asks for it again), and a way goes once no held piece lists it.
   StreetIndex.prototype._makeRoom = function () {
     if (this.segCount <= this.maxSegs * EVICT_AT) return;
     const kept = [...this.runs, ...this.holds.values()];
@@ -185,25 +169,21 @@
       if (left <= this.maxSegs * EVICT_TO) break;
       if (kept.some((under) => under.has(pos))) continue;
       evicted.push(pos);
-      this.tiles.delete(pos); this.staleTiles.delete(pos);
+      this.tiles.delete(pos);
       for (const id of this.pieceWays.get(pos) || []) {
         const entry = this.wayFrom.get(id);
         if (!entry || !entry.from.delete(pos)) continue;
         if (!entry.from.size) { gone.push(id); left -= entry.segs.length; }
-        else if (!this.staleWays.has(id) && ![...entry.from].some((k) => this.tiles.has(k))) this.staleWays.set(id, entry);
       }
       this.pieceWays.delete(pos);
     }
     if (!evicted.length) return;
     for (const pos of evicted) this.used.delete(pos);
     this._dropWays(gone);
-    // pieces went, though no way did: the Streets in fog badge must still count them missing
-    if (!gone.length) this.wayEpoch++;
   };
 
-  // withStale also counts the expired tiles already drawn from, so a cache-only read skips them.
-  StreetIndex.prototype._uncovered = function (rects, withStale) {
-    return StreetIndex.tilesOf(rects).filter((t) => !(holds(this.tiles, t) || (withStale && holds(this.staleTiles, t))));
+  StreetIndex.prototype._uncovered = function (rects) {
+    return StreetIndex.tilesOf(rects).filter((t) => !holds(this.tiles, t));
   };
 
   StreetIndex.prototype._cover = function (tiles) {
@@ -235,21 +215,18 @@
   // tile, and {done, total, waitUntil} when the source waits out a busy server (then {done, total}
   // again once the wait ends); opts.deadlineMs (default RUN_DEADLINE_MS) stops the run
   // before its next request once passed (every tile of a request already answered or still open is
-  // read), and refuses a wait that would end past it. opts.stale() true (ignored for cacheOnly) means a
+  // read), and refuses a wait that would end past it. opts.stale() true means a
   // newer run replaced this one: it asks nothing further and rejects with cause reason
   // "superseded". Rejects, with StreetIndex.downloadError, whenever a tile is missing: suggestions
   // end in their error state rather than plan on part of the area. Anything else rejects as itself,
   // not wrapped in a download error (a bug reading a tile, in the caller's onProgress or in sleep
   // during a busy wait, or a source error with no street reason), so callers tell a bug from a
   // "streets-partial" shortfall (StreetIndex.isDownloadError); of several bugs the first is the
-  // rejection, unless, outside a cache-only read, the source rejects with a bug of its own (see fetchSome's catch
-  // below). Resolves with {done, total, missing}.
-  // opts.cacheOnly reads only what the street source already holds and resolves with the tiles
-  // still missing (nearest first) instead of rejecting: what the Streets in fog look draws from.
-  // A source that throws on such a read rejects as itself: no download ran, so it is a bug.
-  // Every piece under the rects counts as used, and none of them is evicted while the run (cache-only
-  // included) is running; opts.holdAs (a caller's name) keeps them until that caller's next run, for a
-  // caller that plans on them once the run is over.
+  // rejection, unless the source rejects with a bug of its own (see fetchSome's catch below). Resolves
+  // with {done, total}.
+  // Every piece under the rects counts as used, and none of them is evicted while the run is running;
+  // opts.holdAs (a caller's name) keeps them until that caller's next run, for a caller that plans on
+  // them once the run is over.
   StreetIndex.prototype.ensureRects = function (rects, opts) {
     let under;
     // a bad rect rejects rather than throwing at the call, so a .then caller hears of it
@@ -257,27 +234,20 @@
     for (const pos of under) this._use(pos);
     if (opts && opts.holdAs) this.holds.set(opts.holdAs, under);
     this.runs.add(under);
-    const version = this.version, notify = !(opts && opts.cacheOnly);
     const run = this._ensureRects(rects, opts);
-    // the caller's promise is the run itself, so this adds no step before the caller resumes; a normal run
-    // tells onWaysChanged once it ends if the index version moved while it ran, so a reader counting held pieces recounts
-    const end = () => {
-      this.runs.delete(under);
-      if (notify && this.version !== version) this._tellWaysChanged();
-    };
+    // the caller's promise is the run itself, so this adds no step before the caller resumes
+    const end = () => { this.runs.delete(under); };
     run.then(end, end);
     return run;
   };
 
   StreetIndex.prototype._ensureRects = async function (rects, opts) {
     opts = opts || {};
-    const cacheOnly = !!opts.cacheOnly;
-    const todo = this._uncovered(rects, cacheOnly);
+    const todo = this._uncovered(rects);
     // total is every tile under the rects and the tiles already held count as done from the first
-    // report, so a retry shows the same N as the run before it. In a normal run an expired copy is
-    // not held: it is asked for again and counted once it is read.
+    // report, so a retry shows the same N as the run before it
     const total = StreetIndex.tilesOf(rects).length, held = total - todo.length;
-    if (!todo.length) return { done: total, total, missing: [] };
+    if (!todo.length) return { done: total, total };
     this._anchor(rects[0].s);
     StreetIndex.nearestFirst(todo, rects);
     const deadlineMs = opts.deadlineMs == null ? RUN_DEADLINE_MS : opts.deadlineMs;
@@ -292,7 +262,7 @@
       if (!opts.onProgress) return;
       opts.onProgress(waitUntil === undefined ? { done: held + read.size, total } : { done: held + read.size, total, waitUntil });
     };
-    const stale = () => !cacheOnly && !!opts.stale && opts.stale();
+    const stale = () => !!opts.stale && opts.stale();
     const superseded = () => Object.assign(new Error("streets: a newer run replaced this one"), { reason: "superseded" });
     const deadlinePassed = () => Object.assign(new Error("streets: run deadline passed"), { reason: "stalled" });
     const short = (cause) => StreetIndex.downloadError(held + read.size, total, cause, downloaded);
@@ -362,24 +332,23 @@
     const ownStops = new Set(); // the deadline errors this run threw from onTile, which a source hands back as its failure
     const onTile = (t, answer, via) => {
       try { take(t, answer, via); } catch (e) { if (!broke) broke = e; throw e; }
-      if (cacheOnly || read.size === todo.length) return;
+      if (read.size === todo.length) return;
       if (stale()) throw superseded();
       if (this.now() - started >= deadlineMs) { const e = deadlinePassed(); ownStops.add(e); throw e; }
     };
     // One call to the street source; its tiles are in flight for this run until it ends.
     const fetchSome = async (tiles) => {
-      if (!cacheOnly) claim(tiles);
+      claim(tiles);
       try {
         let answers;
         try {
           if (stale()) throw superseded();
-          answers = await this.fetchStreets(tiles, onTile, cacheOnly ? { cacheOnly } : { now: this.now, wait, stale });
+          answers = await this.fetchStreets(tiles, onTile, { now: this.now, wait, stale });
         } catch (e) {
           // a source's own bug is thrown ahead of the run's (see the docstring); `broke` covers a run
           // bug the source rejects as a download error
-          if (!cacheOnly && !StreetIndex.isDownloadError(e) && !STREET_REASONS.has(e && e.reason)) throw e;
+          if (!StreetIndex.isDownloadError(e) && !STREET_REASONS.has(e && e.reason)) throw e;
           if (broke) throw broke;
-          if (cacheOnly) throw e;
           // a bug wrapped in a download error is thrown as itself, whether or not every tile arrived
           if (StreetIndex.isDownloadError(e) && e.cause && !STREET_REASONS.has(e.cause.reason)) throw e.cause;
           // a deadline raised on an earlier answer while the open requests landed the rest loses
@@ -394,18 +363,17 @@
         // a source that swallowed the caller's throw and resolved anyway still hands the bug on
         if (broke) throw broke;
         // a source may hand tiles over in its Map alone
-        if (!cacheOnly) for (const t of tiles) take(t, answers && answers.get(tid(t)));
-        return answers;
+        for (const t of tiles) take(t, answers && answers.get(tid(t)));
       } finally {
         for (const t of tiles) unclaim(tid(t));
       }
     };
 
-    // the tiles another run is already bringing; the rest this run asks for itself. A cache-only read waits for nothing and claims nothing.
+    // the tiles another run is already bringing; the rest this run asks for itself
     const split = (tiles) => {
       const shared = [], ask = [];
       for (const t of tiles) {
-        const entry = !cacheOnly && this.inFlight.get(tid(t));
+        const entry = this.inFlight.get(tid(t));
         if (entry) shared.push({ t, entry }); else ask.push(t);
       }
       return { shared, ask };
@@ -448,17 +416,13 @@
       });
     });
     progress();
-    let answers;
     try {
       let { shared, ask } = split(todo);
-      for (let pass = 0; ; pass++) {
+      for (;;) {
         // started before this run's own call, which can outlast every shared tile
         const sharedIn = shared.length ? waitFor(shared) : null;
         if (sharedIn) sharedIn.catch(() => {}); // awaited only after this run's own call, so a rejection before then is not reported as unhandled
-        if (ask.length) {
-          const got = await fetchSome(ask);
-          if (!pass) answers = got;
-        }
+        if (ask.length) await fetchSome(ask);
         if (!sharedIn) break;
         // a bug beside the wait's superseded rejection is still the run's rejection
         try { await sharedIn; } catch (e) { throw broke || e; }
@@ -482,115 +446,39 @@
     // replaced while its last request was open (onTile stops checking once every tile is read): it
     // still rejects, so its caller does no more work
     if (stale()) throw short(superseded());
-    if (cacheOnly) {
-      // an answer in the Map alone is an expired copy: drawn from, but left uncovered so a
-      // suggestion's run still asks for it; that run's fresh answer then replaces the ways read here
-      for (const t of todo) {
-        const id = tid(t), answer = answers && answers.get(id);
-        if (read.has(id) || !answer) continue;
-        // a run that covered the tile while this read was open already holds fresher ways: an expired
-        // copy added now would leave ways the fresh answer lacks, and nothing would ask for the tile again
-        if (holds(this.tiles, t)) { read.add(id); progress(); continue; }
-        this._read(answer, { x: t.x, y: t.y, stale: true });
-        this.staleTiles.add(id);
-        read.add(id);
-        progress();
-      }
-      return { done: held + read.size, total, missing: todo.filter((t) => !read.has(tid(t))) };
-    }
     const lost = todo.find((t) => !read.has(tid(t)));
     // the source answered but left a tile out: a server's fault, not the network's, worded generically
     if (lost) throw short(Object.assign(new Error(`street source: no answer for tile ${lost.x}:${lost.y}`), { reason: "server" }));
-    return { done: total, total, missing: [] };
+    return { done: total, total };
   };
 
-  // One tile's answer into the index; the version bump tells graphs built before it to rebuild.
-  // from is the tile ({x, y}, plus stale: true for an expired copy). A way is held while any
-  // tile brings it, and splitAnswer hands a whole way to every tile it touches (the first, when none
-  // holds one of its points), so:
-  //  - a fresh answer replaces every expired copy of a way it lists, whichever tile brought that copy;
-  //  - a way held only through expired copies goes when the fresh answer lacks it and no other copy
-  //    still lists it (the other expired tiles are refreshed in their turn);
-  //  - an expired copy adds no way a fresh tile holds, and no class or one-way flag to one, so it
-  //    never overwrites fresher data;
-  //  - a way a fresh answer dropped is not brought back by an expired copy read later (goneWays); a fresh answer listing the way again removes its entry, so two fresh answers that
-  //    disagree keep the way, since neither is known to be the newer.
+  // One tile's answer ({x, y}) into the index; the version bump tells graphs built before it to rebuild.
+  // A way is held while any tile brings it, and splitAnswer hands a whole way to every tile it touches,
+  // so a way across two tiles is added once and listed by both.
   StreetIndex.prototype._read = function (answer, from) {
-    // a read with no tile could neither replace an expired way nor say which piece holds what it brings
+    // without its tile a read could not say which piece holds what it brings
     if (!from) throw new TypeError("streets: _read needs the tile it reads");
-    const epoch = this.wayEpoch, stale = !!from.stale, pos = StreetIndex.tileId(from);
-    // _dropWays below discards each replaced way's entry, so the expired copies that still list it are
-    // carried into the rebuilt one: an eviction of this piece then leaves the way to them
-    const carry = new Map(), freshHeld = new Set();
+    const pos = StreetIndex.tileId(from);
     try {
-      // evicted before the drop below, so a way this answer lists that an evicted piece held fresh, and
-      // expired copies still list, is replaced rather than kept as expired
       this._use(pos);
       this._makeRoom();
-      if (!stale) {
-        const listed = new Set(answer.ways.map((w) => w.id)), out = new Set();
-        for (const id of listed) {
-          const held = this.staleWays.get(id);
-          if (held) { out.add(id); carry.set(id, held.from); }
+      for (const w of answer.ways) {
+        this._addWay(w);
+        // every piece whose answer lists the way holds it, so an eviction keeps a way another piece still lists
+        if (this.wayIds.has(w.id)) {
+          this.wayFrom.get(w.id).from.add(pos);
+          if (!this.pieceWays.has(pos)) this.pieceWays.set(pos, new Set());
+          this.pieceWays.get(pos).add(w.id);
         }
-        // a way an earlier read of this piece listed and this answer lacks is no longer listed by this
-        // piece, unless the piece is already held fresh
-        for (const id of this.pieceWays.get(pos) || []) {
-          const entry = this.wayFrom.get(id);
-          if (!entry || listed.has(id)) continue;
-          if (!this.tiles.has(pos)) entry.from.delete(pos);
-          if (!entry.from.size) out.add(id);
-        }
-        this._dropWays([...out]);
-        for (const id of out) if (!listed.has(id)) this.goneWays.add(id);
-        for (const id of listed) this.goneWays.delete(id);
+        this.classified.add(w.id);
       }
-      this._addAnswer(answer, stale, pos, freshHeld);
-      // the evictions above cleared every evicted piece from these lists, so each tile carried is still held
-      for (const [id, keys] of carry) {
-        const entry = this.wayFrom.get(id);
-        if (entry) for (const k of keys) entry.from.add(k);
+      for (const name of GROUP_ORDER) {
+        const into = this.classIds[name] || this[name];
+        for (const id of answer.groups[name] || []) into.add(id);
       }
     } finally {
-      // a throw midway leaves ways dropped: the graphs built before must still rebuild
+      // a throw midway leaves ways added or evicted: the graphs built before must still rebuild
       this.version++;
-      if (this.wayEpoch !== epoch) this._tellWaysChanged();
-    }
-  };
-
-  // a listener's throw would be an unhandled rejection; only its class is logged, as its message can carry tile numbers
-  StreetIndex.prototype._tellWaysChanged = function () {
-    if (!this.onWaysChanged) return;
-    Promise.resolve().then(() => this.onWaysChanged()).catch((e) => console.error("[streets] onWaysChanged threw", e && e.name));
-  };
-
-  // the per-way part of _read; freshHeld collects what an expired copy must not add classes to
-  StreetIndex.prototype._addAnswer = function (answer, stale, pos, freshHeld) {
-    for (const w of answer.ways) {
-      if (stale && this.goneWays.has(w.id)) { freshHeld.add(w.id); continue; } // nor its classes, below
-      const held = this.staleWays.get(w.id);
-      if (held) { if (stale) held.from.add(pos); } // a fresh read has dropped its listed ways above
-      else if (stale && !this.wayIds.has(w.id)) {
-        // registered before the add so a way that throws midway can still be taken out
-        const entry = { from: new Set([pos]), segs: [] };
-        this.staleWays.set(w.id, entry);
-        this._addWay(w, entry);
-        if (!this.wayIds.has(w.id)) this.staleWays.delete(w.id);
-      } else {
-        if (stale && this.wayIds.has(w.id)) freshHeld.add(w.id);
-        this._addWay(w);
-      }
-      // every piece whose answer lists the way holds it, so an eviction keeps a way another piece still lists
-      if (this.wayIds.has(w.id)) {
-        this.wayFrom.get(w.id).from.add(pos);
-        if (!this.pieceWays.has(pos)) this.pieceWays.set(pos, new Set());
-        this.pieceWays.get(pos).add(w.id);
-      }
-      this.classified.add(w.id);
-    }
-    for (const name of GROUP_ORDER) {
-      const into = this.classIds[name] || this[name];
-      for (const id of answer.groups[name] || []) if (!freshHeld.has(id)) into.add(id);
     }
   };
 
@@ -735,12 +623,10 @@
   // a bug), or any error with none of STREET_REASONS (a bug building a request or reading an answer):
   // nothing new is sent, the open requests finish and hand their tiles over, then the run rejects with
   // the failure that stopped it (for a refused wait or an ended count, the last busy answer); the throws
-  // that are not a download failure pass through unchanged. Holds nothing, so a cache-only read
-  // (opts.cacheOnly) gets no tile from it.
+  // that are not a download failure pass through unchanged.
   StreetIndex.overpassFetch = function (tiles, onTile, opts) {
     opts = opts || {};
     const out = new Map();
-    if (opts.cacheOnly) return Promise.resolve(out);
     const now = opts.now || Date.now;
     const wait = opts.wait || ((until) => new Promise((resolve) => setTimeout(() => resolve(true), Math.max(0, until - now()))));
     const queue = batches(tiles).map((batch, rank) => ({ batch, rank }));

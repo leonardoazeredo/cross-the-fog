@@ -11,14 +11,10 @@ uploaded anywhere.
 ## Features
 
 - Parses the Fog of World `Sync/` format (zlib-compressed tiles → visited cells).
-- Renders the fog as a canvas overlay on a real basemap (OSM / CyclOSM / a dark
-  variant of OSM), decoding only the tiles in view so large datasets stay responsive.
+- Renders the fog as a canvas overlay on a real basemap (OSM / CyclOSM), decoding only the
+  tiles in view so large datasets stay responsive.
 - **Fog look:** shade the ground you've visited (colour, opacity, and **Widen** to fatten
-  thin tracks), or switch to **Streets in fog**, which keeps that shading and highlights the
-  streets and paths still covered by fog, heatmap-style. Only the stretches still in fog
-  light up, so a half-done street shows just its missing half, and motorways, which are never
-  walked, are faded rather than hidden. Pick the highlight colour and strength; works
-  zoomed in to about a town at a time, and unlocks a dark basemap where the streets glow.
+  thin tracks).
 - **Live "% defogged"** of the current view in the header.
 - **Route planning** on foot, snapped to real streets by a router that runs in your browser:
   draggable & line-insertable waypoints, a **Reverse** button that
@@ -41,9 +37,7 @@ for that feature (not your fog data). No routing service is involved: **drawing 
 (and editing a pin of a suggested route or reversing it) and **route
 suggestions** are routed entirely on your device and send nothing but the bounding box of the
 **street map around your pins** (a kilometre beyond them; a hand-drawn route also asks for its
-heights, see **Route elevation** below). The **Streets in fog** look is drawn from the streets
-already on your device and fetches the street map of the **area on screen** only when you tap its
-**Download this area** button. Both get the street map from a public Overpass API server
+heights, see **Route elevation** below). Both get the street map from a public Overpass API server
 (OpenStreetMap): NextGIS's instance (overpass.nextgis.com; see its
 [terms](https://nextgis.com/terms/) and [privacy policy](https://nextgis.com/privacy/)) first, then
 the main instance [overpass-api.de](https://overpass-api.de) if NextGIS fails, has not started
@@ -63,9 +57,8 @@ address's daily use, and answers 406 once the share is used up: the app then lea
 alone for an hour, longer if the server says so. They only see bounding boxes, the same class of information the basemap tile servers already
 get, and the streets are compared against your fog entirely on your device. The street map it fetches is kept as a street cache in your
 browser's storage (IndexedDB, as plain data, never uploaded and left out of backups), so planning in
-an area you have planned in before needs no connection. After 90 days a copy is out of date:
-**Streets in fog** still draws it, and a suggestion in that area fetches it fresh,
-using the old copy only while there is no connection. **Route elevation** (ascent, descent, the profile) comes
+an area you have planned in before needs no connection. After 90 days a copy is out of date: a
+suggestion in that area fetches it fresh, using the old copy only while there is no connection. **Route elevation** (ascent, descent, the profile) comes
 from the [AWS Open Data terrain tiles](https://registry.opendata.aws/terrain-tiles/), public elevation
 data such as SRTM, fetched from the bucket's own host (`elevation-tiles-prod.s3.amazonaws.com`) one
 zoom-12 map tile at a time (about 50 KB each); the server sees only the tile numbers and your

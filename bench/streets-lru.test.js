@@ -16,20 +16,14 @@ const answer = (...ways) => ({ ways, groups: {} });
 // a cap of 100 starts dropping pieces past 85 segments and drops them down to 70
 const MAX = 100;
 
-// A source answering a normal run from `fresh` and a cache-only read with `cached` (as the street cache does,
-// through onTile) or `expired` (in the Map alone); records the pieces each normal run asks for.
-function source({ fresh = {}, cached = {}, expired = {} }) {
+// A source answering a run from `fresh`; records the pieces each run asks for.
+function source({ fresh = {} }) {
   const asked = [];
-  const fetchStreets = async (tiles, onTile, opts) => {
+  const fetchStreets = async (tiles, onTile) => {
     const out = new Map();
-    const cacheOnly = opts && opts.cacheOnly;
-    if (!cacheOnly) asked.push(tiles.map((t) => t.x + ":" + t.y));
+    asked.push(tiles.map((t) => t.x + ":" + t.y));
     for (const t of tiles) {
       const k = t.x + ":" + t.y;
-      if (cacheOnly) {
-        if (cached[k]) { out.set(k, cached[k]); onTile(t, cached[k], { cached: true }); } else if (expired[k]) out.set(k, expired[k]);
-        continue;
-      }
       out.set(k, fresh[k]);
       onTile(t, fresh[k]);
     }
@@ -45,36 +39,31 @@ const consistent = (s) => {
 const held = (s, i) => s.tiles.has(pos(i));
 
 (async () => {
-  { // the least recently used piece goes: its segments come back, the look hears of it, and a run asks for it again
+  { // the least recently used piece goes: its segments come back, graphs hear of it, and a run asks for it again
     const src = source({ fresh: { [pos(0)]: answer(inPiece(1, 0)), [pos(1)]: answer(inPiece(2, 1)), [pos(2)]: answer(inPiece(3, 2)), [pos(3)]: answer(inPiece(4, 3)) } });
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: src.fetchStreets, maxSegs: MAX });
-    // each run's end is told too (the badge recounts); counted here are the calls that come with dropped ways
-    let told = 0, seen = s.wayEpoch;
-    s.onWaysChanged = () => { if (s.wayEpoch !== seen) { seen = s.wayEpoch; told++; } };
     for (const i of [0, 1, 2]) await s.ensureRects([rect(i)]);
     assert.equal(s.segCount, 87);
-    const epoch = s.wayEpoch, version = s.version;
+    const version = s.version;
     await s.ensureRects([rect(3)]);
     assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [false, true, true, true]);
     assert.deepEqual([...s.wayIds].sort(), [2, 3, 4]);
     assert.equal(s.segCount, 87, "piece 0's 29 segments given back before piece 3's came in");
-    assert.ok(s.wayEpoch > epoch && s.version > version);
+    assert.ok(s.version > version);
     assert.equal(s.covered(51.01, lon(0, 0.01)), false, "an evicted piece is not held");
     consistent(s);
-    await Promise.resolve();
-    assert.equal(told, 1, "the Streets in fog look is told to judge its ways again");
     const before = src.asked.length;
     await s.ensureRects([rect(0)]);
     assert.deepEqual(src.asked.slice(before), [[pos(0)]], "the evicted piece is missing again");
     consistent(s);
   }
   const four = { [pos(0)]: answer(inPiece(1, 0)), [pos(1)]: answer(inPiece(2, 1)), [pos(2)]: answer(inPiece(3, 2)), [pos(3)]: answer(inPiece(4, 3)), [pos(4)]: answer(inPiece(5, 4)) };
-  for (const cacheOnly of [false, true]) { // a run over a held piece uses it, asked for or only read (what the look paints): the next piece goes instead
+  { // a run over a held piece uses it: the next piece goes instead
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: source({ fresh: four }).fetchStreets, maxSegs: MAX });
     for (const i of [0, 1, 2]) await s.ensureRects([rect(i)]);
-    await s.ensureRects([rect(0)], { cacheOnly });
+    await s.ensureRects([rect(0)]);
     await s.ensureRects([rect(3)]);
-    assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [true, false, true, true], cacheOnly ? "painted" : "asked for");
+    assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [true, false, true, true]);
     consistent(s);
   }
   { // a caller's held pieces stay until its next run; the run reading a piece never drops its own
@@ -120,48 +109,10 @@ const held = (s, i) => s.tiles.has(pos(i));
     assert.equal(s.segCount, 29 + 29);
     consistent(s);
   }
-  { // a way a fresh piece and an expired copy both list stays with the copy once the fresh piece goes, and a fresh answer for that
-    // copy's piece that lacks the way then drops it
-    const shared = line(9, lon(0, 0.010), lon(1, 0.015)), own = line(8, lon(1, 0.016), lon(1, 0.023)); // 42 and 10 segments
-    // a cap of 90 (drops past 76.5, down to 63) lets the expired copy in before anything is evicted
-    const s = new StreetIndex({ newFrac: () => 1, maxSegs: 90, fetchStreets: source({
-      fresh: { [pos(0)]: answer(shared), [pos(1)]: answer(own), [pos(2)]: answer(inPiece(3, 2)), [pos(3)]: answer(inPiece(4, 3)) },
-      expired: { [pos(1)]: answer(shared, own) } }).fetchStreets });
-    await s.ensureRects([rect(0)]);
-    await s.ensureRects([rect(2)]);
-    await s.ensureRects([rect(1)], { cacheOnly: true });
-    assert.deepEqual([s.segCount, [...s.staleWays.keys()]], [81, [8]], "the expired copy adds only the way no fresh piece holds");
-    await s.ensureRects([rect(3)]);
-    assert.deepEqual([0, 2, 3].map((i) => held(s, i)), [false, false, true]);
-    assert.ok(s.staleTiles.has(pos(1)), "the expired copy's piece is kept");
-    assert.deepEqual([...s.staleWays.keys()].sort(), [8, 9], "the shared way is held by the expired copy alone");
-    await s.ensureRects([rect(1)]);
-    assert.ok(!s.wayIds.has(9) && s.wayIds.has(8), "the fresh answer for that piece does not list it");
-    assert.equal(s.staleWays.size, 0);
-    consistent(s);
-  }
-  { // piece 0's read evicts piece 1's expired copy and replaces the way they share: once piece 0 is
-    // evicted too, nothing lists the way
-    const shared = line(9, lon(0, 0.020), lon(1, 0.004));
-    const byLat = (id, i, lat) => ({ id, nodes: [id * 10, id * 10 + 1], geometry: [{ lat, lon: lon(i, 0.001) }, { lat, lon: lon(i, 0.012) }] });
-    const fresh = { [pos(0)]: answer(shared), [pos(3)]: answer(line(4, lon(3, 0.001), lon(3, 0.024)), byLat(5, 3, 51.015)) };
-    for (const i of [2, 4, 5, 6, 7]) fresh[pos(i)] = answer(inPiece(20 + i, i));
-    const s = new StreetIndex({ newFrac: () => 1, maxSegs: MAX, fetchStreets: source({
-      fresh, expired: { [pos(1)]: answer(shared, line(8, lon(1, 0.006), lon(1, 0.020))) } }).fetchStreets });
-    await s.ensureRects([rect(1)], { cacheOnly: true });
-    // piece 3 ends past the cap's 85, so piece 0's read evicts the expired piece 1 (and piece 2) first
-    for (const i of [2, 3, 0]) await s.ensureRects([rect(i)]);
-    assert.ok(!s.staleTiles.has(pos(1)) && s.wayIds.has(9));
-    for (const i of [4, 5, 6, 7]) await s.ensureRects([rect(i)]);
-    assert.equal(held(s, 0), false);
-    assert.ok(!s.wayIds.has(9), "no piece held lists the shared way");
-    assert.equal(s.staleWays.size, 0);
-    consistent(s);
-  }
   { // a failed run, and a bad rect, protect nothing afterwards
     const plain = source({ fresh: four }).fetchStreets;
     const s = new StreetIndex({ newFrac: () => 1, maxSegs: MAX, fetchStreets: async (tiles, onTile, opts) => {
-      if (tiles.some((t) => t.x === 548) && !(opts && opts.cacheOnly)) throw Object.assign(new Error("offline"), { reason: "offline" });
+      if (tiles.some((t) => t.x === 548)) throw Object.assign(new Error("offline"), { reason: "offline" });
       return plain(tiles, onTile, opts);
     } });
     await s.ensureRects([rect(1)]);
@@ -171,37 +122,12 @@ const held = (s, i) => s.tiles.has(pos(i));
     assert.equal(held(s, 1), false, "the failed run's piece goes like any other");
     consistent(s);
   }
-  { // a piece that brought no way still goes, and the look still hears of it
+  { // a piece that brought no way still goes
     const s = new StreetIndex({ newFrac: () => 1, maxSegs: MAX, fetchStreets: source({ fresh: Object.assign({}, four, { [pos(0)]: answer() }) }).fetchStreets });
-    let told = 0;
-    s.onWaysChanged = () => told++;
     await s.ensureRects([rect(0)]);
     await s.ensureRects([rect(1), rect(2), rect(3)], { holdAs: "suggest" });
-    await Promise.resolve();
-    const epoch = s.wayEpoch, before = told;
     await s.ensureRects([rect(4)]);
     assert.deepEqual([0, 1, 2, 3, 4].map((i) => held(s, i)), [false, true, true, true, true]);
-    assert.ok(s.wayEpoch > epoch);
-    await Promise.resolve();
-    assert.equal(told, before + 2, "once for the eviction, once as the run that read piece 4 ends");
-    consistent(s);
-  }
-  { // a fresh read that evicts the only other fresh piece listing a way replaces the way, so it ends fresh, not in staleWays
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => new Map(), maxSegs: MAX });
-    s._anchor(51);
-    const shared = line(9, lon(1, 0.002), lon(1, 0.004));
-    const readAs = (i, ways, stale) => {
-      s._read(answer(...ways), { x: 548 + i, y: 2040, stale });
-      (stale ? s.staleTiles : s.tiles).add(pos(i));
-    };
-    readAs(1, [shared, inPiece(2, 1)]);
-    readAs(0, [shared], true);
-    readAs(2, [inPiece(3, 2)]);
-    readAs(3, [inPiece(4, 3), Object.assign(line(5, lon(3, 0.002), lon(3, 0.012)), { geometry: [{ lat: 51.02, lon: lon(3, 0.002) }, { lat: 51.02, lon: lon(3, 0.012) }] })]);
-    readAs(0, [shared, line(6, lon(0, 0.002), lon(0, 0.01))]);
-    assert.equal(held(s, 1), false, "piece 1 was the least recently used");
-    assert.equal(s.staleWays.has(9), false, "piece 0's fresh answer lists way 9");
-    assert.deepEqual([...s.wayFrom.get(9).from], [pos(0)]);
     consistent(s);
   }
   console.log("streets-lru.test.js ok");

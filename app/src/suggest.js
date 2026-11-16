@@ -290,8 +290,8 @@
   };
 
   // A suggestion plans on one graph from its first route to its last: a tile another run merges
-  // meanwhile (the route editor's, the "Streets in fog" download's) would rebuild it in place and
-  // renumber the edges, and a leg's `edges`, the avoid set of the way home, would name other streets.
+  // meanwhile (the route editor's) would rebuild it in place and renumber the edges, and a leg's
+  // `edges`, the avoid set of the way home, would name other streets.
   // A fog change waits too; the gain is still scored on the fog as it is.
   SuggestTool.prototype._holdGraph = function (runId) {
     this._releaseGraph();
