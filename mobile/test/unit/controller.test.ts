@@ -843,17 +843,17 @@ it("ends the import and says so when the store read fails on loaded", async () =
   expect(h.pickFile).toHaveBeenCalledTimes(2);
 });
 
-it("ends the import when the current copy read fails on loaded", async () => {
-  const h = createHarness();
-  await saveToStore(h.store, aSrc, "a.zip");
-  vi.spyOn(console, "warn").mockImplementation(() => undefined);
-  await h.c.start();
+it("ends the import and says so when the current copy read fails on loaded", async () => {
+  const h = await importingHarness();
   await h.c.onWebMessage(ready);
-  vi.spyOn(h.store, "current").mockRejectedValue(new Error("x"));
-  await expect(
-    h.c.onWebMessage({ v: 1, type: "loaded", fingerprint: sha(A), ok: true, tiles: 1 }),
-  ).resolves.toBeUndefined();
-  expect(h.notified).toEqual([]);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  // current() is read only when no pending copy is found, so the pending read answers null here.
+  vi.spyOn(h.store, "pending").mockResolvedValue(null);
+  vi.spyOn(h.store, "current").mockRejectedValue(new Error("secret detail"));
+  await expect(h.c.onWebMessage(loadedB)).resolves.toBeUndefined();
+  expect(h.busy).toEqual([true, false]);
+  expect(h.notified).toEqual([COPY.importFailed]);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("secret detail");
 });
 
 it("ends the import and says so when the store read fails on ready", async () => {
