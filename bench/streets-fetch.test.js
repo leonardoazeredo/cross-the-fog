@@ -8,8 +8,8 @@ const { StreetIndex } = require("./lib/load.js");
 const way = (id) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51.001, lon: 13.7 }] });
 const ids = (...xs) => xs.map((id) => ({ type: "way", id }));
 const count = { type: "count" };
-// the seven count markers a complete answer ends with (one per list, empty or not)
-const EMPTY = Array(7).fill(count);
+// the count marker a complete answer ends with (the motorway list, empty or not)
+const EMPTY = [count];
 let sent = null;
 function replyWith(body) {
   global.fetch = async (url, opts) => { sent = decodeURIComponent(opts.body); return { ok: true, status: 200, json: async () => body }; };
@@ -143,19 +143,12 @@ async function testCase(body) {
 }
 
 (async () => {
-  await testCase(async () => { // the ID lists after the geometry are read each into its own set
-    // geometry, then bike, road, car, oneWay, reverseWay, bikeBoth, motorway
-    replyWith({ elements: [way(1), way(2), count, ...ids(1, 2), count, ...ids(2), count, ...ids(2), count, ...ids(1), count, count, ...ids(2), count, ...ids(1)] });
+  await testCase(async () => { // the motorway ID list after the geometry is read into its set, and it is the only list asked for
+    replyWith({ elements: [way(1), way(2), count, ...ids(1)] });
     const s = new StreetIndex({ newFrac: () => 1 });
     await s.ensureRects(rect);
-    assert.deepEqual([...s.bikeBoth], [2]);
     assert.deepEqual([...s.motorway], [1]);
-    assert.deepEqual([...s.classIds.bike], [1, 2]);
-    assert.deepEqual([...s.classIds.road], [2]);
-    assert.deepEqual([...s.classIds.car], [2]);
-    assert.deepEqual([...s.oneWay], [1]);
-    assert.deepEqual([...s.classified], [1, 2]);
-    assert.ok(sent.indexOf(".bike") < sent.indexOf(".oneWay"), "class lists come before the one-way lists");
+    assert.equal(decodeURIComponent(sent).match(/ out count;/g).length, 1, "one list is asked for");
     assert.deepEqual([s.walkable(1), s.walkable(2), s.walkable(3)], [false, true, true], "every way but a motorway is walked");
   });
   await testCase(async () => { // an Overpass answer that ran out of time or memory is a failed fetch, not an empty area
@@ -238,7 +231,6 @@ async function testCase(body) {
     const cases = {
       "null": null, "a string": "busy", "a number": 3, "an array": [], "no elements": {}, "elements not a list": { elements: {} },
       "cut after the geometry": { elements: [way(1)] },
-      "six of seven counts": { elements: [way(1), ...EMPTY.slice(1)] },
     };
     for (const [name, body] of Object.entries(cases)) {
       let err;
@@ -263,12 +255,12 @@ async function testCase(body) {
     const diag = { type: "way", id: 6, nodes: [60, 61], geometry: [{ lat: 51.001, lon: 13.703 }, { lat: 51.072, lon: 13.774 }] };
     const tiles = [];
     for (let y = 2040; y <= 2042; y++) for (let x = 548; x <= 550; x++) tiles.push(T(x, y));
-    const out = StreetIndex.splitAnswer({ elements: [long, diag, count, ...ids(5, 6), ...EMPTY.slice(1)] }, tiles);
+    const out = StreetIndex.splitAnswer({ elements: [long, diag, count, ...ids(5, 6)] }, tiles);
     const where = (id) => [...out.entries()].filter(([, a]) => a.ways.some((w) => w.id === id)).map(([k]) => k).sort();
     assert.deepEqual(where(5), ["548:2040", "549:2040", "550:2040"], "the middle tile has no vertex of the way");
     assert.deepEqual(where(6), ["548:2040", "549:2040", "549:2041", "550:2041", "550:2042"], "only the tiles the line crosses");
-    assert.deepEqual(out.get("549:2040").groups.bike, [5, 6], "the id lists follow the way into the tile");
-    assert.deepEqual(out.get("550:2040").groups.bike, [5]);
+    assert.deepEqual(out.get("549:2040").groups.motorway, [5, 6], "the id list follows the way into the tile");
+    assert.deepEqual(out.get("550:2040").groups.motorway, [5]);
   });
   await testCase(async () => { // a source that leaves a requested tile out is an error, and nothing is recorded as fetched
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => new Map() });
@@ -282,19 +274,14 @@ async function testCase(body) {
     const wide = { type: "way", id: 7, nodes: [70, 71], geometry: [{ lat: 51.01, lon: 13.74 }, { lat: 51.01, lon: 13.76 }] };
     const west = { type: "way", id: 8, nodes: [80, 81], geometry: [{ lat: 51.02, lon: 13.73 }, { lat: 51.02, lon: 13.735 }] };
     const lost = { type: "way", id: 9, nodes: [90, 91], geometry: [{ lat: 51.3, lon: 13.0 }, { lat: 51.3, lon: 13.01 }] };
-    // geometry, then bike, road, car, oneWay, reverseWay, bikeBoth, motorway
     const tiles = [{ x: 549, y: 2040 }, { x: 550, y: 2040 }];
-    const out = StreetIndex.splitAnswer({ elements: [wide, west, lost, count, ...ids(7, 8), count, ...ids(7), count, count, ...ids(8, 9), count, count, count] }, tiles);
+    const out = StreetIndex.splitAnswer({ elements: [wide, west, lost, count, ...ids(7, 8)] }, tiles);
     assert.deepEqual([...out.keys()], ["549:2040", "550:2040"]);
     assert.deepEqual(out.get("549:2040").ways.map((w) => w.id), [7, 8, 9], "7 straddles, 8 is inside, 9 matches no tile and goes to the first");
     assert.deepEqual(out.get("550:2040").ways.map((w) => w.id), [7]);
-    assert.deepEqual(out.get("549:2040").groups.bike, [7, 8]);
-    assert.deepEqual(out.get("550:2040").groups.bike, [7]);
-    assert.deepEqual(out.get("549:2040").groups.road, [7]);
-    assert.deepEqual(out.get("550:2040").groups.road, [7], "the straddling way carries its ids into both tiles");
-    assert.deepEqual(out.get("549:2040").groups.oneWay, [8, 9]);
-    assert.deepEqual(out.get("550:2040").groups.oneWay, []);
-    assert.deepEqual(Object.keys(out.get("550:2040").groups), ["bike", "road", "car", "oneWay", "reverseWay", "bikeBoth", "motorway"]);
+    assert.deepEqual(out.get("549:2040").groups.motorway, [7, 8]);
+    assert.deepEqual(out.get("550:2040").groups.motorway, [7], "the straddling way carries its id into both tiles");
+    assert.deepEqual(Object.keys(out.get("550:2040").groups), ["motorway"]);
     assert.equal(structuredClone(out.get("549:2040")).ways.length, 3, "an answer is structured-clone friendly");
     // the index takes the straddling way once
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => out });
@@ -306,7 +293,7 @@ async function testCase(body) {
     // bench cache ignores it: a hash change from anything else means every saved answer misses
     const boxes = [{ s: 51, w: 13.7, n: 51.01, e: 13.71 }, { s: 51.2, w: 13.8, n: 51.21, e: 13.9 }];
     assert.ok(StreetIndex.rectQuery(boxes).startsWith("[out:json][timeout:25];"), "the server's run is capped at 25 s, under the client's guards");
-    assert.equal(crypto.createHash("sha1").update(StreetIndex.rectQuery(boxes)).digest("hex"), "822a328d1c8f332ec55d2e363755ba4075c475f2");
+    assert.equal(crypto.createHash("sha1").update(StreetIndex.rectQuery(boxes)).digest("hex"), "105a8bcf1a84943de1f54cb490f650f6a1dc4b14");
     replyWith({ elements: EMPTY });
     await StreetIndex.overpassFetch([{ x: 548, y: 2040 }]);
     assert.equal(sent, "data=" + StreetIndex.rectQuery([StreetIndex.tileBounds({ x: 548, y: 2040 })]), "the default source asks for the tile's bounds");
@@ -558,7 +545,7 @@ async function testCase(body) {
     const got = await s.ensureRects(r, { onProgress: (p) => progress.push(p.done + "/" + p.total) });
     assert.deepEqual(asked, [span(548, 2040, 549, 2041)]);
     assert.deepEqual([got.done, got.total, progress], [3, 3, ["0/3", "1/3", "2/3", "3/3"]]);
-    assert.ok(await store.get("2:run:549:2041"), "the extra tile is in the store");
+    assert.ok(await store.get("3:run:549:2041"), "the extra tile is in the store");
     assert.equal(s.tiles.size, 4);
     await s.ensureRects([{ s: 51.025, w: 13.725, n: 51.05, e: 13.75 }]);
     assert.equal(asked.length, 1, "a run over the extra tile asks nothing");
@@ -590,7 +577,7 @@ async function testCase(body) {
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [12, 24, "streets-partial", "server"]);
     assert.equal(s.tiles.size, 12);
     let stored = 0;
-    for (const t of twentyFour.flatMap((r) => StreetIndex.tilesCovering(r))) if (await store.get("2:run:" + t.x + ":" + t.y)) stored++;
+    for (const t of twentyFour.flatMap((r) => StreetIndex.tilesCovering(r))) if (await store.get("3:run:" + t.x + ":" + t.y)) stored++;
     assert.equal(stored, 12, "the three blocks that landed are in the store");
   });
   await testCase(async () => { // four busy answers at the same moment are one step of the schedule: one 15 s wait, then the four again
@@ -964,7 +951,7 @@ async function testCase(body) {
     const answer = { ways: [], groups: {} };
     const run = async (give) => {
       const store = global.TileStore.memory();
-      for (const t of StreetIndex.tilesOf(r).slice(0, 3)) await store.put("2:run:" + t.x + ":" + t.y, { answer, fetchedAt: 0 });
+      for (const t of StreetIndex.tilesOf(r).slice(0, 3)) await store.put("3:run:" + t.x + ":" + t.y, { answer, fetchedAt: 0 });
       const network = async (tiles, onTile) => {
         tiles.slice(0, give).forEach((t) => onTile(t, answer));
         throw Object.assign(new Error("offline"), { reason: "offline" });

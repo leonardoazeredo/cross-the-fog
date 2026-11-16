@@ -9,7 +9,7 @@
   // changes, or answers fetched for the old grid are read as tiles of the new one.
   // The same prefix is the schema version of a stored entry: change the answer format and the prefix
   // together, and old entries are never read (sweepLegacy leaves them; they go only when LRU eviction reaches them, once the store is full).
-  const KEY_VERSION = "2:";
+  const KEY_VERSION = "3:";
   const idOf = (t) => t.x + ":" + t.y;
   // "run" names the on-foot answer, the only one asked for now; it stays in the key so a phone's
   // cache keeps serving. Entries under the removed "bike" kind are never read and go by LRU eviction.
