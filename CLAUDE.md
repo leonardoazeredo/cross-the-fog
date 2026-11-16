@@ -56,3 +56,17 @@ Headless Node run of the shipping suggestion code against a real `Sync/` folder 
 - `bench/lib/gain.js` is a hand copy of `computeGain`/`cellIsNew` from `main.js`. Change one, change the other.
 - Overpass responses are cached in `bench/cache/` (gitignored); delete it to re-measure live. Overpass answers 502 under load and the run then ends in the error state: rerun after a minute, only failed requests refetch. `bench/cache/brouter/` is leftover from before suggestions went local; only `bench/estimates-cache.test.js` reads it (it skips when absent, `CROSSFOG_BROUTER_CACHE` points it elsewhere) and nothing writes it. The committed estimate fixtures are in `bench/fixtures/brouter/`. The acceptance baseline is the saved `bench/out/baseline-brouter.json`.
 - Results go to `bench/out/<name>.json` (gitignored).
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `leonardoazeredo/cross-the-fog`; every `gh` call passes `-R leonardoazeredo/cross-the-fog`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles, each label named after its role. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` at the repo root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
