@@ -12,11 +12,9 @@ streets.ways = [
   { id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] },
   { id: 11, nodes: [2, 3], geometry: [ll(500, 0), ll(1000, 0)] }
 ];
-streets.classified = new Set([10, 11]);
-streets.classIds.bike = new Set([10]);
 streets.motorway = new Set([11]);
 
-{ // every way but a motorway is walked, whatever travel class lists it
+{ // every way but a motorway is walked
   assert.equal(streets.walkable(10), true);
   assert.equal(streets.walkable(11), false);
   assert.equal(streets.walkable(99), true, "a way no list names");
@@ -30,7 +28,6 @@ streets.motorway = new Set([11]);
 { // one-way tags do not bind walkers
   const st = new StreetIndex({ newFrac: () => 1 });
   st.ways = [{ id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] }];
-  st.oneWay = new Set([10]);
   const p = new GraphPlanner(st, () => 1, (id) => st.walkable(id));
   p.build();
   assert.equal(p.edges[0].dir, 0);

@@ -17,17 +17,10 @@
   // a main road are cut off
   const CONNECT_HW = "trunk|trunk_link|primary_link|secondary_link|tertiary_link";
   const RUN_HW = "residential|unclassified|tertiary|secondary|primary|living_street|track|path|footway|cycleway|pedestrian|steps|" + CONNECT_HW;
-  // The ID lists the removed bike and car modes read (travel classes, one-ways, contraflow lanes).
-  // Walking reads only the motorway list, but they stay in the query: the bench cache is keyed on
-  // the query text, so dropping them would make every saved answer miss.
-  const CLASS_HW = {
-    bike: "residential|unclassified|tertiary|secondary|primary|living_street|cycleway|track|path|" + CONNECT_HW,
-    road: "residential|unclassified|tertiary|secondary|primary|living_street|cycleway|" + CONNECT_HW,
-    car: "residential|unclassified|tertiary|secondary|primary|living_street|motorway|motorway_link|" + CONNECT_HW
-  };
-  const CLASS_ORDER = ["bike", "road", "car"]; // the travel classes, first in GROUP_ORDER
-  // every ID list a fetch asks for, in the order the answer carries them after the geometry
-  const GROUP_ORDER = CLASS_ORDER.concat(["oneWay", "reverseWay", "bikeBoth", "motorway"]);
+  // The one ID list an answer carries after the geometry: the motorways and their links, which are not
+  // walked. (The removed bike and car modes also read travel-class and one-way lists; asking for them cost
+  // a few hundred KB per area for nothing.)
+  const GROUP_ORDER = ["motorway"];
   const SEG_M = 50;              // ways are chopped into ~50 m scoring segments
   const GRID_M = 250;            // spatial bin size for radius queries
   const MAX_SEGS = 400000;       // memory guard (~40 MB worst case)
@@ -68,12 +61,6 @@
     this.segs = new Map();       // "gx,gy" -> [{x,y,lon,lat,lenM,frac}]
     this.tiles = new Set();      // fetched coverage, StreetIndex.tileId
     this.wayIds = new Set();     // dedupe across overlapping fetches
-    // the query's ID lists (see CLASS_HW); walking reads only motorway
-    this.classIds = { bike: new Set(), road: new Set(), car: new Set() };
-    this.classified = new Set(); // ways an answer listed, so their ID lists are known
-    this.oneWay = new Set();
-    this.reverseWay = new Set();
-    this.bikeBoth = new Set();
     this.motorway = new Set();   // motorways and their links: never walked
     this.ways = [];              // raw {id,nodes,geometry}: shared node ids give the
                                  // route planner its graph connectivity for free
@@ -142,8 +129,7 @@
       }
       this.wayFrom.delete(id);
       this.wayIds.delete(id);
-      this.classified.delete(id);
-      for (const name of GROUP_ORDER) (this.classIds[name] || this[name]).delete(id);
+      for (const name of GROUP_ORDER) this[name].delete(id);
     }
     for (const [key, segs] of dead) {
       const live = this.segs.get(key).filter((seg) => !segs.has(seg));
@@ -470,10 +456,9 @@
           if (!this.pieceWays.has(pos)) this.pieceWays.set(pos, new Set());
           this.pieceWays.get(pos).add(w.id);
         }
-        this.classified.add(w.id);
       }
       for (const name of GROUP_ORDER) {
-        const into = this.classIds[name] || this[name];
+        const into = this[name];
         for (const id of answer.groups[name] || []) into.add(id);
       }
     } finally {
@@ -558,16 +543,8 @@
     // box again per list ran Overpass out of time on a town-sized box)
     let q = `[out:json][timeout:25];(${clauses(hw)})->.all;.all out skel geom;`;
     const tagged = (list, filter) => `way.all[highway~"^(${list})$"]${filter};`;
-    const withService = (list, filter) => tagged(list, filter) + `way.all[highway=service]${filter};`;
-    // Then ID lists, each introduced by its own count so the groups stay apart in one
-    // response: the travel classes, the one-ways and contraflow lanes (see CLASS_HW for why
-    // they stay), and the motorways.
-    const groups = CLASS_ORDER.map((k) => [k, withService(CLASS_HW[k], k === "car" ? "" : "[bicycle!=no]")]).concat([
-      ["oneWay", withService(hw, `[oneway~"^(yes|true|1)$"]`) + tagged(hw, `[junction=roundabout][oneway!=no]`)],
-      ["reverseWay", withService(hw, `[oneway~"^(-1|reverse)$"]`)],
-      ["bikeBoth", tagged(hw, `[~"^oneway:bicycle$"~"^no$"]`) + tagged(hw, `[cycleway~"^opposite"]`) + tagged(hw, `[~"^cycleway:(left|right|both)$"~"^opposite"]`)],
-      ["motorway", tagged("motorway|motorway_link", "")]
-    ]);
+    // Then the motorway ID list, introduced by its count (see GROUP_ORDER).
+    const groups = [["motorway", tagged("motorway|motorway_link", "")]];
     for (const [k, body] of groups) q += `(${body})->.${k};.${k} out count;.${k} out ids;`;
     return q;
   };
@@ -767,8 +744,8 @@
   }
 
   // Reads an Overpass answer to a rectQuery and hands each requested tile its share. An answer that is
-  // not the whole of one (not an object, a remark, no elements, fewer than the seven count markers
-  // rectQuery ends its lists with) throws with reason "server" and a fixed message: server text never
+  // not the whole of one (not an object, a remark, no elements, no count marker
+  // rectQuery ends its list with) throws with reason "server" and a fixed message: server text never
   // reaches a message.
   StreetIndex.splitAnswer = function (gj, tiles) {
     const unusable = (what) => Object.assign(new Error("overpass: " + what), { reason: "server" });
