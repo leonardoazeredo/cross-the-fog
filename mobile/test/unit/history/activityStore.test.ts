@@ -110,6 +110,19 @@ describe("activity store (sqlite) at rest", () => {
     await db.run("UPDATE activities SET gpx_deflated = ?", [new Uint8Array([1, 2, 3])]);
     const detail = await createActivityStore(db).get(activity().id);
     expect(detail?.track).toEqual(activity().track);
-    await expect(createActivityStore(db).gpx(activity().id)).rejects.toThrow();
+    await expect(createActivityStore(db).gpx(activity().id)).rejects.toThrow(/invalid zlib data/);
+    await expect(createActivityStore(db).gpx("unknown-id")).resolves.toBeNull();
+  });
+
+  it("rejects a stored GPX whose checksum is wrong instead of returning corrupted text", async () => {
+    const db = createNodeSqliteDriver(":memory:");
+    await migrate(db);
+    await createActivityStore(db).add(activity());
+    const [row] = await db.all<{ gpx_deflated: Uint8Array }>("SELECT gpx_deflated FROM activities");
+    const damaged = (row as { gpx_deflated: Uint8Array }).gpx_deflated.slice();
+    damaged[damaged.length - 1] = (damaged[damaged.length - 1] as number) ^ 0xff;
+    await db.run("UPDATE activities SET gpx_deflated = ?", [damaged]);
+    await expect(createActivityStore(db).gpx(activity().id)).rejects.toThrow(/checksum/);
+    expect((await createActivityStore(db).get(activity().id))?.track).toEqual(activity().track);
   });
 });

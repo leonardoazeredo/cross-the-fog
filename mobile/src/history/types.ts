@@ -37,7 +37,10 @@ export interface ActivityStore {
   list(): Promise<ActivitySummary[]>;
   /** Everything but the GPX, so a bad GPX blob cannot hide a track that is fine. */
   get(id: string): Promise<ActivityDetail | null>;
-  /** Inflates the GPX text on demand; rejects when the stored blob cannot be inflated. */
+  /**
+   * Inflates the GPX text on demand; rejects when the stored blob cannot be inflated or its checksum
+   * does not match. A caller must not turn that rejection into null: null means no such activity.
+   */
   gpx(id: string): Promise<string | null>;
   delete(id: string): Promise<boolean>;
 }
