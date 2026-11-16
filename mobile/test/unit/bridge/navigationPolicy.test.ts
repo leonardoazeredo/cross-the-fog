@@ -12,7 +12,7 @@ describe("decideNavigation", () => {
     [ORIGIN, true, "block"],
     ["about:blank", true, "block"],
     ["https://crossfog.madera.codes/other", false, "block"],
-    ["https://www.google.com/maps/dir/?api=1", true, "external"],
+    ["https://www.openstreetmap.org/copyright", true, "external"],
     ["http://example.org/", true, "external"],
     ["blob:https://crossfog.madera.codes/1234", true, "block"],
     ["intent://scan#Intent;end", true, "block"],
@@ -25,7 +25,7 @@ describe("decideNavigation", () => {
 
 describe("shouldOpenWindowExternally", () => {
   it.each([
-    ["https://www.google.com/maps/dir/?api=1", true],
+    ["https://www.openstreetmap.org/copyright", true],
     ["https://drive.google.com", true],
     ["http://example.org/", true],
     [ORIGIN, false],

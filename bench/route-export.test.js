@@ -1,4 +1,4 @@
-// RouteTool.toGPX / toKML: output credits OpenStreetMap (ODbL), track data unchanged; no network.
+// RouteTool.toGPX: output credits OpenStreetMap (ODbL), track data unchanged; no network.
 //   node bench/route-export.test.js
 "use strict";
 const assert = require("node:assert/strict");
@@ -28,9 +28,5 @@ assert.doesNotMatch(gpx, /<keywords>/, "a route without an id writes no keywords
 for (const bad of ["", "</keywords><x/>", "a&b"]) {
   assert.doesNotMatch(RouteTool.prototype.toGPX.call({ ...withId, routeId: bad }), /<keywords>/, "an id that is not a UUID is never written into the XML");
 }
-
-const kml = RouteTool.prototype.toKML.call(tool);
-assert.match(kml, /<description>Map data © OpenStreetMap contributors, ODbL \(https:\/\/opendatacommons\.org\/licenses\/odbl\/\)<\/description>/);
-assert.match(kml, /<coordinates>13\.700000,51\.000000,120\.5 13\.710000,51\.001000,121\.0<\/coordinates>/, "coordinates unchanged");
 
 console.log("route-export.test.js ok");

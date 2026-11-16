@@ -133,15 +133,6 @@ function tool(routeWaypoints, profile) {
     assert.equal(calls[2][0], "51.001,13.72|51,13.71|51,13.7");
     assert.equal(calls[3][1], "fastbike");
   }
-  { // the Google Maps link maps shortest to driving, hiking to walking, and any other mode, such as one the page has no button for, to bicycling
-    const { t } = tool(async () => ({ coords: line, stats }), "unlisted-mode");
-    t.add(A); t.add(B);
-    assert.match(t.googleMapsUrl(), /travelmode=bicycling/);
-    t.setProfile("car-fast"); // a profile name a saved route may still carry
-    assert.match(t.googleMapsUrl(), /travelmode=bicycling/);
-    t.setProfile("hiking-mountain");
-    assert.match(t.googleMapsUrl(), /travelmode=walking/);
-  }
   { // the street download's progress reaches the loading state; a superseded request's progress does not
     const first = deferred(), progress = [];
     const { t, emitted } = tool(async (pts, mode, onProgress) => { progress.push(onProgress); await first.promise; return { coords: line, stats }; });

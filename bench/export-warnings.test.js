@@ -1,4 +1,4 @@
-// Every plaintext export (Fog of World export, GPX, KML, Open in Google Maps) shows its warning first, Cancel
+// Every plaintext export (Fog of World export, GPX) shows its warning first, Cancel
 // runs nothing, and no log line in the page carries a position.
 //   node bench/export-warnings.test.js
 "use strict";
@@ -31,7 +31,7 @@ function fakeDoc() {
 const settle = () => new Promise((r) => setImmediate(r));
 
 (async () => {
-  for (const kind of ["fog", "gpx", "kml", "maps"]) {
+  for (const kind of ["fog", "gpx"]) {
     // Cancel
     {
       const { doc, els } = fakeDoc();
@@ -82,8 +82,8 @@ const settle = () => new Promise((r) => setImmediate(r));
     const warn = ExportWarning.install({ doc });
     let first = 0, second = 0;
     const a = warn.guard("gpx", () => { first++; })();
-    const b = warn.guard("maps", () => { second++; })();
-    assert.equal(els.exportWarningText.textContent, ExportWarning.TEXT.maps);
+    const b = warn.guard("fog", () => { second++; })();
+    assert.equal(els.exportWarningText.textContent, ExportWarning.TEXT.fog);
     els.exportContinue.click();
     await Promise.all([a, b]);
     assert.equal(first, 0, "the replaced request runs nothing");
@@ -130,17 +130,20 @@ const settle = () => new Promise((r) => setImmediate(r));
   // what each warning says
   assert.match(ExportWarning.TEXT.fog, /unencrypted and shows the places you have been/);
   assert.match(ExportWarning.TEXT.gpx, /unencrypted and shows the route/);
-  assert.match(ExportWarning.TEXT.kml, /unencrypted and shows the route/);
-  assert.match(ExportWarning.TEXT.maps, /Google/);
+  assert.deepEqual(Object.keys(ExportWarning.TEXT).sort(), ["fog", "gpx"], "the exports are GPX and the Fog of World export");
 
   // main.js reaches each plaintext sink only through a guard. A tripwire, not a proof: it matches text, so a sink
   // reached through an alias, or called outside the guard on the guard's own line, passes unseen.
   const root = path.join(__dirname, "..", "app");
   const main = fs.readFileSync(path.join(root, "src", "main.js"), "utf8").split("\n");
-  for (const [sink, kind] of [["route.downloadGPX(", "gpx"], ["route.downloadKML(", "kml"], ["window.open(", "maps"], ["FowExport.run(", "fog"]]) {
+  for (const [sink, kind] of [["route.downloadGPX(", "gpx"], ["FowExport.run(", "fog"]]) {
     const lines = main.filter((l) => l.includes(sink));
     assert.ok(lines.length >= 1, sink + " is used in main.js");
     for (const l of lines) assert.ok(l.includes('guard("' + kind + '"'), sink + " sits behind guard(\"" + kind + "\"): " + l.trim());
+  }
+  // The exports are GPX and the Fog of World export (ADR 0010); a page that opens another site would hand it a position.
+  for (const gone of ["window.open(", "downloadKML", "googleMapsUrl"]) {
+    assert.ok(!main.some((l) => l.includes(gone)), "main.js has no " + gone);
   }
 
   // the page's own script order puts the helpers before main.js

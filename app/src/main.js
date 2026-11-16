@@ -318,7 +318,7 @@
   $("zip").addEventListener("change", (e) => loadFromZip(e.target.files[0]));
 
   // ---- route planning ---------------------------------------------------------
-  const exportGpxBtn = $("exportGpx"), exportKmlBtn = $("exportKml"), gmapsBtn = $("openGmaps");
+  const exportGpxBtn = $("exportGpx");
   const drawBtn = $("drawToggle"), statsWrap = $("statsWrap"), routeHint = $("routeHint");
   const reverseBtn = $("reverse");
   const elevEl = $("elev"), elevHead = $("elevHead"), wpListEl = $("wpList"), wpHead = $("wpHead");
@@ -336,8 +336,7 @@
   }
 
   function setExports(routable) {
-    exportGpxBtn.disabled = !routable; exportKmlBtn.disabled = !routable;
-    gmapsBtn.disabled = route.wps.length < 2;
+    exportGpxBtn.disabled = !routable;
   }
   function clearRouteInfo(msg) {
     lastStats = null; lastGain = null;
@@ -750,11 +749,9 @@
   reverseBtn.addEventListener("click", () => route.reverse());
   // Every plaintext export sits behind its warning; Cancel runs nothing.
   const warn = ExportWarning.install({ doc: document });
-  const planExports = exportGpxBtn.parentNode; // the Plan tab's export row, where the warning card shows for GPX, KML and Maps
+  const planExports = exportGpxBtn.parentNode; // the Plan tab's export row, where the warning card shows for GPX
   exportGpxBtn.addEventListener("click", warn.guard("gpx", () => route.downloadGPX(), planExports));
-  exportKmlBtn.addEventListener("click", warn.guard("kml", () => route.downloadKML(), planExports));
   fowBtn.addEventListener("click", warn.guard("fog", () => fowExport.start((exportId) => FowExport.run({ fogMap, phone: window.crossfog, exportId })), fowBtn.parentNode));
-  gmapsBtn.addEventListener("click", warn.guard("maps", () => { const u = route.googleMapsUrl(); if (u) window.open(u, "_blank", "noopener"); }, planExports));
 
   // The phone app's page adapter adds and removes cells revealed by activities, then calls fogChanged() so
   // the fog and its panels update now and the street fractions are recomputed on next use. The suggestion planners need no reset: they
