@@ -341,23 +341,60 @@ describe("a store that fails after it opened", () => {
     expect(await settles(c.get(A))).toBeNull();
     expect(await settles(c.getReveal(ACT))).toBeNull();
     expect(await settles(c.revealIds())).toEqual([]);
+    expect(JSON.stringify(warn.mock.calls)).toContain("AbortError");
   });
 
-  it("a failed write request logs the request's error name, though tx.error is still null", async () => {
+  // The write methods and what each calls on the stub's object store.
+  const writes: [string, (c: Awaited<ReturnType<typeof openFogCache>>) => Promise<void>][] = [
+    ["putOnly", (c) => c.putOnly(A, a)],
+    ["putReveal", (c) => c.putReveal(ACT, stamp(1), new Int32Array(0))],
+    ["deleteReveal", (c) => c.deleteReveal(ACT)],
+    ["clearAll", (c) => c.clearAll()],
+  ];
+
+  it.each(writes)(
+    "a failed %s request logs the request's error name once, not the abort that follows",
+    async (_name, call) => {
+      const t = tx({});
+      t.error = null; // IndexedDB sets tx.error only when the transaction aborts, after the request's error event
+      t.objectStore = () => ({ put: () => ({}), clear: () => ({}), delete: () => ({}) });
+      const c = await openFogCache(
+        stubFactory(() => {
+          queueMicrotask(() =>
+            queueMicrotask(() => {
+              t.onerror?.({ target: { error: { name: "ConstraintError" } } });
+              t.error = { name: "AbortError" };
+              t.onabort?.();
+            }),
+          );
+          return t;
+        }),
+        true,
+      );
+      expect(await settles(call(c))).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(warn.mock.calls)).toContain("ConstraintError");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("AbortError");
+    },
+  );
+
+  it("an abort after a write completed logs nothing", async () => {
     const t = tx({});
-    t.error = null; // IndexedDB sets tx.error only when the transaction aborts, after the request's error event
-    t.objectStore = () => ({ put: () => ({}), clear: () => ({}) });
+    t.objectStore = () => ({ put: () => ({}), clear: () => ({}), delete: () => ({}) });
     const c = await openFogCache(
       stubFactory(() => {
         queueMicrotask(() =>
-          queueMicrotask(() => t.onerror?.({ target: { error: { name: "ConstraintError" } } })),
+          queueMicrotask(() => {
+            t.oncomplete?.();
+            t.onabort?.();
+          }),
         );
         return t;
       }),
       true,
     );
-    expect(await settles(c.putReveal(ACT, stamp(1), new Int32Array(0)))).toBeUndefined();
-    expect(JSON.stringify(warn.mock.calls)).toContain("ConstraintError");
+    expect(await settles(c.clearAll())).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("a db that throws on transaction resolves to the fallback and logs the error name only", async () => {
@@ -397,6 +434,7 @@ describe("a store that fails after it opened", () => {
       true,
     );
     expect(await settles(c.get(A))).toBeNull();
+    expect(await settles(c.getReveal(ACT))).toBeNull();
     expect(await settles(c.revealIds())).toEqual([]);
   });
 });
