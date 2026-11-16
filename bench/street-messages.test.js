@@ -108,11 +108,11 @@ const err = (reason, more) => Object.assign(new Error("overpass HTTP 502"), { re
     }
   }
 }
-{ // the page loads it before the layer and main.js that call it
+{ // the page loads it before main.js, which calls it
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (f) => html.indexOf('src="src/' + f + '"');
   assert.ok(at("streetMessages.js") > 0, "loaded");
-  assert.ok(at("streetMessages.js") < at("streetsLayer.js") && at("streetMessages.js") < at("main.js"), "before streetsLayer.js and main.js");
+  assert.ok(at("streetMessages.js") < at("main.js"), "before main.js");
 }
 
 console.log("street-messages.test.js ok");

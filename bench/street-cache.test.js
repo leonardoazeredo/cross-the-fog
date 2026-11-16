@@ -105,11 +105,14 @@ const T = (x, y) => ({ x, y });
     await store.put("2:run:1:1", { answer: { ways: [], groups: { tag: "run" } }, fetchedAt: 0 });
     await store.put("2:bike:2:1", { answer: { ways: [], groups: { tag: "bike" } }, fetchedAt: 0 });
     await store.put("2:run:3:1", { answer: { ways: [], groups: { tag: "run" } }, fetchedAt: -100 * DAY });
+    const offline = async () => { throw Object.assign(new Error("offline"), { reason: "offline" }); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const old = await StreetCache.create({ store, network: offline, now: () => 0 }).fetchStreets([T(3, 1)]);
+      assert.equal(old.get("3:1").groups.tag, "run", "an expired run entry still serves offline");
+    } finally { console.warn = warn; }
     const c = StreetCache.create({ store, network, now: () => 0 });
-    const cached = await c.fetchStreets([T(1, 1), T(2, 1), T(3, 1)], null, { cacheOnly: true });
-    assert.equal(cached.get("1:1").groups.tag, "run");
-    assert.equal(cached.get("3:1").groups.tag, "run", "an expired run entry is still drawn from");
-    assert.equal(cached.has("2:1"), false, "a bike entry is not read");
     const got = await c.fetchStreets([T(1, 1), T(2, 1)]);
     assert.deepEqual(calls.map((x) => x.tiles), [[T(2, 1)]], "the run entry needs no request, the bike one does");
     assert.equal(got.get("2:1").groups.tag, "net");
@@ -315,7 +318,7 @@ const T = (x, y) => ({ x, y });
     try {
       const c = StreetCache.create({ store, network, now: () => 0 });
       await c.fetchStreets([T(1, 1)]);
-      await c.fetchStreets([T(2, 1)], null, { cacheOnly: true });
+      await c.fetchStreets([T(2, 1)]);
     } finally { console.warn = warn; }
     assert.deepEqual(warned, [["[streets] cache read failed", "InvalidStateError"]]);
   }
@@ -336,21 +339,6 @@ const T = (x, y) => ({ x, y });
     await s.ensureRects([rect], { onProgress: (p) => progress.push(p.done) });
     assert.equal(s.tiles.size, 3);
     assert.deepEqual(progress, [0, 1, 2, 3]);
-  }
-  { // cache only: fresh tiles through onTile, an expired one in the Map alone, a missing one left out, no network
-    const { network, calls } = fakeNetwork();
-    let t = 0;
-    const store = TileStore.memory({ maxEntries: 10 });
-    const c = StreetCache.create({ store, network, now: () => t, maxAgeMs: 90 * DAY });
-    await c.fetchStreets([T(1, 1)]);
-    t = 200 * DAY;
-    await c.fetchStreets([T(2, 1)]);
-    const heard = [];
-    const got = await c.fetchStreets([T(1, 1), T(2, 1), T(3, 1)], (tile) => heard.push(tile.x), { cacheOnly: true });
-    assert.equal(calls.length, 2, "a cache-only read never calls the network, not even for the expired tile");
-    assert.deepEqual(heard, [2], "only the fresh tile is heard as it arrives");
-    assert.deepEqual([...got.keys()].sort(), ["1:1", "2:1"], "the expired copy comes back, the missing tile does not");
-    assert.deepEqual(got.get("1:1"), answerFor(T(1, 1)));
   }
   { // the old unversioned keys are swept in the background, a bounded number per call, and the new ones stay
     const { network } = fakeNetwork();
@@ -376,10 +364,10 @@ const T = (x, y) => ({ x, y });
     await store.put("2:run:1:1", { answer: { ways: [null], groups: {} }, fetchedAt: 0 });
     await store.put("2:run:2:1", { answer: { ways: [], groups: { a: 5 } }, fetchedAt: 0 });
     const c = StreetCache.create({ store, network, now: () => 0 });
-    const got = await c.fetchStreets([T(1, 1), T(2, 1)], null, { cacheOnly: true });
-    assert.equal(got.size, 0);
-    assert.equal(calls.length, 0);
-    assert.deepEqual(await store.keys(), [], "both damaged entries are gone");
+    const got = await c.fetchStreets([T(1, 1), T(2, 1)]);
+    assert.deepEqual(calls.map((x) => x.tiles), [[T(1, 1), T(2, 1)]], "both are asked for again");
+    assert.deepEqual([got.get("1:1").groups.tag, got.get("2:1").groups.tag], ["net", "net"]);
+    assert.deepEqual([(await store.get("2:run:1:1")).answer.groups.tag, (await store.get("2:run:2:1")).answer.groups.tag], ["net", "net"], "both damaged entries are replaced");
   }
   { // the default age limit is 90 days: a tile 90 days old is refetched, one a millisecond younger is not
     const { network, calls } = fakeNetwork();

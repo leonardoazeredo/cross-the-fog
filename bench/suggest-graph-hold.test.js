@@ -64,7 +64,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
     let openOld, openNew;
     const oldGate = new Promise((r) => { openOld = r; }), newGate = new Promise((r) => { openNew = r; });
     let calls = 0;
-    st.ensureRects = async () => { if (++calls === 1) await oldGate; return { done: 1, total: 1, missing: [] }; };
+    st.ensureRects = async () => { if (++calls === 1) await oldGate; return { done: 1, total: 1 }; };
     const orig = t._route;
     let parked = null;
     t._route = async function (...a) {

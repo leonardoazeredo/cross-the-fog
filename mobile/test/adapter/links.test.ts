@@ -21,7 +21,7 @@ it("opens the attribution's copyright link in the system browser", () => {
 it("app/src/main.js links every basemap attribution to the OSM copyright page", () => {
   const src = readFileSync(resolve(import.meta.dirname, "../../../app/src/main.js"), "utf8");
   const attributions = [...src.matchAll(/attribution: '([^']+)'/g)].map((m) => m[1]);
-  expect(attributions).toHaveLength(3);
+  expect(attributions).toHaveLength(2);
   for (const a of attributions)
     expect(a).toContain(
       '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">',

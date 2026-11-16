@@ -51,13 +51,10 @@
 
     // The street source contract of StreetIndex: onTile hears each tile as it arrives, cached tiles
     // first, and each network tile is stored the moment it arrives, so a failed run keeps it. An
-    // expired copy never goes through onTile: served after a network failure (below), or read with
-    // opts.cacheOnly, it comes back in the returned Map alone. A failure rethrows the network's error
-    // as it is; ensureRects counts tiles. opts.cacheOnly: what the store holds and nothing else, never
-    // the network, so the Streets in fog look can draw on every pan without spending the server's
-    // daily share. The run's other opts (its clock, busy wait and stale) go to the network source, so a
-    // busy wait keeps to the run's deadline and stop, and a replaced run's posts still waiting for a slot
-    // are not sent.
+    // expired copy never goes through onTile: served after a network failure (below), it comes back in
+    // the returned Map alone. A failure rethrows the network's error as it is; ensureRects counts tiles.
+    // The run's opts (its clock, busy wait and stale) go to the network source, so a busy wait keeps to
+    // the run's deadline and stop, and a replaced run's posts still waiting for a slot are not sent.
     async function fetchStreets(tiles, onTile, opts) {
       const state = { storeDown: false };
       const out = new Map();
@@ -77,10 +74,6 @@
           missing.push(t);
           if (hit) expired.set(idOf(t), hit.answer);
         }
-      }
-      if (opts && opts.cacheOnly) {
-        for (const [k, answer] of expired) out.set(k, answer);
-        return out;
       }
       if (!missing.length) return out;
 

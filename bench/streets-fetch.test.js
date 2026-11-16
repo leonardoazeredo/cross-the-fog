@@ -530,9 +530,9 @@ async function testCase(body) {
     await srv.reply(2);
     assert.deepEqual(progress[progress.length - 1], { done: 4, total: 16 });
     while (srv.pending.length) await srv.reply(0);
-    assert.deepEqual(await run, { done: 16, total: 16, missing: [] });
+    assert.deepEqual(await run, { done: 16, total: 16 });
     assert.equal(srv.most.nextgis, 4);
-    assert.deepEqual(await s.ensureRects(sixteen), { done: 16, total: 16, missing: [] });
+    assert.deepEqual(await s.ensureRects(sixteen), { done: 16, total: 16 });
     assert.equal(srv.asked.length, 4, "a repeat makes no request");
   });
   await testCase(async () => { // overpass-api.de takes two at once, alone without a key, and when every request falls back from NextGIS
@@ -803,7 +803,7 @@ async function testCase(body) {
     const s = new StreetIndex({ newFrac: () => 1, now: () => clock.t });
     const logged = [], orig = console.warn;
     console.warn = (...a) => logged.push(a);
-    try { assert.deepEqual(await s.ensureRects(fiveTiles), { done: 5, total: 5, missing: [] }); } finally { console.warn = orig; }
+    try { assert.deepEqual(await s.ensureRects(fiveTiles), { done: 5, total: 5 }); } finally { console.warn = orig; }
     assert.deepEqual(logged, [], "the run's own deadline is not a source failure");
   });
   await testCase(async () => { // a source that fails once every tile it was asked for is in: the run is whole, the error's class is logged, never its text
@@ -814,7 +814,7 @@ async function testCase(body) {
     } });
     const logged = [], orig = console.warn;
     console.warn = (...a) => logged.push(a);
-    try { assert.deepEqual(await s.ensureRects(fiveTiles), { done: 5, total: 5, missing: [] }); } finally { console.warn = orig; }
+    try { assert.deepEqual(await s.ensureRects(fiveTiles), { done: 5, total: 5 }); } finally { console.warn = orig; }
     assert.deepEqual(logged, [["[streets] a street source failed after every piece it was asked for arrived", "RangeError", "busy"]]);
   });
   await testCase(async () => { // the same failure on a run replaced meanwhile: it rejects superseded and logs nothing
@@ -924,11 +924,11 @@ async function testCase(body) {
     assert.deepEqual(asked, [6, 3, 3], "each retry asks only for what is missing");
     plan = { give: 2, stop: null };
     reports.length = 0;
-    assert.deepEqual(await s.ensureRects(r, { onProgress: (p) => reports.push(p) }), { done: 6, total: 6, missing: [] });
+    assert.deepEqual(await s.ensureRects(r, { onProgress: (p) => reports.push(p) }), { done: 6, total: 6 });
     assert.deepEqual(reports.map((p) => p.done), [4, 5, 6]);
     // everything held: nothing asked, nothing reported, all counted done
     reports.length = 0;
-    assert.deepEqual(await s.ensureRects(r, { onProgress: (p) => reports.push(p) }), { done: 6, total: 6, missing: [] });
+    assert.deepEqual(await s.ensureRects(r, { onProgress: (p) => reports.push(p) }), { done: 6, total: 6 });
     assert.deepEqual([reports, asked.length], [[], 4]);
   });
   await testCase(async () => { // every way a run can end short counts the held tiles, and takes its reason from the tiles read in that run
@@ -956,7 +956,7 @@ async function testCase(body) {
     assert.deepEqual(facts(await fail(index(late), { deadlineMs: 45000 })), [4, 6, "streets-partial", "stalled"]);
     // an offline source with nothing read: no tile arrived, so no "streets-partial" however many are held
     assert.deepEqual(facts(await fail(index(async () => { throw Object.assign(new Error("x"), { reason: "offline" }); }))), [3, 6, "offline", "offline"]);
-    assert.deepEqual(await new StreetIndex({ newFrac: () => 1 }).ensureRects([]), { done: 0, total: 0, missing: [] });
+    assert.deepEqual(await new StreetIndex({ newFrac: () => 1 }).ensureRects([]), { done: 0, total: 0 });
   });
   await testCase(async () => { // a cache hit is not a download: an offline run in a partly cached area says offline,
     // and one piece downloaded before the network went makes it streets-partial; both count the hits as done
@@ -989,7 +989,7 @@ async function testCase(body) {
     await settle();
     assert.equal(srv.asked.length, 1, "the second run asks nothing of its own");
     await srv.reply(0);
-    assert.deepEqual(await within(Promise.all([first, second])), [{ done: 1, total: 1, missing: [] }, { done: 1, total: 1, missing: [] }]);
+    assert.deepEqual(await within(Promise.all([first, second])), [{ done: 1, total: 1 }, { done: 1, total: 1 }]);
     assert.deepEqual(reports, [{ done: 0, total: 1 }, { done: 1, total: 1 }]);
     assert.equal(s.inFlight.size, 0, "nothing left in flight");
   });
@@ -1015,7 +1015,7 @@ async function testCase(body) {
     replaced = true;
     release();
     assert.ok(StreetIndex.isSuperseded(await within(first)));
-    assert.deepEqual(await within(second), { done: 1, total: 1, missing: [] }, "not stopped by the other run going stale");
+    assert.deepEqual(await within(second), { done: 1, total: 1 }, "not stopped by the other run going stale");
     assert.deepEqual(calls, [1, 1], "asked again once given up");
     assert.equal(s.inFlight.size, 0);
   });
@@ -1039,7 +1039,7 @@ async function testCase(body) {
     replaced = true;
     release();
     assert.ok(StreetIndex.isSuperseded(await within(first)));
-    assert.deepEqual(await within(Promise.all([second, third])), [{ done: 1, total: 1, missing: [] }, { done: 1, total: 1, missing: [] }]);
+    assert.deepEqual(await within(Promise.all([second, third])), [{ done: 1, total: 1 }, { done: 1, total: 1 }]);
     assert.deepEqual(calls, [1, 1], "asked again once, not once per waiting run");
     assert.equal(s.inFlight.size, 0);
   });
@@ -1060,23 +1060,6 @@ async function testCase(body) {
     assert.equal(await within(second), bug);
     await within(first);
   });
-  await testCase(async () => { // a cache-only read beside a run with the tile in flight neither waits for it nor claims it
-    const answer = { ways: [], groups: {} };
-    const one = [{ s: 51.0, w: 13.7, n: 51.02, e: 13.72 }];
-    let release;
-    const gate = new Promise((r) => { release = r; });
-    const fetchStreets = async (tiles, onTile, opts) => {
-      if (opts && opts.cacheOnly) return new Map();
-      await gate; tiles.forEach((t) => onTile(t, answer)); return new Map();
-    };
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets });
-    const run = s.ensureRects(one);
-    const [t] = StreetIndex.tilesOf(one);
-    assert.deepEqual(await within(s.ensureRects(one, { cacheOnly: true })), { done: 0, total: 1, missing: [t] });
-    assert.equal(s.inFlight.size, 1, "only the run's claim");
-    release();
-    await within(run);
-  });
   await testCase(async () => { // a run replaced while it waits for another run's tile rejects superseded; the other run still gets the tile
     const answer = { ways: [], groups: {} };
     const one = [{ s: 51.0, w: 13.7, n: 51.02, e: 13.72 }];
@@ -1091,7 +1074,7 @@ async function testCase(body) {
     replaced = true;
     release();
     assert.ok(StreetIndex.isSuperseded(await within(second)));
-    assert.deepEqual(await within(first), { done: 1, total: 1, missing: [] });
+    assert.deepEqual(await within(first), { done: 1, total: 1 });
     assert.equal(calls, 1);
     assert.equal(s.tiles.size, 1);
   });
@@ -1146,62 +1129,6 @@ async function testCase(body) {
     await s.ensureRects(r, { onProgress: (p) => second.push(p) });
     assert.deepEqual(first, [0, 1, 2].map((done) => ({ done, total: 2 })));
     assert.deepEqual([second, src.asked.length], [[], 2], "a covered area is not shown as a download");
-  });
-  await testCase(async () => { // cache only: what the source holds is merged, the rest is listed as missing instead of rejected
-    const asked = [], askedTiles = [];
-    let held = null; // the source holds the first tile it is ever asked for, nothing else
-    const fetchStreets = async (tiles, onTile, opts) => {
-      asked.push(opts);
-      askedTiles.push(tiles);
-      held = held || tiles[0];
-      for (const t of tiles) if (t.x === held.x && t.y === held.y) onTile(t, { ways: [way(1)], groups: {} });
-      return new Map();
-    };
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets });
-    const r = [{ s: 51.0, w: 13.7, n: 51.025, e: 13.75 }];
-    const got = await s.ensureRects(r, { cacheOnly: true });
-    assert.deepEqual(asked, [{ cacheOnly: true }], "the source is told not to use the network");
-    assert.deepEqual([got.done, got.total, got.missing.length], [1, 2, 1]);
-    assert.equal(s.tiles.size, 1, "only the tile that came is covered");
-    assert.equal(s.ways.length, 1);
-    const again = await s.ensureRects(r, { cacheOnly: true });
-    assert.deepEqual(askedTiles[1], got.missing, "the covered tile is not asked again");
-    assert.deepEqual([again.done, again.total, again.missing], [1, 2, got.missing]);
-  });
-  await testCase(async () => { // cache only on the default source: no request at all, every tile missing
-    let posts = 0;
-    global.fetch = async () => { posts++; throw new Error("no network in a cache-only read"); };
-    const s = new StreetIndex({ newFrac: () => 1 });
-    const got = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.75 }], { cacheOnly: true });
-    assert.deepEqual([posts, got.done, got.total, got.missing.length], [0, 0, 2, 2]);
-  });
-  await testCase(async () => { // cache only: an expired copy (in the Map alone) is drawn from but not covered, so a download refreshes it
-    const reads = [];
-    const fetchStreets = async (tiles, onTile, opts) => {
-      reads.push({ n: tiles.length, cacheOnly: !!(opts && opts.cacheOnly) });
-      const out = new Map();
-      for (const t of tiles) {
-        const answer = { ways: [way(t.x * 1000 + t.y)], groups: {} };
-        if (opts && opts.cacheOnly) out.set(t.x + ":" + t.y, answer); else onTile(t, answer);
-      }
-      return out;
-    };
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets });
-    const r = [{ s: 51.0, w: 13.7, n: 51.025, e: 13.725 }];
-    const got = await s.ensureRects(r, { cacheOnly: true });
-    assert.deepEqual([got.done, got.total, got.missing, s.ways.length, s.tiles.size], [1, 1, [], 1, 0]);
-    const v = s.version;
-    const again = await s.ensureRects(r, { cacheOnly: true });
-    assert.deepEqual([again.done, again.total, s.version], [1, 1, v], "an expired copy already drawn from is not read again");
-    await s.ensureRects(r);
-    assert.deepEqual(reads.map((x) => x.cacheOnly), [true, false], "a normal run asks for the expired tile");
-    assert.equal(s.tiles.size, 1);
-  });
-  await testCase(async () => { // cache only: a source that throws is a bug, not a download, so it rejects as itself
-    const bug = new TypeError("bug");
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw bug; } });
-    const err = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.75 }], { cacheOnly: true }).then(() => null, (e) => e);
-    assert.equal(err, bug);
   });
   await testCase(async () => { // what a caller passes on from a failed download: the reasons, counts and retry time, no text
     const cause = Object.assign(new Error("overpass: Query timed out at line 3"), { reason: "stalled", retryAt: 9 });
@@ -1308,7 +1235,7 @@ async function testCase(body) {
     const b = s.ensureRects(row(549, 551));
     await settle();
     gate.open();
-    assert.deepEqual(await within(Promise.all([a, b])), [{ done: 3, total: 3, missing: [] }, { done: 3, total: 3, missing: [] }]);
+    assert.deepEqual(await within(Promise.all([a, b])), [{ done: 3, total: 3 }, { done: 3, total: 3 }]);
     assert.equal(asked.flat().length, 4, "each of the four tiles is asked once");
     assert.equal(s.tiles.size, 4);
     assert.equal(s.version, 4, "one version bump per tile read");
@@ -1340,7 +1267,7 @@ async function testCase(body) {
     await reply(0);
     assert.deepEqual(clock.sleeps, [90000], "the Retry-After, past the 15 s step");
     while (srv.pending.length) await reply(0);
-    assert.deepEqual(await run, { done: 12, total: 12, missing: [] });
+    assert.deepEqual(await run, { done: 12, total: 12 });
   });
   await testCase(async () => { // a later busy answer with a longer retry time raises the wait already set
     const clock = fakeClock();
@@ -1354,7 +1281,7 @@ async function testCase(body) {
     await srv.reply(0, 429);
     assert.deepEqual(clock.sleeps, [30000], "30 s, longer than the 15 s the first busy set");
     while (srv.pending.length) await srv.reply(0);
-    assert.deepEqual(await run, { done: 5, total: 5, missing: [] });
+    assert.deepEqual(await run, { done: 5, total: 5 });
   });
   await testCase(async () => { // after a fourth busy answer that comes with tiles, the count has restarted: the next busy waits 30 s, not
     // 15 again; and a 429 as that fourth busy stretches its wait to the hold
@@ -1415,14 +1342,9 @@ async function testCase(body) {
     assert.deepEqual(calls, [1]);
     release();
     assert.equal((await within(first)).reason, "offline");
-    assert.deepEqual(await within(second), { done: 1, total: 1, missing: [] });
+    assert.deepEqual(await within(second), { done: 1, total: 1 });
     assert.deepEqual(calls, [1, 1], "asked again once the owner gave it up");
     assert.equal(s.inFlight.size, 0);
-  });
-  await testCase(async () => { // a cache-only read is never superseded, even with a stale() that is true
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => new Map() });
-    const got = await s.ensureRects(rect, { cacheOnly: true, stale: () => true });
-    assert.deepEqual([got.done, got.total, got.missing.length], [0, 1, 1]);
   });
   await testCase(async () => { // a throw from onProgress during a busy wait that carries a street reason is still a bug: it rejects as itself
     const clock = fakeClock();

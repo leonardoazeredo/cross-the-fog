@@ -1,4 +1,4 @@
-// Overpass endpoints for the street data, shared by suggestions and the "Streets in fog" look so
+// Overpass endpoints for the street data, shared by suggestions and the route editor so
 // they obey one backoff and one cap on requests in flight per endpoint. overpass-api.de meters every
 // app and every IP over a 24 h window and answers 406 once that share is used up, a block until the
 // window refills (community.openstreetmap.org/t/overpass-api-performance-issues/140598), so a 406
