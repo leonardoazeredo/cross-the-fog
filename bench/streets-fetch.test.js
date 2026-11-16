@@ -144,7 +144,6 @@ async function testCase(body) {
 
 (async () => {
   await testCase(async () => { // the motorway ID list after the geometry is read into its set, and it is the only list asked for
-    // geometry, then motorway
     replyWith({ elements: [way(1), way(2), count, ...ids(1)] });
     const s = new StreetIndex({ newFrac: () => 1 });
     await s.ensureRects(rect);
@@ -275,7 +274,6 @@ async function testCase(body) {
     const wide = { type: "way", id: 7, nodes: [70, 71], geometry: [{ lat: 51.01, lon: 13.74 }, { lat: 51.01, lon: 13.76 }] };
     const west = { type: "way", id: 8, nodes: [80, 81], geometry: [{ lat: 51.02, lon: 13.73 }, { lat: 51.02, lon: 13.735 }] };
     const lost = { type: "way", id: 9, nodes: [90, 91], geometry: [{ lat: 51.3, lon: 13.0 }, { lat: 51.3, lon: 13.01 }] };
-    // geometry, then motorway
     const tiles = [{ x: 549, y: 2040 }, { x: 550, y: 2040 }];
     const out = StreetIndex.splitAnswer({ elements: [wide, west, lost, count, ...ids(7, 8)] }, tiles);
     assert.deepEqual([...out.keys()], ["549:2040", "550:2040"]);

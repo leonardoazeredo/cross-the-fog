@@ -17,9 +17,7 @@
   // a main road are cut off
   const CONNECT_HW = "trunk|trunk_link|primary_link|secondary_link|tertiary_link";
   const RUN_HW = "residential|unclassified|tertiary|secondary|primary|living_street|track|path|footway|cycleway|pedestrian|steps|" + CONNECT_HW;
-  // The one ID list an answer carries after the geometry: the motorways and their links, which are not
-  // walked. (The removed bike and car modes also read travel-class and one-way lists; asking for them cost
-  // a few hundred KB per area for nothing.)
+  // The one ID list an answer carries after the geometry: the motorways and their links, which are not walked.
   const GROUP_ORDER = ["motorway"];
   const SEG_M = 50;              // ways are chopped into ~50 m scoring segments
   const GRID_M = 250;            // spatial bin size for radius queries
@@ -543,7 +541,7 @@
     // box again per list ran Overpass out of time on a town-sized box)
     let q = `[out:json][timeout:25];(${clauses(hw)})->.all;.all out skel geom;`;
     const tagged = (list, filter) => `way.all[highway~"^(${list})$"]${filter};`;
-    // Then the motorway ID list, introduced by its count (see GROUP_ORDER).
+    // The list is introduced by its own count so it stays apart from the geometry in one response (see GROUP_ORDER).
     const groups = [["motorway", tagged("motorway|motorway_link", "")]];
     for (const [k, body] of groups) q += `(${body})->.${k};.${k} out count;.${k} out ids;`;
     return q;
