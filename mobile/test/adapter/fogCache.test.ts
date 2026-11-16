@@ -1,5 +1,5 @@
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openFogCache, type RevealStamp } from "../../web-adapter/fogCache.js";
 
 const A = "a".repeat(64);
@@ -280,5 +280,106 @@ describe("an open connection that blocks the upgrade", () => {
     const later = await openFogCache(idb, true);
     await later.putOnly(A, a);
     expect(await later.get(A)).toEqual(a);
+  });
+});
+
+describe("a store that fails after it opened", () => {
+  type Handler = (() => void) | null;
+  interface StubTx {
+    error: { name: string } | null;
+    onabort: Handler;
+    onerror: Handler;
+    oncomplete: Handler;
+    objectStore: () => unknown;
+  }
+
+  // An IDBFactory whose open succeeds with a stub db; `transaction` is what each test breaks.
+  function stubFactory(transaction: () => StubTx): IDBFactory {
+    return {
+      open: () => {
+        const req: { result: unknown; onsuccess: Handler } = {
+          result: { transaction, close() {} },
+          onsuccess: null,
+        };
+        queueMicrotask(() => req.onsuccess?.());
+        return req;
+      },
+    } as unknown as IDBFactory;
+  }
+
+  const hung = Symbol("hung");
+  const settles = <T>(p: Promise<T>) =>
+    Promise.race([p, new Promise<symbol>((r) => setTimeout(() => r(hung), 200))]);
+
+  function tx(req: Record<string, unknown>): StubTx {
+    const t: StubTx = {
+      error: { name: "AbortError" },
+      onabort: null,
+      onerror: null,
+      oncomplete: null,
+      objectStore: () => ({ get: () => req, getAllKeys: () => req }),
+    };
+    return t;
+  }
+
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  it("a transaction that aborts resolves a read to its fallback", async () => {
+    const t = tx({});
+    // An abort fires onabort on the transaction after the handlers are set.
+    const c = await openFogCache(
+      stubFactory(() => {
+        queueMicrotask(() => queueMicrotask(() => t.onabort?.()));
+        return t;
+      }),
+      true,
+    );
+    expect(await settles(c.get(A))).toBeNull();
+    expect(await settles(c.getReveal(ACT))).toBeNull();
+    expect(await settles(c.revealIds())).toEqual([]);
+  });
+
+  it("a db that throws on transaction resolves to the fallback and logs the error name only", async () => {
+    const c = await openFogCache(
+      stubFactory(() => {
+        throw Object.assign(new Error("secret detail"), { name: "InvalidStateError" });
+      }),
+      true,
+    );
+    expect(await settles(c.get(A))).toBeNull();
+    expect(await settles(c.putOnly(A, a))).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("InvalidStateError");
+    expect(logged).not.toContain("secret detail");
+  });
+
+  it("a throw inside a request's onsuccess resolves to the fallback", async () => {
+    const req: Record<string, unknown> = {
+      onsuccess: null,
+      onerror: null,
+      get result() {
+        throw new Error("bad value");
+      },
+    };
+    const c = await openFogCache(
+      stubFactory(() => {
+        queueMicrotask(() => {
+          try {
+            (req.onsuccess as Handler)?.();
+          } catch {
+            // an engine reports a handler's throw to the page, it does not reach the request's owner
+          }
+        });
+        return tx(req);
+      }),
+      true,
+    );
+    expect(await settles(c.get(A))).toBeNull();
+    expect(await settles(c.revealIds())).toEqual([]);
   });
 });
