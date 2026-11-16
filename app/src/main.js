@@ -469,11 +469,11 @@
     const reason = why && why.reason, tail = " This is a straight line for now.";
     return reason === "streets-fetch" ? StreetMessages.describe(why.download, Date.now()) + tail
       : reason === "no-street-data" ? "No walkable streets were found around here." + tail
-      : reason === "off-network" ? `Pin ${why.point + 1} is more than ${fmtDist(LocalRouter.SNAP_M / 1000)} from any street this mode can use. Move it closer to a street.` + tail
-      : reason === "one-way" ? "One-way streets block every way between two of the pins for this mode." + tail
+      : reason === "off-network" ? `Pin ${why.point + 1} is more than ${fmtDist(LocalRouter.SNAP_M / 1000)} from any walkable street. Move it closer to a street.` + tail
+      : reason === "one-way" ? "One-way streets block every way between two of the pins." + tail
       : reason === "too-far" ? "Two pins are more than " + fmtDist(30) + " apart: the street map between them is too big to download. Place pins closer together." + tail
       : reason === "internal" ? "Something went wrong while routing. Reload the page and try again." + tail
-      : reason === "no-path" ? "Two of the pins sit on separate pieces of the street map for this mode. Try another mode or move a pin." + tail
+      : reason === "no-path" ? "Two of the pins sit on separate pieces of the street map. Move a pin." + tail
       : "Couldn't find a route." + tail;
   }
 
@@ -578,9 +578,9 @@
       const pin = (i) => (suggest.mode === "loop" ? "The start" : i ? "B" : "A");
       const msg = s.reason === "streets-fetch" ? StreetMessages.describe(s.download, Date.now())
         : s.reason === "no-street-data" ? "No streets were found around here."
-        : s.reason === "off-network" ? `${pin(w.point)} is more than ${fmtDist(0.6)} from any street junction or end this mode can use. Move the pin closer to a street.`
-        : s.reason === "one-way" ? "A and B are on the same street network, but one-way streets block every way between them for this mode."
-        : s.reason === "no-path" ? `A and B sit on separate pieces of the street map for this mode${w.gap ? ` (about ${fmtDist(w.gap.m / 1000)} apart)` : ""}. Try another mode or move a pin.`
+        : s.reason === "off-network" ? `${pin(w.point)} is more than ${fmtDist(0.6)} from any walkable street junction or end. Move the pin closer to a street.`
+        : s.reason === "one-way" ? "A and B are on the same street network, but one-way streets block every way between them."
+        : s.reason === "no-path" ? `A and B sit on separate pieces of the street map${w.gap ? ` (about ${fmtDist(w.gap.m / 1000)} apart)` : ""}. Move a pin.`
         : s.reason === "internal" ? "Something went wrong while planning. Reload the page and try again."
         : "Couldn't find a route. Try again in a moment.";
       sugResults.innerHTML = `<div class="muted" style="margin-top:10px">${msg}</div>`;
