@@ -284,7 +284,7 @@ describe("an open connection that blocks the upgrade", () => {
 });
 
 describe("a store that fails after it opened", () => {
-  type Handler = (() => void) | null;
+  type Handler = ((e?: unknown) => void) | null;
   interface StubTx {
     error: { name: string } | null;
     onabort: Handler;
@@ -341,6 +341,23 @@ describe("a store that fails after it opened", () => {
     expect(await settles(c.get(A))).toBeNull();
     expect(await settles(c.getReveal(ACT))).toBeNull();
     expect(await settles(c.revealIds())).toEqual([]);
+  });
+
+  it("a failed write request logs the request's error name, though tx.error is still null", async () => {
+    const t = tx({});
+    t.error = null; // IndexedDB sets tx.error only when the transaction aborts, after the request's error event
+    t.objectStore = () => ({ put: () => ({}), clear: () => ({}) });
+    const c = await openFogCache(
+      stubFactory(() => {
+        queueMicrotask(() =>
+          queueMicrotask(() => t.onerror?.({ target: { error: { name: "ConstraintError" } } })),
+        );
+        return t;
+      }),
+      true,
+    );
+    expect(await settles(c.putReveal(ACT, stamp(1), new Int32Array(0)))).toBeUndefined();
+    expect(JSON.stringify(warn.mock.calls)).toContain("ConstraintError");
   });
 
   it("a db that throws on transaction resolves to the fallback and logs the error name only", async () => {

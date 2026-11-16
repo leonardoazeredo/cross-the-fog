@@ -88,6 +88,12 @@ function run<T>(
   });
 }
 
+// A request's error bubbles to the transaction's onerror first, while tx.error is still null (it is set
+// only when the transaction then aborts), so the name comes from the event's own request.
+function requestError(e: Event | undefined): unknown {
+  return (e?.target as { error?: unknown } | null | undefined)?.error;
+}
+
 // A throw inside a request's callback never reaches run()'s try/catch, so the callback reports it itself.
 function guarded(fail: (err?: unknown) => void, fn: () => void): () => void {
   return () => {
@@ -155,7 +161,7 @@ export async function openFogCache(
           store.put(bytes, fingerprint);
         };
         tx.oncomplete = () => done();
-        tx.onerror = () => fail(tx.error);
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
         tx.onabort = () => fail(tx.error);
       });
     },
@@ -165,7 +171,7 @@ export async function openFogCache(
         const tx = db.transaction(STORE, "readwrite");
         tx.objectStore(STORE).clear();
         tx.oncomplete = () => done();
-        tx.onerror = () => fail(tx.error);
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
         tx.onabort = () => fail(tx.error);
       });
     },
@@ -201,7 +207,7 @@ export async function openFogCache(
         // other data, and the caller may reuse the array.
         tx.objectStore(REVEALS).put({ ...stamp, cells: cells.slice().buffer }, activityId);
         tx.oncomplete = () => done();
-        tx.onerror = () => fail(tx.error);
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
         tx.onabort = () => fail(tx.error);
       });
     },
@@ -211,7 +217,7 @@ export async function openFogCache(
         const tx = db.transaction(REVEALS, "readwrite");
         tx.objectStore(REVEALS).delete(activityId);
         tx.oncomplete = () => done();
-        tx.onerror = () => fail(tx.error);
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
         tx.onabort = () => fail(tx.error);
       });
     },
