@@ -12,7 +12,7 @@ Android only. iOS is paused until the Android phone app and the Wear OS app are 
 - Builds: use `pnpm android`; it regenerates the web bundle first. A raw `npx expo run:*` does not.
 - Android builds need JDK 21 (`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`), `ANDROID_HOME=$HOME/Library/Android/sdk`, and `--device <AVD name>`, not the adb serial.
 - e2e builds need `CROSSFOG_E2E=1` for the web build, the app config and the prebuild, and a Release configuration. Run Maestro against them with `maestro --device <serial> test .maestro`.
-- Pull requests: `gh pr create --repo leonardoazeredo/defog --base main`.
+- Pull requests: `gh pr create --repo leonardoazeredo/cross-the-fog --base main`.
 - `modules/watch-link` (Kotlin local module, hand-written and committed, unlike the generated `mobile/android/`; Gradle runs in `mobile/android` and finds it as project `:watch-link`). With the Android env above, in `mobile/android`:
   - JVM tests (`KeyWrapTest`, `KekReadTest`, `KeyStateTest`, `DatabaseKeyHexTest`, `StagedActivitiesTest`, `ModuleFailuresTest`, no device): `./gradlew :watch-link:testDebugUnitTest`.
   - Instrumented tests (`KeysTest`, real AndroidKeyStore; the AVD `chase-cashew-test` must be running): `./gradlew :watch-link:connectedDebugAndroidTest`. They run in the module's own test APK (its own UID, Keystore and `noBackupFilesDir`), so they never touch the installed app's keys.
