@@ -26,6 +26,9 @@ export function routeName(route: RouteRecord, timeZone?: string): string {
 }
 
 export function createNativeWatchLink(): WatchLink {
+  // Entries the last listing dropped for failing their schema: they stay in the native store and can
+  // never be handed off, so the unreadable count includes them. The hand-off lists, then counts.
+  let malformed = 0;
   return {
     async pair() {
       throw new Error("pairing arrives with the watch transport");
@@ -47,19 +50,22 @@ export function createNativeWatchLink(): WatchLink {
       const entries = z.array(z.unknown()).parse(await native.pendingActivities());
       // One malformed entry must not hide the others. It is dropped from this list with a warning and
       // is not deleted from the native store.
+      malformed = 0;
       return entries.flatMap((entry) => {
         const parsed = pendingActivitySchema.safeParse(entry);
         if (parsed.success) return [parsed.data];
+        malformed++;
         console.warn("watch link listed a malformed pending activity");
         return [];
       });
     },
     async unreadableActivities() {
-      return z
+      const staged = z
         .number()
         .int()
         .min(0)
         .parse(await native.unreadableActivities());
+      return staged + malformed;
     },
     async readActivity(id) {
       const text = await native.readActivity(id);
