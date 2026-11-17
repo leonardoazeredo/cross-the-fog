@@ -284,14 +284,12 @@ async function testCase(body) {
     let id = 30;
     for (const [name, geometry] of Object.entries(bad)) {
       const w = { type: "way", id: ++id, nodes: [id * 10, id * 10 + 1], geometry };
-      const out = StreetIndex.splitAnswer({ elements: [w, good, count, ...ids(id, 20)] }, tiles);
+      const out = StreetIndex.splitAnswer({ elements: [w, good, count] }, tiles);
       for (const [key, a] of out) assert.ok(!a.ways.some((x) => x.id === id), name + ": skipped, not in " + key);
       assert.deepEqual(out.get("550:2040").ways.map((x) => x.id), [20], name + ": the good way is kept in its tile");
-      assert.deepEqual(out.get("550:2040").groups.motorway, [20], name + ": the skipped way's id is not listed");
-      assert.deepEqual(out.get("549:2040").groups.motorway, [], name);
     }
     // through a run: the answer is read, the bad way is not held, the tile is covered
-    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ elements: [{ type: "way", id: 90, nodes: [900, 901], geometry: [at(51.01, 13.7), null] }, way(91), count, ...ids(90, 91)] }) });
+    global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ elements: [{ type: "way", id: 90, nodes: [900, 901], geometry: [at(51.01, 13.7), null] }, way(91), count] }) });
     const s = new StreetIndex({ newFrac: () => 1 });
     await s.ensureRects(rect);
     assert.deepEqual(s.ways.map((w) => w.id), [91], "only the whole way is held");
@@ -300,17 +298,17 @@ async function testCase(body) {
     const tiles = [T(549, 2040), T(550, 2040)];
     const point = { type: "way", id: 40, nodes: [400], geometry: [{ lat: 51.01, lon: 13.76 }] };
     const outsidePoint = { type: "way", id: 41, nodes: [410], geometry: [{ lat: 51.3, lon: 13.0 }] };
-    const out = StreetIndex.splitAnswer({ elements: [point, outsidePoint, count, ...ids(40, 41)] }, tiles);
+    const out = StreetIndex.splitAnswer({ elements: [point, outsidePoint, count] }, tiles);
     assert.deepEqual(out.get("550:2040").ways.map((w) => w.id), [40], "a one-point way is in the tile that holds the point, not in the first");
     assert.deepEqual(out.get("549:2040").ways.map((w) => w.id), [41], "a one-point way in no requested tile goes to the first");
     // a vertical segment (no change in longitude) crosses the tiles above it, and misses the one beside it
     const vertical = { type: "way", id: 42, nodes: [420, 421], geometry: [{ lat: 51.01, lon: 13.74 }, { lat: 51.06, lon: 13.74 }] };
     const column = [T(549, 2040), T(549, 2041), T(549, 2042), T(550, 2041)];
-    const v = StreetIndex.splitAnswer({ elements: [vertical, count, ...ids(42)] }, column);
+    const v = StreetIndex.splitAnswer({ elements: [vertical, count] }, column);
     assert.deepEqual([...v.entries()].filter(([, a]) => a.ways.length).map(([k]) => k), ["549:2040", "549:2041", "549:2042"]);
     // a horizontal segment likewise
     const flat = { type: "way", id: 43, nodes: [430, 431], geometry: [{ lat: 51.01, lon: 13.71 }, { lat: 51.01, lon: 13.78 }] };
-    const row = StreetIndex.splitAnswer({ elements: [flat, count, ...ids(43)] }, [T(548, 2040), T(549, 2040), T(550, 2040), T(549, 2041)]);
+    const row = StreetIndex.splitAnswer({ elements: [flat, count] }, [T(548, 2040), T(549, 2040), T(550, 2040), T(549, 2041)]);
     assert.deepEqual([...row.entries()].filter(([, a]) => a.ways.length).map(([k]) => k), ["548:2040", "549:2040", "550:2040"]);
   });
   await testCase(async () => { // a source that leaves a requested tile out is an error, and nothing is recorded as fetched
