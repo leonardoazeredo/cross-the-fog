@@ -6,9 +6,8 @@ const crypto = require("node:crypto");
 const { StreetIndex } = require("./lib/load.js");
 
 const way = (id) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51.001, lon: 13.7 }] });
-const ids = (...xs) => xs.map((id) => ({ type: "way", id }));
 const count = { type: "count" };
-// the count marker a complete answer ends with (the motorway list, empty or not)
+// the count that closes a complete answer: a cut one lacks it
 const EMPTY = [count];
 let sent = null;
 function replyWith(body) {
@@ -143,13 +142,21 @@ async function testCase(body) {
 }
 
 (async () => {
-  await testCase(async () => { // the motorway ID list after the geometry is read into its set, and it is the only list asked for
-    replyWith({ elements: [way(1), way(2), count, ...ids(1)] });
+  await testCase(async () => { // the query asks for the geometry and one closing count, no ID list; the index holds every way it is given
+    replyWith({ elements: [way(1), way(2), count] });
     const s = new StreetIndex({ newFrac: () => 1 });
     await s.ensureRects(rect);
-    assert.deepEqual([...s.motorway], [1]);
-    assert.equal(decodeURIComponent(sent).match(/ out count;/g).length, 1, "one list is asked for");
-    assert.deepEqual([s.walkable(1), s.walkable(2), s.walkable(3)], [false, true, true], "every way but a motorway is walked");
+    assert.deepEqual(s.ways.map((w) => w.id), [1, 2]);
+    const q = decodeURIComponent(sent);
+    assert.equal(q.match(/ out count;/g).length, 1, "one count closes the answer");
+    assert.ok(!/ out ids;|motorway/.test(q), "no ID list is asked for");
+    assert.ok(!("motorway" in s) && !("walkable" in s), "the index keeps no motorway set and has no walkable()");
+  });
+  await testCase(async () => { // ways after the closing count are not part of the geometry
+    replyWith({ elements: [way(1), count, way(2)] });
+    const s = new StreetIndex({ newFrac: () => 1 });
+    await s.ensureRects(rect);
+    assert.deepEqual(s.ways.map((w) => w.id), [1]);
   });
   await testCase(async () => { // an Overpass answer that ran out of time or memory is a failed fetch, not an empty area
     replyWith({ elements: [way(1)], remark: "runtime error: Query timed out in \"query\" at line 3 after 61 seconds." });
@@ -255,12 +262,10 @@ async function testCase(body) {
     const diag = { type: "way", id: 6, nodes: [60, 61], geometry: [{ lat: 51.001, lon: 13.703 }, { lat: 51.072, lon: 13.774 }] };
     const tiles = [];
     for (let y = 2040; y <= 2042; y++) for (let x = 548; x <= 550; x++) tiles.push(T(x, y));
-    const out = StreetIndex.splitAnswer({ elements: [long, diag, count, ...ids(5, 6)] }, tiles);
+    const out = StreetIndex.splitAnswer({ elements: [long, diag, count] }, tiles);
     const where = (id) => [...out.entries()].filter(([, a]) => a.ways.some((w) => w.id === id)).map(([k]) => k).sort();
     assert.deepEqual(where(5), ["548:2040", "549:2040", "550:2040"], "the middle tile has no vertex of the way");
     assert.deepEqual(where(6), ["548:2040", "549:2040", "549:2041", "550:2041", "550:2042"], "only the tiles the line crosses");
-    assert.deepEqual(out.get("549:2040").groups.motorway, [5, 6], "the id list follows the way into the tile");
-    assert.deepEqual(out.get("550:2040").groups.motorway, [5]);
   });
   await testCase(async () => { // a way with a null or non-finite vertex is skipped, not cut short or put in every tile; the rest of the answer stays
     const tiles = [T(549, 2040), T(550, 2040)];
@@ -321,13 +326,11 @@ async function testCase(body) {
     const west = { type: "way", id: 8, nodes: [80, 81], geometry: [{ lat: 51.02, lon: 13.73 }, { lat: 51.02, lon: 13.735 }] };
     const lost = { type: "way", id: 9, nodes: [90, 91], geometry: [{ lat: 51.3, lon: 13.0 }, { lat: 51.3, lon: 13.01 }] };
     const tiles = [{ x: 549, y: 2040 }, { x: 550, y: 2040 }];
-    const out = StreetIndex.splitAnswer({ elements: [wide, west, lost, count, ...ids(7, 8)] }, tiles);
+    const out = StreetIndex.splitAnswer({ elements: [wide, west, lost, count] }, tiles);
     assert.deepEqual([...out.keys()], ["549:2040", "550:2040"]);
     assert.deepEqual(out.get("549:2040").ways.map((w) => w.id), [7, 8, 9], "7 straddles, 8 is inside, 9 matches no tile and goes to the first");
     assert.deepEqual(out.get("550:2040").ways.map((w) => w.id), [7]);
-    assert.deepEqual(out.get("549:2040").groups.motorway, [7, 8]);
-    assert.deepEqual(out.get("550:2040").groups.motorway, [7], "the straddling way carries its id into both tiles");
-    assert.deepEqual(Object.keys(out.get("550:2040").groups), ["motorway"]);
+    assert.deepEqual(out.get("550:2040").groups, {}, "an answer carries no ID list");
     assert.equal(structuredClone(out.get("549:2040")).ways.length, 3, "an answer is structured-clone friendly");
     // the index takes the straddling way once
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => out });
@@ -339,7 +342,7 @@ async function testCase(body) {
     // bench cache ignores it: a hash change from anything else means every saved answer misses
     const boxes = [{ s: 51, w: 13.7, n: 51.01, e: 13.71 }, { s: 51.2, w: 13.8, n: 51.21, e: 13.9 }];
     assert.ok(StreetIndex.rectQuery(boxes).startsWith("[out:json][timeout:25];"), "the server's run is capped at 25 s, under the client's guards");
-    assert.equal(crypto.createHash("sha1").update(StreetIndex.rectQuery(boxes)).digest("hex"), "105a8bcf1a84943de1f54cb490f650f6a1dc4b14");
+    assert.equal(crypto.createHash("sha1").update(StreetIndex.rectQuery(boxes)).digest("hex"), "9e82aa454149e19710d3c280d18bc37c562b8937");
     replyWith({ elements: EMPTY });
     await StreetIndex.overpassFetch([{ x: 548, y: 2040 }]);
     assert.equal(sent, "data=" + StreetIndex.rectQuery([StreetIndex.tileBounds({ x: 548, y: 2040 })]), "the default source asks for the tile's bounds");
@@ -591,7 +594,7 @@ async function testCase(body) {
     const got = await s.ensureRects(r, { onProgress: (p) => progress.push(p.done + "/" + p.total) });
     assert.deepEqual(asked, [span(548, 2040, 549, 2041)]);
     assert.deepEqual([got.done, got.total, progress], [3, 3, ["0/3", "1/3", "2/3", "3/3"]]);
-    assert.ok(await store.get("3:run:549:2041"), "the extra tile is in the store");
+    assert.ok(await store.get("4:run:549:2041"), "the extra tile is in the store");
     assert.equal(s.tiles.size, 4);
     await s.ensureRects([{ s: 51.025, w: 13.725, n: 51.05, e: 13.75 }]);
     assert.equal(asked.length, 1, "a run over the extra tile asks nothing");
@@ -623,7 +626,7 @@ async function testCase(body) {
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [12, 24, "streets-partial", "server"]);
     assert.equal(s.tiles.size, 12);
     let stored = 0;
-    for (const t of twentyFour.flatMap((r) => StreetIndex.tilesCovering(r))) if (await store.get("3:run:" + t.x + ":" + t.y)) stored++;
+    for (const t of twentyFour.flatMap((r) => StreetIndex.tilesCovering(r))) if (await store.get("4:run:" + t.x + ":" + t.y)) stored++;
     assert.equal(stored, 12, "the three blocks that landed are in the store");
   });
   await testCase(async () => { // four busy answers at the same moment are one step of the schedule: one 15 s wait, then the four again
@@ -997,7 +1000,7 @@ async function testCase(body) {
     const answer = { ways: [], groups: {} };
     const run = async (give) => {
       const store = global.TileStore.memory();
-      for (const t of StreetIndex.tilesOf(r).slice(0, 3)) await store.put("3:run:" + t.x + ":" + t.y, { answer, fetchedAt: 0 });
+      for (const t of StreetIndex.tilesOf(r).slice(0, 3)) await store.put("4:run:" + t.x + ":" + t.y, { answer, fetchedAt: 0 });
       const network = async (tiles, onTile) => {
         tiles.slice(0, give).forEach((t) => onTile(t, answer));
         throw Object.assign(new Error("offline"), { reason: "offline" });

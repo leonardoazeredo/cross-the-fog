@@ -17,8 +17,6 @@
   // a main road are cut off
   const CONNECT_HW = "trunk|trunk_link|primary_link|secondary_link|tertiary_link";
   const RUN_HW = "residential|unclassified|tertiary|secondary|primary|living_street|track|path|footway|cycleway|pedestrian|steps|" + CONNECT_HW;
-  // The one ID list an answer carries after the geometry: the motorways and their links, which are not walked.
-  const GROUP_ORDER = ["motorway"];
   const SEG_M = 50;              // ways are chopped into ~50 m scoring segments
   const GRID_M = 250;            // spatial bin size for radius queries
   const MAX_SEGS = 400000;       // memory guard (~40 MB worst case)
@@ -59,7 +57,6 @@
     this.segs = new Map();       // "gx,gy" -> [{x,y,lon,lat,lenM,frac}]
     this.tiles = new Set();      // fetched coverage, StreetIndex.tileId
     this.wayIds = new Set();     // dedupe across overlapping fetches
-    this.motorway = new Set();   // motorways and their links: never walked
     this.ways = [];              // raw {id,nodes,geometry}: shared node ids give the
                                  // route planner its graph connectivity for free
     this.segCount = 0;
@@ -127,7 +124,6 @@
       }
       this.wayFrom.delete(id);
       this.wayIds.delete(id);
-      for (const name of GROUP_ORDER) this[name].delete(id);
     }
     for (const [key, segs] of dead) {
       const live = this.segs.get(key).filter((seg) => !segs.has(seg));
@@ -172,12 +168,6 @@
 
   StreetIndex.prototype._cover = function (tiles) {
     for (const t of tiles) this.tiles.add(StreetIndex.tileId(t));
-  };
-
-  // Whether a way may be walked: every way the query brings but motorways, in both directions
-  // (one-ways do not bind walkers).
-  StreetIndex.prototype.walkable = function (id) {
-    return !this.motorway.has(id);
   };
 
   // Round a point to a ~0.006 degree grid (~450-650 m). Callers build the fetch
@@ -455,10 +445,6 @@
           this.pieceWays.get(pos).add(w.id);
         }
       }
-      for (const name of GROUP_ORDER) {
-        const into = this[name];
-        for (const id of answer.groups[name] || []) into.add(id);
-      }
     } finally {
       // a throw midway leaves ways added or evicted: the graphs built before must still rebuild
       this.version++;
@@ -537,14 +523,9 @@
     const clauses = (hw) => boxes.map((r) =>
       `way[highway~"^(${hw})$"]${acc}(${bb(r)});way[highway=service]${acc}[service!~"^(driveway|parking_aisle)$"](${bb(r)});`).join("");
     const hw = RUN_HW;
-    // the box is scanned once into .all; each list below filters that set (scanning the
-    // box again per list ran Overpass out of time on a town-sized box)
-    let q = `[out:json][timeout:25];(${clauses(hw)})->.all;.all out skel geom;`;
-    const tagged = (list, filter) => `way.all[highway~"^(${list})$"]${filter};`;
-    // The list is introduced by its own count so it stays apart from the geometry in one response (see GROUP_ORDER).
-    const groups = [["motorway", tagged("motorway|motorway_link", "")]];
-    for (const [k, body] of groups) q += `(${body})->.${k};.${k} out count;.${k} out ids;`;
-    return q;
+    // the box is scanned once into .all, which the geometry and the closing count both read
+    // the count that closes the answer: splitAnswer takes a response without it for one that was cut
+    return `[out:json][timeout:25];(${clauses(hw)})->.all;.all out skel geom;.all out count;`;
   };
 
   // A request asks for at most one street block, a 2x2 group of tiles starting at even tile indices
@@ -743,7 +724,7 @@
 
   // Reads an Overpass answer to a rectQuery and hands each requested tile its share. An answer that is
   // not the whole of one (not an object, a remark, no elements, no count marker
-  // rectQuery ends its list with) throws with reason "server" and a fixed message: server text never
+  // rectQuery ends the geometry with) throws with reason "server" and a fixed message: server text never
   // reaches a message.
   StreetIndex.splitAnswer = function (gj, tiles) {
     const unusable = (what) => Object.assign(new Error("overpass: " + what), { reason: "server" });
@@ -751,23 +732,20 @@
     // a timeout or out-of-memory still answers 200, with whatever it had by then
     if (gj.remark) throw unusable("the server remarked on the answer");
     if (!Array.isArray(gj.elements)) throw unusable("the answer has no elements");
-    const ways = [], groups = {};
-    for (const name of GROUP_ORDER) groups[name] = [];
-    let group = -1; // -1 = the geometry, then one list (see GROUP_ORDER) per count marker
+    const ways = [];
+    let closed = false; // the count after the geometry has been read
     for (const el of gj.elements) {
       if (!el) continue;
-      if (el.type === "count") { group++; continue; }
-      if (el.type !== "way") continue;
-      if (group < 0) ways.push({ id: el.id, nodes: el.nodes, geometry: el.geometry });
-      else if (groups[GROUP_ORDER[group]]) groups[GROUP_ORDER[group]].push(el.id);
+      if (el.type === "count") { closed = true; continue; }
+      if (el.type !== "way" || closed) continue;
+      ways.push({ id: el.id, nodes: el.nodes, geometry: el.geometry });
     }
-    // a cut answer would store its tiles as covered with ways that no list classifies
-    if (group + 1 < GROUP_ORDER.length) throw unusable("the answer is incomplete");
+    // a cut answer would store its tiles as covered with only some of their ways
+    if (!closed) throw unusable("the answer is incomplete");
     // a way goes to every requested tile one of its segments touches (a long segment can cross a tile
     // with no vertex in it), to the first when none does
-    const answers = new Map(tiles.map((t) => [StreetIndex.tileId(t), { ways: [], groups: Object.fromEntries(GROUP_ORDER.map((n) => [n, []])) }]));
+    const answers = new Map(tiles.map((t) => [StreetIndex.tileId(t), { ways: [], groups: {} }]));
     const boxes = tiles.map((t) => [answers.get(StreetIndex.tileId(t)), StreetIndex.tileBounds(t)]);
-    const home = new Map(); // way id -> the answers it went to
     for (const w of ways) {
       const hit = new Set(), g = w.geometry || [];
       // a null or non-finite vertex would cut the way short or (NaN) match every tile: the way is
@@ -780,9 +758,7 @@
       }
       const into = hit.size ? [...hit] : [answers.get(StreetIndex.tileId(tiles[0]))];
       for (const a of into) a.ways.push(w);
-      home.set(w.id, into);
     }
-    for (const name of GROUP_ORDER) for (const id of groups[name]) for (const a of home.get(id) || []) a.groups[name].push(id);
     return answers;
   };
 

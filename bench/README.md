@@ -30,7 +30,7 @@ The synthetic-graph tests need no `Sync/` and no network:
     for t in bench/*.test.js; do node $t; done
 
 `planner-filter`, `streets-fetch`, `rect-query`, `router`, `p2p-reason`, `handoff`, `route-handoff`,
-`retrace` and `compare` cover the walkable-way filter, the Overpass query (its exact text, which
+`retrace` and `compare` cover the usable-way filter, the Overpass query (its exact text, which
 `bench/cache/` is keyed on) and how its reply is read, shortest paths, why a run fails, the Use
 hand-off, the retrace ranking and compare.js itself. `scenarios.js` holds on-foot scenarios only:
 compare.js skips the baseline's scenarios for the removed travel modes (`neustadt-bike-50k`,
