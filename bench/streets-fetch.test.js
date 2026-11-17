@@ -158,6 +158,19 @@ async function testCase(body) {
     await s.ensureRects(rect);
     assert.deepEqual(s.ways.map((w) => w.id), [1]);
   });
+  await testCase(async () => { // an answer splitAnswer builds is one the street cache reads back: the second run asks nothing
+    let posts = 0;
+    global.fetch = async () => { posts++; return { ok: true, status: 200, json: async () => ({ elements: [way(1), count] }) }; };
+    const store = global.TileStore.memory({ maxEntries: 10 });
+    const run = () => new StreetIndex({ newFrac: () => 1, fetchStreets: global.StreetCache.create({ store, network: StreetIndex.overpassFetch, now: () => 0 }).fetchStreets });
+    await run().ensureRects(rect);
+    const first = posts;
+    assert.ok(first > 0, "the first run asked");
+    const s = run();
+    await s.ensureRects(rect);
+    assert.equal(posts, first, "the second run is answered by the cache");
+    assert.deepEqual(s.ways.map((w) => w.id), [1]);
+  });
   await testCase(async () => { // an Overpass answer that ran out of time or memory is a failed fetch, not an empty area
     replyWith({ elements: [way(1)], remark: "runtime error: Query timed out in \"query\" at line 3 after 61 seconds." });
     const s = new StreetIndex({ newFrac: () => 1 });
