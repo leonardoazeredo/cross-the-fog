@@ -84,8 +84,8 @@ class StagedActivitiesTest {
     }
   }
 
-  // The owner's call for an unusable staging entry: every staged file is counted as unreadable and
-  // kept, and nothing replaces the entry (a new key would make them unreadable for good).
+  // With an unusable staging entry every staged file is counted as unreadable and kept, and nothing
+  // replaces the entry (a new key would make them unreadable for good).
   @Test
   fun anUnrecoverableStagingKeyCountsEveryFileAndKeepsThem() {
     store().stage(a, offer(a))
