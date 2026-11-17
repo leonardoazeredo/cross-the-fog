@@ -43,12 +43,7 @@ class StagingStore(
   }
 
   @Synchronized
-  fun list(): List<String> =
-    dir.listFiles().orEmpty()
-      .map { it.name }
-      .filter { it.endsWith(BIN) && UUID_ID.matches(it.removeSuffix(BIN)) }
-      .map { it.removeSuffix(BIN) }
-      .sorted()
+  fun list(): List<String> = stagedIds(dir)
 
   /**
    * Null only for an absent item. An oversized or unauthenticated one throws UnreadableItemException,
@@ -85,6 +80,14 @@ class StagingStore(
     const val OVERHEAD_BYTES = 28
   }
 }
+
+/** The ids of the `<id>.bin` items in `dir`, with no key: the same listing `list` returns. */
+internal fun stagedIds(dir: File): List<String> =
+  dir.listFiles().orEmpty()
+    .map { it.name }
+    .filter { it.endsWith(".bin") && UUID_ID.matches(it.removeSuffix(".bin")) }
+    .map { it.removeSuffix(".bin") }
+    .sorted()
 
 /**
  * A staged item that is there but can never be read under this key: too large, tampered with, moved
