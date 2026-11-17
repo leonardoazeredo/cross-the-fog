@@ -74,7 +74,7 @@ appId: codes.madera.crossfog
     visible: "No activities yet.*"
     timeout: 15000
 # Same view, walk deleted: the fog was rebuilt without it.
-# The street figure also reads 0% when it shows, so match the defog figure by its page id (Android exposes it to Maestro).
+# Match the defog figure by its page id, which stays put if the page's wording or another figure changes.
 - extendedWaitUntil:
     visible:
       id: "defogPct"
