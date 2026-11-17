@@ -770,6 +770,9 @@
     const home = new Map(); // way id -> the answers it went to
     for (const w of ways) {
       const hit = new Set(), g = w.geometry || [];
+      // a null or non-finite vertex would cut the way short or (NaN) match every tile: the way is
+      // left out, and the rest of the answer stays usable
+      if (!Array.isArray(g) || g.some((v) => !v || !Number.isFinite(v.lat) || !Number.isFinite(v.lon))) continue;
       for (let i = 0; i < Math.max(1, g.length - 1); i++) {
         const a = g[i], b = g[i + 1] || a;
         if (!a) break;
