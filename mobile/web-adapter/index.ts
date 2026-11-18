@@ -58,6 +58,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       page,
       rules: page.reveal.RULES,
     });
+    // The panel asks through window.crossfog, past the sync's own pageApi: its asks count too, or its answer
+    // would be taken for the answer to the fog's request.
+    const panelNeedTrack = window.crossfog.needTrack;
+    window.crossfog.needTrack = (activityId) => {
+      history.trackAsked(activityId);
+      panelNeedTrack(activityId);
+    };
     window.crossfog.on("activities", history.onActivities);
     window.crossfog.on("track", history.onTrack);
     window.crossfog.on("trackUnavailable", history.onTrackUnavailable);
