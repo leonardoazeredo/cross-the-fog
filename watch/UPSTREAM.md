@@ -4,11 +4,11 @@
 
 - Upstream: https://github.com/GlanceMap/GlanceMap
 - Commit: `47a04a97bed9874ab1d427d864f92b0754fa608c` (2026-11-15, "Merge pull request #121 from GlanceMap/codex/live-distance-follows-saved-track")
-- Licence: MIT, `LICENSE` (GlanceMap's text, unchanged), notices in `licenses/` and in `third_party/brouter/LICENSE`.
+- Licence: MIT, `LICENSE` (GlanceMap's text, unchanged), notices in `licenses/`.
 
 ## What was copied
 
-Byte-identical to the pinned commit: `app/`, `third_party/brouter/`, `transfercontract/`, `licenses/`, `LICENSE`, `gradle/`, `gradle.properties`, `detekt.yml`, `build.gradle.kts`, `gradlew`, `gradlew.bat`. `third_party/brouter/` and `transfercontract/` are here only because `:app` depends on them (`:brouter-core`, `:transfercontract`).
+As imported, byte-identical to the pinned commit: `app/`, `third_party/brouter/`, `transfercontract/`, `licenses/`, `LICENSE`, `gradle/`, `gradle.properties`, `detekt.yml`, `build.gradle.kts`, `gradlew`, `gradlew.bat`. The tree has since been stripped (see below), so it no longer matches the pin.
 
 ## Left out
 
@@ -20,3 +20,7 @@ Byte-identical to the pinned commit: `app/`, `third_party/brouter/`, `transferco
 
 - `settings.gradle.kts`: upstream's, with the three `include(...)` lines of the modules above that were not copied removed.
 - `.gitignore` and this file are new.
+
+## Stripped after the import (#406)
+
+Removed from the imported tree: 3D terrain, POI import and lookup, on-watch route planning with the BRouter modules (`third_party/brouter/` and `assets/brouter/` are gone), the diagnostics export, the Wear Data Layer and the LAN file transfer. `transfercontract/` keeps only `MapsforgeThemePackage.kt`, which the theme store reads. Hill shading and the relief overlay were kept. The commit messages of that PR list what each removal deleted, and what was left as unused code or data.
