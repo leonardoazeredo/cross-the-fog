@@ -34,9 +34,9 @@ import { createExportFs } from "./platform/exportFiles.js";
 import { createOpenBackup } from "./platform/expoSqliteDriver.js";
 import { createHistoryStores, withHistoryDb } from "./platform/historyStores.js";
 import { clearShareCopies, makeReleaseSource, shareExport } from "./platform/nativeHandlers.js";
+import { copyFromUri } from "./platform/platformModule.js";
 import { replaceDatabase } from "./platform/replaceDatabase.js";
 import { sha256Hex } from "./platform/sha256.js";
-import { copyFromUri } from "./platform/watchLinkModule.js";
 import { PassphraseDialog, type PassphraseRequest } from "./ui/PassphraseDialog.js";
 import type { PassphraseAnswer } from "./ui/passphraseForm.js";
 

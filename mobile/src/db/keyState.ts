@@ -1,4 +1,4 @@
-import type { KeyState } from "../platform/watchLinkModule.js";
+import type { KeyState } from "../platform/platformModule.js";
 
 /** The state `keyPresence` reports: it reads no key, so it never says `unreadable`. */
 export type KeyPresence = Exclude<KeyState, "unreadable">;

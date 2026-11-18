@@ -24,7 +24,7 @@ vi.mock("expo-document-picker", () => ({
     assets: [{ uri: "content://downloads/b.db", name: "b.db", size: pickedSize }],
   }),
 }));
-vi.mock("../../../src/platform/watchLinkModule.js", () => ({
+vi.mock("../../../src/platform/platformModule.js", () => ({
   createDocument: async () => {
     created++;
     return "content://docs/b.db";

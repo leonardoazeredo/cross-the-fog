@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { RouteRecord } from "../bridge/protocol.js";
 import { localDateTime } from "../localDate.js";
-import * as native from "../platform/watchLinkModule.js";
+import * as native from "../platform/platformModule.js";
 import {
   activityOfferSchema,
   linkStatusSchema,

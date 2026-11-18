@@ -9,9 +9,9 @@ import {
 
 describe("android test plans", () => {
   it("runs the JVM tests with no device and the instrumented ones with one", () => {
-    expect(PLANS.jvm).toEqual({ gradleTask: ":watch-link:testDebugUnitTest", needsDevice: false });
+    expect(PLANS.jvm).toEqual({ gradleTask: ":platform:testDebugUnitTest", needsDevice: false });
     expect(PLANS.device).toEqual({
-      gradleTask: ":watch-link:connectedDebugAndroidTest",
+      gradleTask: ":platform:connectedDebugAndroidTest",
       needsDevice: true,
     });
   });

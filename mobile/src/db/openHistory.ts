@@ -1,4 +1,4 @@
-import type { KeyState } from "../platform/watchLinkModule.js";
+import type { KeyState } from "../platform/platformModule.js";
 import { NotADatabaseError, type SqlDriver } from "./driver.js";
 import type { DatabaseKeyHex } from "./keyHex.js";
 import { type KeyPresence, keyIsLostOrUnreadable } from "./keyState.js";

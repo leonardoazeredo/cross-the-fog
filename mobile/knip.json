@@ -6,7 +6,7 @@
     "web-adapter/index.ts",
     "test/**/*.ts"
   ],
-  "project": ["src/**", "modules/watch-link/**/*.ts", "web-adapter/**", "scripts/**", "test/**"],
+  "project": ["src/**", "modules/platform/**/*.ts", "web-adapter/**", "scripts/**", "test/**"],
   "ignoreDependencies": ["expo-updates", "expo-system-ui"],
   "ignoreBinaries": ["maestro", "plutil"]
 }

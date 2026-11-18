@@ -9,7 +9,7 @@ import {
   KeyLostError,
   keyState,
   replaceLostDatabaseKey,
-} from "./watchLinkModule.js";
+} from "./platformModule.js";
 
 export const replaceDatabase = createDatabaseReplacer({
   files: createDatabaseFiles(),

@@ -38,7 +38,7 @@ const { resetKeys, KeyUnavailableError } = vi.hoisted(() => ({
   resetKeys: vi.fn(async () => {}),
   KeyUnavailableError: class KeyUnavailableError extends Error {},
 }));
-vi.mock("../../../src/platform/watchLinkModule.js", () => ({
+vi.mock("../../../src/platform/platformModule.js", () => ({
   KeyLostError: class extends Error {},
   KeyUnavailableError,
   keyPresence: async () => "existing",

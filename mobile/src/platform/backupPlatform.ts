@@ -3,7 +3,7 @@ import { Directory, File, Paths } from "expo-file-system";
 import { type DatabaseFiles, LIVE_DB } from "../backup/replace.js";
 import type { Scratch } from "../backup/types.js";
 import type { SourceFile } from "../fog/store.js";
-import { copyToUri, createDocument, displayNameOf } from "./watchLinkModule.js";
+import { copyToUri, createDocument, displayNameOf } from "./platformModule.js";
 
 const FILE_SCHEME = /^file:\/\//;
 const toPath = (uri: string) => decodeURIComponent(uri.replace(FILE_SCHEME, ""));
