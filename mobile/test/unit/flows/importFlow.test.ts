@@ -187,6 +187,18 @@ describe("import flow failures", () => {
     const stuck = setup({ discardPending: fail });
     await stuck.flow.loaded(LOADED_OK);
     expect(stuck.remounts()).toBe(0);
+    expect(stuck.notified).toEqual([]);
+    expect(stuck.queued).toEqual([]);
+    onlyNamesLogged();
+  });
+
+  it("does not reject when the page cannot be reloaded after dropping a verdict's copy", async () => {
+    const { flow, notified, queued } = setup({}, fail);
+
+    await expect(flow.loaded(LOADED_OK)).resolves.toBeUndefined();
+
+    expect(notified).toEqual([]);
+    expect(queued).toEqual([]);
     onlyNamesLogged();
   });
 

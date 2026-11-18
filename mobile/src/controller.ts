@@ -178,9 +178,6 @@ export function createController(deps: ControllerDeps): Controller {
   }
 
   async function handleLoaded(msg: Extract<WebToNative, { type: "loaded" }>): Promise<void> {
-    // The restore stages its copy and promotes it itself, with no import running meanwhile; a verdict on that copy
-    // (the page died and was served it) must not drop it from under the restore.
-    if (restoring) return;
     try {
       const pending = await store.pending();
       if (!pending || pending.sha256 !== msg.fingerprint) {
@@ -196,6 +193,9 @@ export function createController(deps: ControllerDeps): Controller {
       await storeReadFailed("could not read the saved fog on loaded", e);
       return;
     }
+    // The restore stages its copy and promotes it itself, with no import running meanwhile; a verdict on that copy
+    // (the page died and was served it) must not drop it from under the restore.
+    if (restoring) return;
     await importFlow.loaded(msg);
   }
 

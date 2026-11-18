@@ -1080,6 +1080,7 @@ it("a verdict on a copy that could not be dropped does not keep it", async () =>
   await h.c.onWebMessage(loadedB);
 
   expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(h.notified).toEqual([]);
   h.fs.remove = realRemove;
 });
 
@@ -1123,4 +1124,22 @@ it("a verdict on the copy a running restore staged leaves it for the restore to 
   gate.resolve(true);
   await restoring;
   expect((await h.store.current())?.sha256).toBe(sha(B));
+});
+
+it("a verdict on the saved fog while a restore runs still clears the reload guard", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  const gate = deferred<boolean>();
+  h.flows.restore.mockImplementation(() => gate.promise);
+  const restoring = h.c.onWebMessage({ v: 1, type: "restore" });
+
+  await h.c.onProcessGone();
+  await h.c.onWebMessage(ready);
+  expect(h.fs.files.has("restoring.json")).toBe(true);
+  await h.c.onWebMessage({ v: 1, type: "loaded", fingerprint: sha(A), ok: true, tiles: 1 });
+
+  expect(h.fs.files.has("restoring.json")).toBe(false);
+  gate.resolve(false);
+  await restoring;
 });
