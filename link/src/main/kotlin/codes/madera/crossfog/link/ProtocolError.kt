@@ -1,7 +1,7 @@
 package codes.madera.crossfog.link
 
 /**
- * Why bytes from the other end were refused. Every kind has a fixed message: the input never reaches
+ * Why bytes were refused, whether read from the other end or about to be written. Every kind has a fixed message: the input never reaches
  * one, because a message can end up in a log or in JS, and the input is a track or a person's name.
  */
 enum class ProtocolError(val text: String) {
@@ -18,5 +18,5 @@ enum class ProtocolError(val text: String) {
   REVISION_MISMATCH("revision does not match the route"),
 }
 
-/** Thrown for any bytes this module refuses; [message] is the fixed text of [error] or names a field. */
+/** Thrown for any bytes this module refuses to read or to write; [message] is the fixed text of [error] or names a field. */
 class ProtocolException(val error: ProtocolError, message: String = error.text) : Exception(message)
