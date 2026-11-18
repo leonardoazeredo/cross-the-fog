@@ -638,14 +638,16 @@ function racing(opts: {
   const asked: string[] = [];
   const answers: Array<(yes: boolean) => void> = [];
   const reads: Array<() => void> = [];
+  const failReads: Array<(e: Error) => void> = [];
   let pickDone: (f: SourceFile | null) => void = () => undefined;
   let pickFail: (e: Error) => void = () => undefined;
   const flow = createImportFlow({
     store: {
       recover: async () => ({ discardedPending: false }),
       current: () =>
-        new Promise((r) => {
+        new Promise((r, j) => {
           reads.push(() => r(opts.current === "saved" ? META : null));
+          failReads.push(j);
         }),
       pending: async () => META,
       beginImport: async (file) => {
@@ -717,6 +719,7 @@ function racing(opts: {
     asked,
     answers,
     reads,
+    failReads,
     share,
     pickA,
     readSaved,
@@ -966,8 +969,7 @@ describe("one file shared twice", () => {
     const held = gate();
     let calls = 0;
     const releasedAtBegin: number[] = [];
-    // eslint-disable-next-line prefer-const
-    let t: ReturnType<typeof racing>;
+    let t!: ReturnType<typeof racing>;
     t = racing({
       current: "none",
       begin: async () => {
@@ -1040,6 +1042,39 @@ describe("one file shared twice", () => {
     await Promise.all([first, second]);
 
     expect(t.begun).toEqual(["b.zip", "b.zip"]);
+    expect(t.released).toEqual([B]);
+  });
+
+  it("keeps the copy for the queued share when the share's own store read fails", async () => {
+    const t = racing({ current: "saved" });
+    const first = t.share("b.zip");
+    await t.tick();
+    const picking = t.startPick();
+    await t.share("b.zip");
+
+    t.failReads.shift()?.(new Error("disk at /data/user/0 is full"));
+    t.reads.shift(); // the failed read's own resolver, which nothing will call
+    await first;
+    expect(t.released).toEqual([]);
+
+    t.cancelPick();
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    t.answers[0]?.(true);
+    await picking;
+
+    expect(t.begun).toEqual(["b.zip"]);
+    expect(t.released).toEqual([B]);
+  });
+
+  it("deletes the copy once the last of two shares is done with it", async () => {
+    const t = racing({ current: "saved" });
+    const { picking } = await t.queueBehindPick();
+    await t.share("b.zip");
+    t.cancelPick();
+    await t.askAgain(picking);
+
     expect(t.released).toEqual([B]);
   });
 
