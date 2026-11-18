@@ -101,6 +101,15 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
+  // Only the share that reached the queue last is kept (an older share whose question was confirmed later replaces a
+  // newer one); the one it replaces will never run, so its cached copy goes now.
+  async function queueShare(file: SourceFile): Promise<void> {
+    const replaced = pendingShare;
+    pendingShare = file;
+    // Two shares of one file share a cache path, so releasing the replaced copy would delete the one just queued.
+    if (replaced && replaced.uri !== file.uri) await release(replaced.uri);
+  }
+
   async function handleIncoming(file: SourceFile): Promise<void> {
     try {
       await incoming(file);
@@ -120,7 +129,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       return;
     }
     if (importActive) {
-      pendingShare = file;
+      await queueShare(file);
       return;
     }
     const current = await store.current();
@@ -131,9 +140,15 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
         return;
       }
     }
+    // A pick or another share can have started while the store read and the question were open: two imports must
+    // never run at once, so this one waits its turn (`endImport` takes it and asks again).
+    if (importActive) {
+      await queueShare(file);
+      return;
+    }
     importActive = true;
     const ok = await doImport(file, "share");
-    if (!ok) clearImportActive();
+    if (!ok) await endImport();
   }
 
   return {
@@ -142,23 +157,25 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     async pick() {
       if (importActive) return;
       importActive = true;
+      // Every exit that ends the import without a verdict hands over a share that queued meanwhile, or it would wait
+      // for an unrelated import to finish.
       try {
         const file = await deps.pickFile();
         if (!file) {
-          clearImportActive();
+          await endImport();
           return;
         }
         if (!acceptIncoming(file.name)) {
           deps.notify(COPY.zipOnly);
-          clearImportActive();
+          await endImport();
           return;
         }
         const ok = await doImport(file, "picker");
-        if (!ok) clearImportActive();
+        if (!ok) await endImport();
       } catch (e) {
         warnClass("import", "could not pick a file", e);
         deps.notify(COPY.importFailed);
-        clearImportActive();
+        await endImport();
       }
     },
 
