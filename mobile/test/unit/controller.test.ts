@@ -1082,3 +1082,19 @@ it("a verdict on a copy that could not be dropped does not keep it", async () =>
   expect((await h.store.current())?.sha256).toBe(sha(A));
   h.fs.remove = realRemove;
 });
+
+it("a verdict on a leftover copy drops it and reloads the page onto the saved fog", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  await h.store.beginImport({ uri: bSrc, name: "b.zip" }, "picker");
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({ role: "pending" });
+  const mounts = h.remounts.count;
+
+  await h.c.onWebMessage(loadedB);
+
+  expect(await h.store.pending()).toBeNull();
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(h.remounts.count).toBe(mounts + 1);
+});

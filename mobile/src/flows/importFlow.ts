@@ -191,12 +191,20 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
 
     async loaded(msg) {
       if (!importActive) {
-        // A pending copy served with no import running is one that could not be dropped after the user was told it
-        // failed; a verdict on it must not keep it.
+        // A pending copy served with no import running is one the user was told had failed (a discard that failed, a
+        // restore whose promote failed, a store read that ended an import): a verdict on it must not keep it.
         try {
           await store.discardPending();
         } catch (e) {
+          // No remount: it would serve the same copy again.
           warnClass("import", "could not drop a leftover import", e);
+          return;
+        }
+        // The page is showing the copy that was just dropped.
+        try {
+          await deps.remount();
+        } catch (e) {
+          warnClass("import", "could not reload after dropping a leftover import", e);
         }
         return;
       }

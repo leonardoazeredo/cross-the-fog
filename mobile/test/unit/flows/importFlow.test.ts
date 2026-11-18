@@ -177,6 +177,39 @@ describe("import flow failures", () => {
     expect(flow.active()).toBe(false);
   });
 
+  it("reloads the page after dropping a verdict's copy, and leaves it alone when the drop fails", async () => {
+    const dropped = setup({});
+    await dropped.flow.loaded(LOADED_OK);
+    expect(dropped.remounts()).toBe(1);
+
+    const stuck = setup({ discardPending: fail });
+    await stuck.flow.loaded(LOADED_OK);
+    expect(stuck.remounts()).toBe(0);
+    onlyNamesLogged();
+  });
+
+  it("still takes a queued share when the unkept copy cannot be dropped either", async () => {
+    const begun: string[] = [];
+    const { flow, confirms } = setup({
+      promotePending: fail,
+      discardPending: fail,
+      current: async () => META,
+      beginImport: async (file) => {
+        begun.push(file.name);
+        return META;
+      },
+    });
+    await flow.pick();
+    await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
+
+    await flow.loaded(LOADED_OK);
+
+    expect(confirms).toEqual(["b.zip"]);
+    expect(begun).toEqual(["a.zip", "b.zip"]);
+    expect(flow.active()).toBe(true);
+    onlyNamesLogged();
+  });
+
   it("drops the unkept copy and brings the previous fog back before a queued share begins", async () => {
     const calls: string[] = [];
     let remounts = 0;
