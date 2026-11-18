@@ -83,13 +83,13 @@ class WatchLinkModule : Module() {
     AsyncFunction("status") { mapOf("paired" to false, "reachable" to false) }
 
     AsyncFunction("pendingActivities") {
-      readStagedActivities(staging).readable.map { it.summary() }
+      readStagedActivities(stagingDir) { staging }.readable.map { it.summary() }
     }
 
     // Counted on its own because an unreadable item is neither listed nor deleted, so without the
     // count the page would never learn it exists.
     AsyncFunction("unreadableActivities") {
-      val unreadable = readStagedActivities(staging).unreadable
+      val unreadable = readStagedActivities(stagingDir) { staging }.unreadable
       // Fixed text: nothing of an item reaches the log.
       if (unreadable > 0) Log.w(TAG, "staged items that cannot be read: $unreadable")
       unreadable
