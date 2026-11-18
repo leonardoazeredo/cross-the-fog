@@ -349,6 +349,36 @@ class MessagesTest {
   }
 
   @Test
+  fun aMessageCannotBeBuiltWithABadFieldBecauseTheEncoderWritesIdsAsTheyAre() {
+    val bad = listOf<() -> Message>(
+      { RouteOffer("x\",\"type\":\"ping", "n", "t", "g") }, { RouteOffer(route, "", "t", "g") },
+      { RouteOffer(route, "n", "", "g") }, { RouteOffer(route, "n", "t", "") },
+      { ActivityOffer(activity, "nope", "1", "g") }, { ActivityOffer(activity, null, "", "g") },
+      { ActivityOffer("../x", null, "1", "g") }, { ActivityOffer(activity, null, "1", "") },
+      { RouteSaved(route, revision.uppercase()) }, { RouteSaved("nope", revision) },
+      { ActivityStored("../x") }, { Hello(listOf()) }, { Hello(listOf(0)) }, { Hello(listOf(1, 1)) },
+      { Hello(listOf(65536)) }, { Hello((1..17).toList()) },
+    )
+    for ((n, build) in bad.withIndex()) {
+      assertEquals("case $n", ProtocolError.FIELD_MISSING_OR_INVALID, assertThrows(ProtocolException::class.java) { build() }.error)
+    }
+  }
+
+  @Test
+  fun textWithAnUnpairedSurrogateIsRefusedWhereverItEntersAMessage() {
+    for (bad in listOf("a\uD800", "\uDC00a", "\uDE00\uD83D", "\uD83D")) {
+      for (build in listOf<() -> Message>(
+        { RouteOffer(route, bad, "t", "g") }, { RouteOffer(route, "n", bad, "g") }, { RouteOffer(route, "n", "t", bad) },
+        { ActivityOffer(activity, null, bad, "g") }, { ActivityOffer(activity, null, "1", bad) },
+      )) {
+        assertEquals(ProtocolError.FIELD_MISSING_OR_INVALID, assertThrows(ProtocolException::class.java) { build() }.error)
+      }
+    }
+    val emoji = "\uD83D\uDE00"
+    assertEquals(RouteOffer(route, emoji, "t", emoji), Messages.parse(Messages.encode(RouteOffer(route, emoji, "t", emoji))))
+  }
+
+  @Test
   fun toStringNamesNoContent() {
     val offer = parse(activityOfferJson(gpx = "\"secret-track\""))
     assertFalse(offer.toString().contains("secret"))

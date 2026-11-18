@@ -8,8 +8,24 @@ package codes.madera.crossfog.link
 internal object Fields {
   fun text(value: Any?, key: String, maxLength: Int): String {
     val s = value as? String
-    if (s.isNullOrEmpty() || s.length > maxLength) throw invalid(key)
+    if (s.isNullOrEmpty() || s.length > maxLength || hasUnpairedSurrogate(s)) throw invalid(key)
     return s
+  }
+
+  /** UTF-8 cannot hold one, so it would be written as "?": the text that arrived would not be the text sent. */
+  private fun hasUnpairedSurrogate(s: String): Boolean {
+    var i = 0
+    while (i < s.length) {
+      val c = s[i]
+      if (Character.isHighSurrogate(c)) {
+        if (i + 1 >= s.length || !Character.isLowSurrogate(s[i + 1])) return true
+        i++
+      } else if (Character.isLowSurrogate(c)) {
+        return true
+      }
+      i++
+    }
+    return false
   }
 
   fun uuid(value: Any?, key: String): String {
