@@ -69,8 +69,7 @@ class ItemsTest {
 
   @Test
   fun rejectsADeeplyNestedBodyWithoutCrashing() {
-    val error = errorOf { Items.activityOffer("{\"a\":".repeat(200_000).toByteArray()) }
-    assertEquals(true, error in setOf(ProtocolError.NESTED_TOO_DEEPLY, ProtocolError.NOT_A_JSON_OBJECT))
+    assertEquals(ProtocolError.NESTED_TOO_DEEPLY, errorOf { Items.activityOffer("{\"a\":".repeat(200_000).toByteArray()) })
   }
 
   @Test
@@ -103,6 +102,15 @@ class ItemsTest {
     assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Items.activityOffer(padded) })
     val route = """{"routeId":"$route","name":"R","createdAt":"t","gpx":"${"a".repeat(Framing.MAX_FRAME_BYTES - 120)}"}"""
     assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Items.routeOffer(route.toByteArray()) })
+  }
+
+  @Test
+  fun anItemWhoseFramedFormIsExactlyTheCapIsKeptAndOneByteMoreIsNot() {
+    val overhead = Messages.encode(ActivityOffer(id, route, "1", "x")).size - 1
+    fun item(gpxChars: Int) = activity(gpx = "\"${"a".repeat(gpxChars)}\"")
+    val fits = Items.activityOffer(item(Framing.MAX_FRAME_BYTES - overhead))
+    assertEquals(Framing.MAX_FRAME_BYTES, Messages.encode(fits).size)
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Items.activityOffer(item(Framing.MAX_FRAME_BYTES - overhead + 1)) })
   }
 
   @Test

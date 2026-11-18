@@ -1,5 +1,8 @@
 package codes.madera.crossfog.link
 
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -153,7 +156,15 @@ object Messages {
 
   internal fun parseObject(bytes: ByteArray): JSONObject {
     if (bytes.size > Framing.MAX_FRAME_BYTES) throw ProtocolException(ProtocolError.FRAME_TOO_LARGE)
-    val text = String(bytes, Charsets.UTF_8)
+    // A lossy decode would turn a bad byte into U+FFFD and store the changed text under the sender's id.
+    val text = try {
+      Charsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+        .decode(ByteBuffer.wrap(bytes)).toString()
+    } catch (e: CharacterCodingException) {
+      throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
+    }
     StrictJson.requireObject(text)
     // Valid by now, so org.json only builds the object. Its own syntax error would quote the input.
     return try {

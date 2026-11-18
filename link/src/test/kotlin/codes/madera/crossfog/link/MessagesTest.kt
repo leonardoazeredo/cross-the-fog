@@ -202,6 +202,91 @@ class MessagesTest {
   }
 
   @Test
+  fun aUnicodeEscapeTakesAsciiHexDigitsOnly() {
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"p\\u\u0660\u0660\u0666\u0669ng\"}"))
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"p\\u\uFF10\uFF10\uFF16\uFF19ng\"}"))
+    assertEquals(Ping, parse("{\"v\":1,\"type\":\"p\\u0069ng\"}"))
+    assertEquals(Ping, parse("{\"v\":1,\"type\":\"p\\u0069ng\"}".replace("0069", "0069")))
+  }
+
+  @Test
+  fun unicodeEscapesAcceptHexLettersOfEitherCase() {
+    // \u00e9 and \u00E9 are both "é"; the same key written both ways is a duplicate.
+    assertEquals(Ping, parse("{\"v\":1,\"type\":\"ping\",\"x\":\"\\u00e9\\u00E9\\uabcd\\uABCD\"}"))
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"ping\",\"\\u004a\":1,\"\\u004A\":2}"))
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"ping\",\"\\u00g0\":1}"))
+  }
+
+  @Test
+  fun escapedSurrogatesMustPair() {
+    val pair = "\\ud83d\\ude00"
+    assertEquals(Ping, parse("{\"v\":1,\"type\":\"ping\",\"x\":\"$pair\"}"))
+    for (bad in listOf("\\ud800", "\\udc00", "\\ude00\\ud83d", "\\ud83dx", "\\ud83d\\n", "\\ud83d\\u0041", "\\ud83d\\ud83d\\ude00")) {
+      assertEquals(bad, ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"ping\",\"x\":\"$bad\"}"))
+    }
+  }
+
+  @Test
+  fun truncatedAndBadEscapesAreRefused() {
+    for (bad in listOf("\\u12", "\\u12g4", "\\u", "\\", "\\U0041", "\\x", "\\ ")) {
+      assertEquals(bad, ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"ping\",\"x\":\"$bad\"}"))
+      assertEquals(bad, ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"ping\",\"x\":\"$bad"))
+    }
+  }
+
+  @Test
+  fun malformedNumbersAndSpaceAreRefused() {
+    for (n in listOf("-", "1e", "1e+", ".5", "-01", "Infinity", "-Infinity", "True", "1.e3", "100000000000000000000e300", "-${"9".repeat(64)}")) {
+      assertEquals(n, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","x":$n}"""))
+    }
+    for (space in listOf("\uFEFF", "\u00A0", "\u000b", "\u000c", "\u2003")) {
+      assertEquals(space, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""$space{"v":1,"type":"ping"}"""))
+      assertEquals(space, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,$space"type":"ping"}"""))
+    }
+    assertEquals(Ping, parse("""{"v":1,"type":"ping","x":1e0300}""".replace("1e0300", "1e300")))
+  }
+
+  @Test
+  fun versionsPastIntRangeAreNotWrapped() {
+    assertEquals(ProtocolError.UNSUPPORTED_VERSION, errorOf("""{"v":4294967297,"type":"ping"}"""))
+    assertEquals(ProtocolError.FIELD_MISSING_OR_INVALID, errorOf("""{"v":1,"type":"hello","versions":[4294967297]}"""))
+  }
+
+  @Test
+  fun theNestingCapCountsAScalarLeafAndAASameNameAtTwoLevelsIsNotADuplicate() {
+    assertEquals(Ping, parse("""{"v":1,"type":"ping","a":{"b":{"c":{"d":{"e":{"f":1}}}}}}"""))
+    assertEquals(ProtocolError.NESTED_TOO_DEEPLY, errorOf("""{"v":1,"type":"ping","a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":1}}}}}}}}"""))
+    assertEquals(Ping, parse("""{"v":1,"type":"ping","x":{"v":2,"type":"x"}}"""))
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","x":{"a":1,"a":2}}"""))
+  }
+
+  @Test
+  fun bytesThatAreNotUtf8AreRefusedNotRepaired() {
+    val head = """{"v":1,"type":"activityOffer","activityId":"$activity","encoderVersion":"1","gpx":"<gpx/>"""
+    val tail = "\"}".toByteArray()
+    for (bad in listOf(byteArrayOf(0xFF.toByte()), byteArrayOf(0xC3.toByte()), byteArrayOf(0xC0.toByte(), 0x80.toByte()),
+      byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()))) {
+      val e = assertThrows(ProtocolException::class.java) { Messages.parse(head.toByteArray() + bad + tail) }
+      assertEquals(ProtocolError.NOT_A_JSON_OBJECT, e.error)
+    }
+  }
+
+  @Test
+  fun aNumberPastDoubleRangeIsRefusedLikeAndroidDoes() {
+    for (n in listOf("1e400", "1E+999", "9".repeat(70), "1.${"0".repeat(70)}")) {
+      assertEquals(n, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","x":$n}"""))
+    }
+    assertEquals(Ping, parse("""{"v":1,"type":"ping","x":1e300,"y":-0.5E-300,"z":0}"""))
+  }
+
+  @Test
+  fun nestingIsRefusedOnePastTheCapAndAcceptedAtIt() {
+    fun nested(depth: Int) = """{"v":1,"type":"ping","x":${"[".repeat(depth)}${"]".repeat(depth)}}"""
+    assertEquals(Ping, parse(nested(StrictJson.MAX_DEPTH - 1)))
+    assertEquals(ProtocolError.NESTED_TOO_DEEPLY, errorOf(nested(StrictJson.MAX_DEPTH)))
+  }
+
+  @Test
   fun duplicateKeysAreJudgedOnTheirDecodedText() {
     assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","\u0074ype":"x"}"""))
   }

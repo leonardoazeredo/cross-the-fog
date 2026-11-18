@@ -11,6 +11,7 @@ internal class StrictJson private constructor(private val s: String) {
 
   companion object {
     const val MAX_DEPTH = 8
+    const val MAX_NUMBER_CHARS = 64
 
     /** Returns normally for exactly one object and nothing after it; throws [ProtocolException] otherwise. */
     fun requireObject(text: String) {
@@ -41,7 +42,7 @@ internal class StrictJson private constructor(private val s: String) {
     when (peek()) {
       '{' -> obj(depth)
       '[' -> array(depth)
-      '"' -> string()
+      '"' -> string(keep = false)
       't' -> literal("true")
       'f' -> literal("false")
       'n' -> literal("null")
@@ -57,7 +58,7 @@ internal class StrictJson private constructor(private val s: String) {
     while (true) {
       skipSpace()
       if (peek() != '"') throw notJson()
-      if (!keys.add(string())) throw notJson()
+      if (!keys.add(string(keep = true))) throw notJson()
       skipSpace()
       expect(':')
       skipSpace()
@@ -87,35 +88,56 @@ internal class StrictJson private constructor(private val s: String) {
     }
   }
 
-  /** Reads a string and returns its decoded text, which is what a duplicate key is judged on. */
-  private fun string(): String {
+  /**
+   * Reads a string. Its decoded text is built only for a key (`keep`), which is what a duplicate is
+   * judged on; a value is a track that can be megabytes, and checking it needs no copy.
+   */
+  private fun string(keep: Boolean): String {
     expect('"')
     val out = StringBuilder()
+    var highSurrogate = false
     while (true) {
       if (i >= s.length) throw notJson()
       val c = s[i++]
       when {
-        c == '"' -> return out.toString()
+        c == '"' -> {
+          if (highSurrogate) throw notJson()
+          return out.toString()
+        }
         c < ' ' -> throw notJson()
-        c != '\\' -> out.append(c)
+        // A high surrogate escape must be followed at once by a low one, and a low one needs a high before it:
+        // an unpaired one cannot be written as UTF-8 and would come back as "?".
+        highSurrogate && c != '\\' -> throw notJson()
+        c != '\\' -> if (keep) out.append(c)
         else -> {
           if (i >= s.length) throw notJson()
-          when (val e = s[i++]) {
-            '"', '\\', '/' -> out.append(e)
-            'b' -> out.append('\b')
-            'f' -> out.append('\u000c')
-            'n' -> out.append('\n')
-            'r' -> out.append('\r')
-            't' -> out.append('\t')
+          val e = s[i++]
+          if (highSurrogate && e != 'u') throw notJson()
+          when (e) {
+            '"', '\\', '/' -> if (keep) out.append(e)
+            'b' -> if (keep) out.append('\b')
+            'f' -> if (keep) out.append('\u000c')
+            'n' -> if (keep) out.append('\n')
+            'r' -> if (keep) out.append('\r')
+            't' -> if (keep) out.append('\t')
             'u' -> {
               if (i + 4 > s.length) throw notJson()
               var code = 0
               repeat(4) {
-                val d = Character.digit(s[i++], 16)
-                if (d < 0) throw notJson()
+                // Character.digit also takes other scripts' digits and fullwidth letters; JSON allows ASCII only.
+                val ch = s[i++]
+                val d = when (ch) {
+                  in '0'..'9' -> ch - '0'
+                  in 'a'..'f' -> ch - 'a' + 10
+                  in 'A'..'F' -> ch - 'A' + 10
+                  else -> throw notJson()
+                }
                 code = code * 16 + d
               }
-              out.append(code.toChar())
+              val unit = code.toChar()
+              if (Character.isLowSurrogate(unit) != highSurrogate) throw notJson()
+              highSurrogate = Character.isHighSurrogate(unit)
+              if (keep) out.append(unit)
             }
             else -> throw notJson()
           }
@@ -136,6 +158,7 @@ internal class StrictJson private constructor(private val s: String) {
   }
 
   private fun number() {
+    val start = i
     if (peek() == '-') i++
     if (peek() == '0') i++ else if (digits() == 0) throw notJson()
     if (peek() == '.') { i++; if (digits() == 0) throw notJson() }
@@ -144,5 +167,8 @@ internal class StrictJson private constructor(private val s: String) {
       if (peek() == '+' || peek() == '-') i++
       if (digits() == 0) throw notJson()
     }
+    if (i - start > MAX_NUMBER_CHARS) throw notJson()
+    // Android's org.json refuses a number past double range and the JVM one takes it, whatever its shape.
+    if (s.substring(start, i).toDouble().isInfinite()) throw notJson()
   }
 }
