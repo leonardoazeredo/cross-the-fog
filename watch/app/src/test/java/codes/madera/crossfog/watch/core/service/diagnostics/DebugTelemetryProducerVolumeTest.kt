@@ -1,12 +1,10 @@
 package codes.madera.crossfog.watch.core.service.diagnostics
 
-import codes.madera.crossfog.watch.core.service.diagnostics.export.writeGlobalTelemetryProducerVolumeSummary
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.StringWriter
 
 class DebugTelemetryProducerVolumeTest {
     @Before
@@ -118,20 +116,6 @@ class DebugTelemetryProducerVolumeTest {
 
         assertEquals(0L, snapshot.totalLoggedLines)
         assertTrue(snapshot.producerVolumes.all { volume -> volume.generatedLines == 0L })
-    }
-
-    @Test
-    fun exportSummaryReportsProducerCounts() {
-        DebugTelemetry.setEnabledFromCaptureSettings(true)
-        log("LocTelemetry")
-        log("UnknownProducer")
-
-        val output = StringWriter()
-        output.writeGlobalTelemetryProducerVolumeSummary(DebugTelemetry.captureSessionSnapshot().producerVolumes)
-
-        assertTrue(output.toString().contains("telemetryProducer_loc_generatedLines=1"))
-        assertTrue(output.toString().contains("telemetryProducer_loc_retainedLines=1"))
-        assertTrue(output.toString().contains("telemetryProducer_other_generatedLines=1"))
     }
 
     @Test

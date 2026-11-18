@@ -13,7 +13,6 @@ class SettingsResourceIdsTest {
         listOf(
             "CLEAN_CAPTURE_DEFAULT_LABEL" to R.string.debug_clear_all_captured_logs,
             "CLEAN_CAPTURE_CLEARED_LABEL" to R.string.debug_all_captured_logs_have_been_cleared,
-            "DIAGNOSTICS_DEFAULT_STATUS" to R.string.debug_export_to_support_email,
         ).forEach { (name, expected) ->
             assertNotEquals("Linked resource ID must be valid", 0, expected)
             // Read the actual compiled aliases used during the screen's initial composition.

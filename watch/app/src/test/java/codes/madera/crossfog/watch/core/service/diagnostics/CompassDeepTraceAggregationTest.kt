@@ -1,7 +1,5 @@
 package codes.madera.crossfog.watch.core.service.diagnostics
 
-import codes.madera.crossfog.watch.core.service.diagnostics.export.CompassHeadingTelemetrySummary
-import codes.madera.crossfog.watch.core.service.diagnostics.export.writeCompassDeepTraceSection
 import codes.madera.crossfog.watch.domain.sensors.CompassHeadingProvenance
 import codes.madera.crossfog.watch.domain.sensors.CompassMagneticQuality
 import codes.madera.crossfog.watch.domain.sensors.CompassNorthBasis
@@ -27,18 +25,11 @@ class CompassDeepTraceAggregationTest {
 
         val incident = requireNotNull(ring.incidentSnapshot(nowElapsedMs = 3_001L))
         val marker = incident.markerAndPostEvents.first().event as CompassDeepTraceEvent.Marker
-        val output = StringBuilder()
-        output.writeCompassDeepTraceSection(
-            CompassDeepTraceSnapshot(false, 1, 0, 0, "export", emptyList(), incident = incident),
-        )
 
         assertEquals("automatic_integrity_incident", marker.type)
         assertEquals("before", (incident.preMarkerEvents.single().event as CompassDeepTraceEvent.Telemetry).line)
         assertTrue(incident.markerAndPostEvents.any { it.event is CompassDeepTraceEvent.IntegrityDecision })
         assertTrue(incident.postTailComplete)
-        assertTrue(output.contains("preservedIncident=true"))
-        assertTrue(output.contains("marker=automatic_integrity_incident"))
-        assertTrue(output.contains("unresolvedIndependentDisagreement=true"))
         assertEquals(2, ring.snapshot().size)
     }
 
@@ -194,28 +185,6 @@ class CompassDeepTraceAggregationTest {
     }
 
     @Test
-    fun exportSectionMakesTraceLifecycleAndAggregationExplicit() {
-        val output = StringBuilder()
-
-        output.writeCompassDeepTraceSection(
-            CompassDeepTraceSnapshot(
-                active = false,
-                sessionCount = 1,
-                windowCount = 2,
-                droppedLines = 0,
-                lastStopReason = "manual",
-                lines = listOf("window index=1 providerSamples=20"),
-            ),
-        )
-
-        assertTrue(output.contains("Compass Deep Trace"))
-        assertTrue(output.contains("schemaVersion=5"))
-        assertTrue(output.contains("aggregateWindowCount=2"))
-        assertTrue(output.contains("lastStopReason=manual"))
-        assertEquals(1, output.lines().count { it.startsWith("window index=") })
-    }
-
-    @Test
     fun relativeMotionAndConeChangesKeepTheirOwnIdentityInRenderExports() {
         val provenance = CompassHeadingProvenance(CompassProviderType.GOOGLE_FUSED, 5L)
         val motion = CompassRelativeMotionSample(20f, 0.9f, 1_002L, provenance, displayRotation = 1)
@@ -236,21 +205,8 @@ class CompassDeepTraceAggregationTest {
         val concealed = coasting.copy(atElapsedMs = 1_006L, coneSuppressed = true)
         ring.record(concealed)
         ring.record(concealed.copy(atElapsedMs = 1_007L, relativeMotionSample = motion.copy(atElapsedMs = 1_006L)))
-        val output = StringBuilder()
-        output.writeCompassDeepTraceSection(
-            CompassDeepTraceSnapshot(false, 1, 0, 0, "export", emptyList(), events = ring.snapshot()),
-        )
 
         assertEquals(4, ring.snapshot().size)
-        assertTrue(output.contains("sampleId=7"))
-        assertTrue(output.contains("relativeMotion=false coneSuppressed=false"))
-        assertTrue(output.contains("relativeMotion=true coneSuppressed=true"))
-        assertTrue(
-            output.contains(
-                "relativeAtMs=1002 relativeHeadingDeg=20.0 relativeProvenance=google_fused_5 displayRotation=1",
-            ),
-        )
-        assertTrue(output.contains("relativeAtMs=1006"))
     }
 
     @Test
@@ -324,170 +280,6 @@ class CompassDeepTraceAggregationTest {
         assertEquals(1, incident.preMarkerLiveRingDroppedEvents)
         assertEquals(1, incident.droppedPostEvents)
         assertTrue(incident.postTailComplete)
-    }
-
-    @Test
-    fun exportSectionLabelsTheFrozenIncidentPreHistoryMarkerAndPostTail() {
-        val output = StringBuilder()
-        val marker =
-            CompassDeepTraceEventRecord(
-                eventId = 2L,
-                event = CompassDeepTraceEvent.Marker(1_010L, "heading_looks_wrong", "manual"),
-            )
-
-        output.writeCompassDeepTraceSection(
-            CompassDeepTraceSnapshot(
-                active = false,
-                sessionCount = 1,
-                windowCount = 0,
-                droppedLines = 0,
-                lastStopReason = "export",
-                lines = emptyList(),
-                incident =
-                    CompassDeepTraceIncidentSnapshot(
-                        preMarkerEvents =
-                            listOf(
-                                CompassDeepTraceEventRecord(
-                                    eventId = 1L,
-                                    event = CompassDeepTraceEvent.Telemetry(1_000L, "before"),
-                                ),
-                            ),
-                        markerAndPostEvents = listOf(marker),
-                        preMarkerLiveRingDroppedEvents = 0,
-                        droppedPostEvents = 0,
-                        postTailComplete = true,
-                    ),
-            ),
-        )
-
-        assertTrue(output.contains("Compass Deep Trace Preserved Incident"))
-        assertTrue(output.contains("incident_pre trace_event id=1"))
-        assertTrue(output.contains("incident_post trace_event id=2 type=marker"))
-        assertTrue(output.contains("incidentPostTailComplete=true"))
-    }
-
-    @Test
-    fun exportSectionIncludesDetailedCompassSummariesOnlyInDeepTrace() {
-        val output = StringBuilder()
-
-        output.writeCompassDeepTraceSection(
-            snapshot =
-                CompassDeepTraceSnapshot(
-                    active = false,
-                    sessionCount = 1,
-                    windowCount = 1,
-                    droppedLines = 0,
-                    lastStopReason = "manual",
-                    lines = listOf("[CompassTelemetry] heading_engine window samples=4"),
-                ),
-            eventSummary =
-                DiagnosticsExporter.CompassTelemetryInsights(
-                    headingLooksWrongReportCount = 2,
-                    rotationSettleReleaseCount = 1,
-                ),
-            headingSummary =
-                CompassHeadingTelemetrySummary(
-                    sampleCount = 4,
-                    degradedSamples = 1,
-                ),
-        )
-
-        assertTrue(output.contains("Compass Deep Trace Event Summary"))
-        assertTrue(output.contains("headingLooksWrongReportCount=2"))
-        assertTrue(output.contains("Compass Heading Engine Summary"))
-        assertTrue(output.contains("engineSampleCount=4"))
-    }
-
-    @Test
-    @Suppress("LongMethod") // Keeps the exported causal sequence fixture readable in one place.
-    fun exportSectionKeepsProviderDecisionRenderAndUiConfidenceOrderingVisible() {
-        val output = StringBuilder()
-        val provider =
-            CompassDeepTraceEvent.ProviderMeasurement(
-                atElapsedMs = 1_000L,
-                provider = "google_fused",
-                headingDeg = 180f,
-                sourceSampleId = 7L,
-                sourceMeasurementAtElapsedMs = 1_000L,
-                callbackArrivalAtElapsedMs = 1_002L,
-                processingAtElapsedMs = 1_003L,
-                measurementDisposition = "accepted",
-                accuracy = 3,
-                usable = true,
-                provenance = null,
-            )
-        val decision =
-            CompassDeepTraceEvent.IntegrityDecision(
-                atElapsedMs = 1_003L,
-                provider = "google_fused",
-                sourceSampleId = 7L,
-                headingDeg = 180f,
-                liveHeadingErrorDeg = 8f,
-                conservativeHeadingErrorDeg = 180f,
-                trackingState = CompassTrackingState.TRACKING,
-                trackingReason = CompassTrackingReason.ABSOLUTE_RELATIVE_DISAGREEMENT,
-                relativeHeadingDeg = 0f,
-                fusedRelativeDisagreementDeg = 180f,
-                targetHeadingDeg = 0f,
-                trusted = false,
-                quarantineActive = true,
-                recoveryActive = false,
-                relativeWitnessAvailable = true,
-                relativeWitnessSuppressed = true,
-                unresolvedIndependentDisagreement = true,
-                heldOutput = true,
-                provenance = null,
-            )
-        output.writeCompassDeepTraceSection(
-            CompassDeepTraceSnapshot(
-                active = false,
-                sessionCount = 1,
-                windowCount = 1,
-                droppedLines = 0,
-                lastStopReason = "manual",
-                lines = listOf("window index=1"),
-                events =
-                    listOf(
-                        CompassDeepTraceEventRecord(1L, provider),
-                        CompassDeepTraceEventRecord(2L, decision),
-                        CompassDeepTraceEventRecord(
-                            3L,
-                            CompassDeepTraceEvent.Render(
-                                atElapsedMs = 1_004L,
-                                sourceSampleId = 7L,
-                                targetHeadingDeg = 0f,
-                                renderedHeadingDeg = 0f,
-                                mapRotationDeg = 0f,
-                                provenance = null,
-                            ),
-                        ),
-                        CompassDeepTraceEventRecord(
-                            4L,
-                            CompassDeepTraceEvent.UiConfidence(
-                                atElapsedMs = 1_005L,
-                                provider = "google_fused",
-                                quality = "medium",
-                                accuracyColorsEnabled = false,
-                                provenance = null,
-                            ),
-                        ),
-                    ),
-            ),
-        )
-
-        val providerIndex = output.indexOf("trace_event id=1 type=provider_measurement")
-        val decisionIndex = output.indexOf("trace_event id=2 type=integrity_decision")
-        val renderIndex = output.indexOf("trace_event id=3 type=render")
-        val uiIndex = output.indexOf("trace_event id=4 type=ui_confidence")
-
-        assertTrue(providerIndex >= 0)
-        assertTrue(providerIndex < decisionIndex)
-        assertTrue(decisionIndex < renderIndex)
-        assertTrue(renderIndex < uiIndex)
-        assertTrue(output.indexOf("Compass Deep Trace Aggregates") > uiIndex)
-        assertTrue(output.contains("relativeWitnessAvailable=true"))
-        assertTrue(output.contains("relativeWitnessSuppressed=true"))
-        assertTrue(output.contains("unresolvedIndependentDisagreement=true"))
     }
 
     @Test
