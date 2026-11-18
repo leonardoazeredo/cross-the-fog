@@ -5,9 +5,9 @@ import java.security.GeneralSecurityException
 
 /**
  * Removes the outbox routes that can never be opened and returns how many it removed. A route is lost
- * when it fails to authenticate (every one sealed before a lost staging alias does), does not parse or
- * does not match its file name; the page tells the user to send it again, which a stuck file would
- * only fail on at every drain.
+ * when it fails to authenticate (every one sealed before a lost staging alias does), does not parse,
+ * does not match its file name or cannot be read from disk (an oversized or unreadable file); the page
+ * tells the user to send it again, which a stuck file would only fail on at every drain.
  *
  * An unusable staging entry (`UnrecoverableKeyException`, `KeyPermanentlyInvalidatedException`) is not
  * a lost alias: nothing can be read, so no route is known to be lost, and the call keeps every file
