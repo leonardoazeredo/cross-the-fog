@@ -12,7 +12,7 @@ export const PLANS: Record<AndroidTestMode, AndroidPlan> = {
   device: { gradleTask: ":watch-link:connectedDebugAndroidTest", needsDevice: true },
 };
 
-/** The first `device` row of `adb devices`; an `offline` or `unauthorized` row is not a device to test on. */
+/** The serials in the `device` state in `adb devices` output; an `offline` or `unauthorized` row is not a device to test on. */
 export function attachedDevices(adbOutput: string): string[] {
   return adbOutput
     .split("\n")
