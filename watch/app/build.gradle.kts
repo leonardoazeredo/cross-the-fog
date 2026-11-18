@@ -238,7 +238,6 @@ dependencies {
     implementation(libs.mapsforge.map.android)
     implementation(libs.mapsforge.themes)
     implementation(libs.androidsvg)
-    implementation(project(":brouter-core"))
 
     // Previews
     implementation(libs.androidx.wear.tooling.preview)

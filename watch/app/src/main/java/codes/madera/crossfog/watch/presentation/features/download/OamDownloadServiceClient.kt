@@ -56,7 +56,8 @@ internal object OamPersistedDownloadPlanCodec {
             plan.selection.demSource.id,
             plan.selection.includeMap.asFlag(),
             plan.selection.includePoi.asFlag(),
-            plan.selection.includeRouting.asFlag(),
+            // Slot kept so plans persisted by earlier builds still decode.
+            "0",
             plan.selection.includeDem.asFlag(),
             plan.selection.includeRefugesInfo.asFlag(),
             plan.areaIds.joinToString(AREA_SEPARATOR),
@@ -68,6 +69,7 @@ internal object OamPersistedDownloadPlanCodec {
         if (parts.size != 10 || parts[0] != VERSION) return null
         val status = runCatching { OamPersistedDownloadStatus.valueOf(parts[1]) }.getOrNull() ?: return null
         val nextAreaIndex = parts[2].toIntOrNull()?.coerceAtLeast(0) ?: return null
+        if (parts[6].toFlag() == null) return null
         val areaIds =
             parts[9]
                 .split(AREA_SEPARATOR)
@@ -81,7 +83,6 @@ internal object OamPersistedDownloadPlanCodec {
                 OamDownloadSelection(
                     includeMap = parts[4].toFlag() ?: return null,
                     includePoi = parts[5].toFlag() ?: return null,
-                    includeRouting = parts[6].toFlag() ?: return null,
                     includeDem = parts[7].toFlag() ?: return null,
                     demSource = DemSource.fromId(parts[3]),
                     includeRefugesInfo = parts[8].toFlag() ?: return null,

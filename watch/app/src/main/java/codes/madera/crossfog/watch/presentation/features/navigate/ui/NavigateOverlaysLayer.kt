@@ -114,10 +114,8 @@ internal fun BoxScope.NavigateOverlaysLayer(
     sideButtonSize: Dp,
     sideButtonIconSize: Dp,
     shortcutTrayExpanded: Boolean,
-    routeToolModeActive: Boolean,
     onShortcutTrayToggle: () -> Unit,
     onShortcutTrayDismiss: () -> Unit,
-    onGpxToolsClick: () -> Unit,
     keepAppOpen: Boolean,
     onKeepAppOpenToggle: () -> Unit,
     traceRecordingViewModel: TraceRecordingViewModel,
@@ -187,7 +185,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
                     recordingDashboardFullScreenExpanded ||
                     combinedGuidanceRecordingFullScreenExpanded,
             visibleControls = mapFocusVisibleControls,
-            toolsAvailable = !routeToolModeActive,
         )
     val headingReferenceTestActive by CompassHeadingReferenceDiagnostics.active.collectAsState()
     var liveDistanceLineStart by
@@ -244,8 +241,8 @@ internal fun BoxScope.NavigateOverlaysLayer(
         }
     }
 
-    LaunchedEffect(shortcutTrayExpanded, routeToolModeActive, headingReferenceTestActive) {
-        if (!shortcutTrayExpanded || routeToolModeActive || headingReferenceTestActive) return@LaunchedEffect
+    LaunchedEffect(shortcutTrayExpanded, headingReferenceTestActive) {
+        if (!shortcutTrayExpanded || headingReferenceTestActive) return@LaunchedEffect
         delay(5_000L)
         if (shortcutTrayExpanded) {
             onShortcutTrayDismiss()
@@ -491,7 +488,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
             iconSize = sideButtonIconSize,
             onToggleExpanded = onShortcutTrayToggle,
             onKeepAppOpenClick = onKeepAppOpenToggle,
-            onGpxToolsClick = onGpxToolsClick,
             onMapFocusClick = {
                 onShortcutTrayDismiss()
                 if (mapFocusMode) onExitMapFocus() else onEnterMapFocus()

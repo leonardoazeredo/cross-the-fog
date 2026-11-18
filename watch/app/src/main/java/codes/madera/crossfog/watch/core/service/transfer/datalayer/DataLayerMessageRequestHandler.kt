@@ -12,7 +12,6 @@ import codes.madera.crossfog.watch.core.service.transfer.notifications.Notificat
 import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferSessionState
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchFileOps
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchMapWithBounds
-import codes.madera.crossfog.watch.core.service.transfer.storage.WatchRoutingSegmentWithBounds
 import com.google.android.gms.wearable.MessageEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -483,17 +482,11 @@ private suspend fun buildInstalledCoverageReply(
                 Log.w(TAG, "Failed to list maps for request id=$requestId", it)
                 emptyList()
             }
-    val routingSegments =
-        runCatching { fileOps.listRoutingSegmentsWithBounds() }
-            .getOrElse {
-                Log.w(TAG, "Failed to list routing coverage for request id=$requestId", it)
-                emptyList()
-            }
 
     return JSONObject()
         .put("id", requestId)
         .put("maps", mapsToJsonRows(maps))
-        .put("routingTiles", routingSegmentsToJsonRows(routingSegments))
+        .put("routingTiles", JSONArray())
 }
 
 private fun mapsToJsonRows(maps: List<WatchMapWithBounds>): JSONArray =
@@ -501,13 +494,6 @@ private fun mapsToJsonRows(maps: List<WatchMapWithBounds>): JSONArray =
         fileName = WatchMapWithBounds::fileName,
         absolutePath = WatchMapWithBounds::absolutePath,
         bbox = WatchMapWithBounds::bbox,
-    )
-
-private fun routingSegmentsToJsonRows(segments: List<WatchRoutingSegmentWithBounds>): JSONArray =
-    segments.toJsonRows(
-        fileName = WatchRoutingSegmentWithBounds::fileName,
-        absolutePath = WatchRoutingSegmentWithBounds::absolutePath,
-        bbox = WatchRoutingSegmentWithBounds::bbox,
     )
 
 private fun <T> List<T>.toJsonRows(

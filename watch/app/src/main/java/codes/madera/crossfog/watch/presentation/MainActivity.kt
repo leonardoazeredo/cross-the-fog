@@ -66,7 +66,6 @@ import codes.madera.crossfog.watch.presentation.features.settings.GpsAdvancedSet
 import codes.madera.crossfog.watch.presentation.features.settings.GpsSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.GpxAppearanceSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.GpxSettingsScreen
-import codes.madera.crossfog.watch.presentation.features.settings.GpxToolsSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.LicensesScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapDisplaySettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapFocusSettingsScreen
@@ -484,11 +483,6 @@ class MainActivity : ComponentActivity() {
                                         restoreState = true
                                     }
                                 },
-                                onOpenGpxToolsSettings = {
-                                    navController.navigate(WatchRoutes.GPX_TOOLS_SETTINGS) {
-                                        launchSingleTop = true
-                                    }
-                                },
                                 onOpenMapBundles = { location ->
                                     appContainer.downloadViewModel.suggestAreasForLocation(
                                         latitude = location.latitude,
@@ -589,7 +583,6 @@ class MainActivity : ComponentActivity() {
                                     onAreaSearchQueryChange = { downloadAreaSearchQuery = it },
                                     onLibraryChanged = {
                                         appContainer.mapViewModel.loadMapFiles(preserveExistingCoverage = false)
-                                        appContainer.mapViewModel.loadRoutingPackFiles()
                                     },
                                     onOpenSettings = {
                                         navController.navigate(WatchRoutes.DOWNLOAD_SETTINGS)
@@ -976,9 +969,6 @@ class MainActivity : ComponentActivity() {
                                     onOpenTurnByTurnSettings = {
                                         navController.navigate(WatchRoutes.TURN_BY_TURN_SETTINGS)
                                     },
-                                    onOpenGpxToolsSettings = {
-                                        navController.navigate(WatchRoutes.GPX_TOOLS_SETTINGS)
-                                    },
                                     onOpenGpxAppearanceSettings = {
                                         navController.navigate(WatchRoutes.GPX_APPEARANCE_SETTINGS)
                                     },
@@ -992,24 +982,6 @@ class MainActivity : ComponentActivity() {
                                 onSwipeLeftNavigate = navigateViaSwipeLeft,
                             ) {
                                 GpxAppearanceSettingsScreen(
-                                    viewModel = appContainer.settingsViewModel,
-                                    onOpenGpxSettings = {
-                                        navController.navigate(WatchRoutes.GPX_SETTINGS) {
-                                            popUpTo(WatchRoutes.GPX_SETTINGS) { inclusive = false }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                )
-                            }
-                        }
-
-                        composable(WatchRoutes.GPX_TOOLS_SETTINGS) {
-                            DismissableScreen(
-                                onDismiss = { navController.popBackStack() },
-                                onSwipeLeftNavigate = navigateViaSwipeLeft,
-                            ) {
-                                GpxToolsSettingsScreen(
                                     viewModel = appContainer.settingsViewModel,
                                     onOpenGpxSettings = {
                                         navController.navigate(WatchRoutes.GPX_SETTINGS) {

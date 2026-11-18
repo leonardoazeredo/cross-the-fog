@@ -8,7 +8,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -19,9 +18,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
-import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.service.diagnostics.BenchmarkTrace
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.diagnostics.TerrainDiagnostics
@@ -45,19 +42,6 @@ import codes.madera.crossfog.watch.presentation.features.navigate.effects.Naviga
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCompassWakeTelemetry
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.rememberNavigateLocationUiState
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingViewModel
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteModifyMode
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolCreatePreview
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolKind
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolLoopRetryOption
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolModifyPreview
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolOptions
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolSaveResult
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolSession
-import codes.madera.crossfog.watch.presentation.features.routetools.previewBeforeSaving
-import codes.madera.crossfog.watch.presentation.features.routetools.routeStylePresetFromSettingsValue
-import codes.madera.crossfog.watch.presentation.features.routetools.routeToolMultiPointDraftConnectorPoints
-import codes.madera.crossfog.watch.presentation.features.routetools.visibleRouteToolCreatePreview
-import codes.madera.crossfog.watch.presentation.features.routetools.withVisibleLoopDefaults
 import codes.madera.crossfog.watch.presentation.features.settings.SettingsViewModel
 import codes.madera.crossfog.watch.presentation.ui.rememberWearAdaptiveSpec
 import codes.madera.crossfog.watch.presentation.ui.rememberWearScreenSize
@@ -86,7 +70,6 @@ fun NavigateScreen(
     onRecordingTimeLongPress: () -> Unit = {},
     onMenuClick: () -> Unit,
     onCloseApp: () -> Unit,
-    onOpenGpxToolsSettings: () -> Unit = {},
     onOpenMapBundles: (LatLong) -> Unit = {},
     compassViewModel: CompassViewModel = viewModel(),
     navigateViewModel: NavigateViewModel = viewModel(),
@@ -251,28 +234,6 @@ fun NavigateScreen(
         val selectedPointB by gpxViewModel.selectedPointB.collectAsState()
         val selectingGpxPointB by gpxViewModel.selectingPointB.collectAsState()
         var shortcutTrayExpanded by rememberSaveable { mutableStateOf(false) }
-        var showRouteToolsPanel by rememberSaveable { mutableStateOf(false) }
-        var routeToolOptions by rememberSaveable(stateSaver = routeToolOptionsSaver) {
-            mutableStateOf(RouteToolOptions())
-        }
-        var routeToolSession by rememberSaveable(stateSaver = routeToolSessionSaver) {
-            mutableStateOf<RouteToolSession?>(null)
-        }
-        var mapLongPressTarget by remember { mutableStateOf<LatLong?>(null) }
-        var mapLongPressRequestId by remember { mutableLongStateOf(0L) }
-        var completedRouteToolDraft by remember { mutableStateOf<RouteToolSession?>(null) }
-        var routeToolExecutionInProgress by remember { mutableStateOf(false) }
-        var routeToolExecutionStatus by remember { mutableStateOf<String?>(null) }
-        var routeToolExecutionMessage by remember { mutableStateOf<String?>(null) }
-        var routeToolLoopRetryOptions by remember { mutableStateOf<List<RouteToolLoopRetryOption>>(emptyList()) }
-        var routeToolResult by remember { mutableStateOf<RouteToolSaveResult?>(null) }
-        var routeToolRenameInProgress by remember { mutableStateOf(false) }
-        var routeToolRenameError by remember { mutableStateOf<String?>(null) }
-        var routeToolPreview by remember { mutableStateOf<RouteToolModifyPreview?>(null) }
-        var routeToolCreatePreview by remember { mutableStateOf<RouteToolCreatePreview?>(null) }
-        var routeToolCreatePreviewInProgress by remember { mutableStateOf(false) }
-        var routeToolCreatePreviewMessage by remember { mutableStateOf<String?>(null) }
-        var routeToolPreflightMessage by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
         // ---- Should track location? ----
@@ -511,13 +472,6 @@ fun NavigateScreen(
                 gpsIndicatorState
             }
         val gpsSignalSnapshot by locationViewModel.gpsSignalSnapshot.collectAsState()
-        LaunchedEffect(routeToolPreflightMessage, gpsSignalSnapshot.lastFixFresh) {
-            if (routeToolPreflightMessage == resources.getString(R.string.navigation_waiting_for_gps) &&
-                gpsSignalSnapshot.lastFixFresh
-            ) {
-                routeToolPreflightMessage = null
-            }
-        }
         val rawCurrentLocation by locationViewModel.currentLocation.collectAsState()
         val gpsFixFreshForAccuracyCircle =
             locationUiState.locationMarkerTrustState == LocationMarkerTrustState.CURRENT
@@ -569,30 +523,12 @@ fun NavigateScreen(
                 renderState = compassRenderState,
                 renderedHeadingDeg = renderedCompassHeadingDeg,
             )
-        val displayedRouteToolCreatePreview =
-            visibleRouteToolCreatePreview(
-                session = routeToolSession,
-                createPreview = routeToolCreatePreview,
-                createPreviewInProgress = routeToolCreatePreviewInProgress,
-            )
-        val routeToolDraftConnectorPoints =
-            routeToolMultiPointDraftConnectorPoints(
-                session = routeToolSession,
-                visibleCreatePreview = displayedRouteToolCreatePreview,
-                createPreviewInProgress = routeToolCreatePreviewInProgress,
-            )
         MapOverlays(
             mapViewModel = mapViewModel,
             mapHolder = mapHolder,
             activeGpxDetails = activeGpxDetails,
-            routeToolPreviewPoints =
-                routeToolPreview?.previewPoints
-                    ?: displayedRouteToolCreatePreview?.previewPoints
-                    ?: emptyList(),
             recordingTraceState = traceRecordingState,
             recordingTraceFollowsMarker = traceRecordingState.active && !traceRecordingState.paused,
-            routeToolCreatePreviewActive = displayedRouteToolCreatePreview != null,
-            routeToolDraftPoints = routeToolDraftConnectorPoints,
             gpxTrackColor = gpxTrackColor,
             gpxTrackColorMode = gpxTrackColorMode,
             gpxTrackWidth = gpxTrackWidth,
@@ -636,66 +572,14 @@ fun NavigateScreen(
         NavigateBackHandler(
             mapFocusMode = mapFocusState.mapFocusMode,
             onExitMapFocus = { exitMapFocus("back") },
-            completedRouteToolDraftActive = completedRouteToolDraft != null,
-            routeToolExecutionInProgress = routeToolExecutionInProgress,
-            routeToolSessionActive = routeToolSession != null,
-            showRouteToolsPanel = showRouteToolsPanel,
             shortcutTrayExpanded = shortcutTrayExpanded,
             backButtonExitsNavigation = backButtonExitsNavigation,
             backButtonClosesApp = backButtonClosesApp,
             onCloseApp = onCloseApp,
-            onDismissCompletedRouteToolDraft = {
-                completedRouteToolDraft = null
-                routeToolPreview = null
-            },
-            onCancelRouteToolSession = {
-                routeToolSession = null
-                routeToolCreatePreview = null
-                routeToolCreatePreviewMessage = null
-                routeToolCreatePreviewInProgress = false
-            },
-            onDismissRouteToolsPanel = {
-                showRouteToolsPanel = false
-                routeToolPreview = null
-                routeToolCreatePreview = null
-                routeToolCreatePreviewMessage = null
-                routeToolCreatePreviewInProgress = false
-            },
             onDismissShortcutTray = { shortcutTrayExpanded = false },
             onMenuClick = onMenuClick,
         )
 
-        val reshapePreviewInspectDraft =
-            completedRouteToolDraft?.takeIf { draft ->
-                draft.options.toolKind == RouteToolKind.MODIFY &&
-                    draft.options.modifyMode.previewBeforeSaving &&
-                    routeToolPreview != null
-            }
-        val reshapePreviewInspectMode = reshapePreviewInspectDraft != null
-        val routeModifyPreviewTitle =
-            reshapePreviewInspectDraft?.options?.modifyMode?.let { mode ->
-                when (mode) {
-                    RouteModifyMode.RESHAPE_ROUTE -> stringResource(R.string.navigate_reshape_preview)
-                    RouteModifyMode.TRIM_START_TO_HERE -> stringResource(R.string.navigate_change_start_preview)
-                    RouteModifyMode.TRIM_END_FROM_HERE -> stringResource(R.string.navigate_change_end_preview)
-                    else -> stringResource(R.string.navigate_gpx_preview)
-                }
-            } ?: stringResource(R.string.navigate_gpx_preview)
-        val routeModifyPreviewInstruction =
-            reshapePreviewInspectDraft?.options?.modifyMode?.let { mode ->
-                when (mode) {
-                    RouteModifyMode.RESHAPE_ROUTE -> stringResource(R.string.navigate_inspect_the_reroute_then_save)
-                    RouteModifyMode.TRIM_START_TO_HERE ->
-                        stringResource(
-                            R.string.navigate_inspect_the_new_start_then_save,
-                        )
-                    RouteModifyMode.TRIM_END_FROM_HERE ->
-                        stringResource(
-                            R.string.navigate_inspect_the_new_end_then_save,
-                        )
-                    else -> stringResource(R.string.navigate_inspect_the_edit_then_save)
-                }
-            } ?: stringResource(R.string.navigate_inspect_the_edit_then_save)
         val startupCentering =
             NavigateStartupCenteringEffects(
                 offlineMode = offlineMode,
@@ -786,60 +670,6 @@ fun NavigateScreen(
             }
         }
 
-        val defaultRouteToolOptions =
-            remember(
-                gpxToolRouteStyle,
-                gpxToolUseElevation,
-                gpxToolAllowFerries,
-                gpxToolCustomHikeParams,
-            ) {
-                RouteToolOptions(
-                    routeStyle = routeStylePresetFromSettingsValue(gpxToolRouteStyle),
-                    useElevation = gpxToolUseElevation,
-                    allowFerries = gpxToolAllowFerries,
-                    customHikeParams = gpxToolCustomHikeParams,
-                )
-            }
-
-        val routeToolActions =
-            rememberNavigateRouteToolActions(
-                context = context,
-                scope = scope,
-                mapView = mapView,
-                gpxViewModel = gpxViewModel,
-                locationViewModel = locationViewModel,
-                recenterTarget = recenterTarget,
-                gpsSignalSnapshot = gpsSignalSnapshot,
-                offlineMode = offlineMode,
-                activeGpxDetailsCount = activeGpxDetails.size,
-                selectedMapPath = selectedMapPath,
-                triggerHaptic = screenActions.triggerHaptic,
-                routeToolOptions = routeToolOptions,
-                routeToolDefaultOptions = defaultRouteToolOptions,
-                setRouteToolOptions = { routeToolOptions = it },
-                routeToolSession = routeToolSession,
-                setRouteToolSession = { routeToolSession = it },
-                setCompletedRouteToolDraft = { completedRouteToolDraft = it },
-                routeToolExecutionInProgress = routeToolExecutionInProgress,
-                setRouteToolExecutionInProgress = { routeToolExecutionInProgress = it },
-                setRouteToolExecutionStatus = { routeToolExecutionStatus = it },
-                setRouteToolExecutionMessage = { routeToolExecutionMessage = it },
-                setRouteToolLoopRetryOptions = { routeToolLoopRetryOptions = it },
-                setRouteToolResult = { routeToolResult = it },
-                setRouteToolRenameInProgress = { routeToolRenameInProgress = it },
-                setRouteToolRenameError = { routeToolRenameError = it },
-                setRouteToolPreview = { routeToolPreview = it },
-                routeToolCreatePreview = routeToolCreatePreview,
-                setRouteToolCreatePreview = { routeToolCreatePreview = it },
-                routeToolCreatePreviewInProgress = routeToolCreatePreviewInProgress,
-                setRouteToolCreatePreviewInProgress = { routeToolCreatePreviewInProgress = it },
-                routeToolCreatePreviewMessage = routeToolCreatePreviewMessage,
-                setRouteToolCreatePreviewMessage = { routeToolCreatePreviewMessage = it },
-                setRouteToolPreflightMessage = { routeToolPreflightMessage = it },
-                setShortcutTrayExpanded = { shortcutTrayExpanded = it },
-                setShowRouteToolsPanel = { showRouteToolsPanel = it },
-            )
-
         NavigateScreenDialogsHost(
             showKeepAppOpenInfoDialog = showKeepAppOpenInfoDialog,
             helpDialogMaxHeight = adaptive.helpDialogMaxHeight,
@@ -859,65 +689,6 @@ fun NavigateScreen(
             onDismissNotificationPermission = {
                 showNotificationPermissionDialog = false
                 pendingKeepAppOpen = false
-            },
-            mapLongPressTarget = mapLongPressTarget,
-            onCreateRouteAtMapLongPress = { target ->
-                mapLongPressTarget = null
-                routeToolActions.createRouteToCoordinate(target)
-            },
-            onDismissMapLongPressActions = { mapLongPressTarget = null },
-            showRouteToolsPanel = showRouteToolsPanel,
-            activeGpxDetailsCount = activeGpxDetails.size,
-            coordinateSeed = mapView.model.mapViewPosition.center,
-            routeToolOptions = routeToolOptions,
-            routeToolPreflightMessage = routeToolPreflightMessage,
-            onRouteToolOptionsChange = {
-                routeToolPreflightMessage = null
-                routeToolOptions = it.withVisibleLoopDefaults()
-            },
-            routeToolActions = routeToolActions,
-            completedRouteToolDraft = completedRouteToolDraft,
-            reshapePreviewInspectMode = reshapePreviewInspectMode,
-            routeToolExecutionInProgress = routeToolExecutionInProgress,
-            routeToolExecutionMessage = routeToolExecutionMessage,
-            routeToolExecutionStatus = routeToolExecutionStatus,
-            routeToolLoopRetryOptions = routeToolLoopRetryOptions,
-            onDismissDraftSummary = {
-                if (!routeToolExecutionInProgress) {
-                    completedRouteToolDraft = null
-                    routeToolExecutionMessage = null
-                    routeToolLoopRetryOptions = emptyList()
-                    routeToolPreview = null
-                }
-            },
-            onSetRouteToolOptions = { routeToolOptions = it },
-            onClearRouteToolExecutionMessage = { routeToolExecutionMessage = null },
-            onClearRouteToolLoopRetryOptions = { routeToolLoopRetryOptions = emptyList() },
-            routeToolResult = routeToolResult,
-            routeToolRenameInProgress = routeToolRenameInProgress,
-            routeToolRenameError = routeToolRenameError,
-            isMetric = isMetric,
-            recordingGpsEnabled = recordingScreenOnGpsEnabled,
-            gpxViewModel = gpxViewModel,
-            onSetRouteToolResult = { routeToolResult = it },
-            onSetRouteToolRenameInProgress = { routeToolRenameInProgress = it },
-            onSetRouteToolRenameError = { routeToolRenameError = it },
-            onRouteToolGuidanceStarted = {
-                navigateViewModel.onRecenterRequested()
-                locationViewModel.requestImmediateLocation(source = "ui_route_tool_guidance_start")
-                DebugTelemetry.log(
-                    "NavigationTelemetry",
-                    "event=recenter reason=route_tool_guidance_start",
-                )
-            },
-            onDismissRouteToolsPanel = {
-                showRouteToolsPanel = false
-                routeToolPreflightMessage = null
-            },
-            onOpenGpxToolsSettings = {
-                showRouteToolsPanel = false
-                routeToolPreflightMessage = null
-                onOpenGpxToolsSettings()
             },
         )
 
@@ -1051,20 +822,17 @@ fun NavigateScreen(
             shortcutTrayExpanded = shortcutTrayExpanded,
             onShortcutTrayToggle = screenActions.toggleShortcutTray,
             onShortcutTrayDismiss = { shortcutTrayExpanded = false },
-            onOpenGpxTools = routeToolActions.openRouteToolsPanel,
             gpsIndicatorState = effectiveGpsIndicatorState,
             gpsEnvironmentWarning = gpsEnvironmentWarning,
             watchGpsDegradedWarning = watchGpsDegradedWarning,
             isOfflineMode = offlineMode,
             isGpxInspectionEnabled = isGpxInspectionEnabled,
-            poiMapLongPressActionsEnabled = poiMapLongPressActionsEnabled,
             selectingGpxPointB = selectingGpxPointB,
             onCancelSelectingGpxPointB = { gpxViewModel.cancelSelectingB() },
             turnByTurnGuidanceState = guidanceRuntime.state,
             turnByTurnGuidancePaused = turnByTurnGuidancePaused,
             turnByTurnVoiceGuidanceEnabled = turnByTurnVoiceGuidanceEnabled,
-            turnByTurnCompactPopupEnabled =
-                turnByTurnCompactPopupEnabled && !showRouteToolsPanel,
+            turnByTurnCompactPopupEnabled = turnByTurnCompactPopupEnabled,
             turnByTurnMapProgressEnabled = turnByTurnMapProgressEnabled,
             turnByTurnElevationProgressRingEnabled = turnByTurnElevationProgressRingEnabled,
             routeProgressRingSegments = routeProgressRingSegments,
@@ -1084,57 +852,9 @@ fun NavigateScreen(
             gpxTrackColorMode = gpxTrackColorMode,
             gpxTrackWidth = gpxTrackWidth,
             gpxTrackOpacityPercent = gpxTrackOpacityPercent,
-            routeToolSession = routeToolSession,
-            routeToolCreatePreview = displayedRouteToolCreatePreview,
-            routeToolDraftConnectorPoints = routeToolDraftConnectorPoints,
-            routeToolCreatePreviewInProgress = routeToolCreatePreviewInProgress,
-            routeToolCreatePreviewMessage = routeToolCreatePreviewMessage,
-            reshapePreviewInspectMode = reshapePreviewInspectMode,
-            reshapePreviewPoints = routeToolPreview?.previewPoints ?: emptyList(),
-            reshapePreviewTitle = routeModifyPreviewTitle,
-            reshapePreviewInstruction = routeModifyPreviewInstruction,
-            reshapePreviewBusy = routeToolExecutionInProgress,
-            reshapePreviewBusyMessage = routeToolExecutionStatus,
-            reshapePreviewMessage = routeToolExecutionMessage,
-            onRouteToolPickHere = routeToolActions.captureRouteToolPoint,
-            onRouteToolUndoLastPoint = routeToolActions.undoRouteToolPoint,
-            onRouteToolSaveCreatePreview = routeToolActions.saveCreatePreview,
-            onRouteToolRefreshCreatePreview = routeToolActions.refreshLoopPreview,
-            onCancelRouteToolMode = {
-                routeToolSession = null
-                routeToolCreatePreview = null
-                routeToolCreatePreviewMessage = null
-                routeToolCreatePreviewInProgress = false
-            },
-            onDismissReshapePreview = {
-                if (!routeToolExecutionInProgress) {
-                    completedRouteToolDraft = null
-                    routeToolExecutionMessage = null
-                    routeToolLoopRetryOptions = emptyList()
-                    routeToolPreview = null
-                }
-            },
-            onSaveReshapePreview = {
-                reshapePreviewInspectDraft?.let { draft ->
-                    routeToolActions.executeModifyDraft(draft, false)
-                }
-            },
             onMapLongPress = { latLong ->
-                val requestId = ++mapLongPressRequestId
-                val selectingPointBAtPress = selectingGpxPointB
                 scope.launch {
-                    val gpxInspectionHandled =
-                        isGpxInspectionEnabled && gpxViewModel.inspectMapLongPress(latLong)
-                    if (
-                        requestId == mapLongPressRequestId &&
-                        shouldOpenMapLongPressActions(
-                            actionsEnabled = poiMapLongPressActionsEnabled,
-                            gpxInspectionHandled = gpxInspectionHandled,
-                            selectingGpxPointB = selectingPointBAtPress,
-                        )
-                    ) {
-                        mapLongPressTarget = latLong
-                    }
+                    if (isGpxInspectionEnabled) gpxViewModel.inspectMapLongPress(latLong)
                 }
             },
             markerMotionDebugOverlayLabel = markerMotionDebugOverlayLabel,
@@ -1167,12 +887,6 @@ fun NavigateScreen(
                 !showKeepAppOpenInfoDialog &&
                 !showNotificationPermissionDialog &&
                 !shortcutTrayExpanded &&
-                !showRouteToolsPanel &&
-                routeToolSession == null &&
-                completedRouteToolDraft == null &&
-                !routeToolExecutionInProgress &&
-                routeToolResult == null &&
-                mapLongPressTarget == null &&
                 !selectingGpxPointB
         MissingMapPrompt(
             visible =

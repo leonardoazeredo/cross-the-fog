@@ -86,9 +86,6 @@ import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnB
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingUiState
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingViewModel
 import codes.madera.crossfog.watch.presentation.features.recording.dashboard.LocalFullscreenPopupTimeFormat
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteShortcutTray
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolCreatePreview
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolSession
 import codes.madera.crossfog.watch.presentation.ui.cappedFontScale
 import codes.madera.crossfog.watch.presentation.ui.rememberWearAdaptiveSpec
 import codes.madera.crossfog.watch.presentation.ui.rememberWearScreenSize
@@ -183,13 +180,11 @@ internal fun NavigateContent(
     shortcutTrayExpanded: Boolean,
     onShortcutTrayToggle: () -> Unit,
     onShortcutTrayDismiss: () -> Unit,
-    onOpenGpxTools: () -> Unit,
     gpsIndicatorState: GpsFixIndicatorState,
     gpsEnvironmentWarning: GpsEnvironmentWarning,
     watchGpsDegradedWarning: Boolean,
     isOfflineMode: Boolean,
     isGpxInspectionEnabled: Boolean,
-    poiMapLongPressActionsEnabled: Boolean,
     selectingGpxPointB: Boolean,
     onCancelSelectingGpxPointB: () -> Unit,
     turnByTurnGuidanceState: TurnByTurnGuidanceState,
@@ -215,25 +210,6 @@ internal fun NavigateContent(
     gpxTrackColorMode: String,
     gpxTrackWidth: Float,
     gpxTrackOpacityPercent: Int,
-    routeToolSession: RouteToolSession?,
-    routeToolCreatePreview: RouteToolCreatePreview?,
-    routeToolDraftConnectorPoints: List<LatLong>,
-    routeToolCreatePreviewInProgress: Boolean,
-    routeToolCreatePreviewMessage: String?,
-    reshapePreviewInspectMode: Boolean,
-    reshapePreviewPoints: List<LatLong>,
-    reshapePreviewTitle: String,
-    reshapePreviewInstruction: String,
-    reshapePreviewBusy: Boolean,
-    reshapePreviewBusyMessage: String?,
-    reshapePreviewMessage: String?,
-    onRouteToolPickHere: (LatLong) -> Unit,
-    onRouteToolUndoLastPoint: () -> Unit,
-    onRouteToolSaveCreatePreview: () -> Unit,
-    onRouteToolRefreshCreatePreview: () -> Unit,
-    onCancelRouteToolMode: () -> Unit,
-    onDismissReshapePreview: () -> Unit,
-    onSaveReshapePreview: () -> Unit,
     onMapLongPress: (LatLong) -> Unit,
     markerMotionDebugOverlayLabel: String?,
     onCompassIssueNow: (() -> Unit)?,
@@ -294,11 +270,8 @@ internal fun NavigateContent(
     val latestOnMapLongPress = rememberUpdatedState(onMapLongPress)
     val latestMapLongPressEnabled =
         rememberUpdatedState(
-            (isGpxInspectionEnabled || (poiMapLongPressActionsEnabled && !selectingGpxPointB)) &&
-                routeToolSession == null &&
-                !reshapePreviewInspectMode,
+            isGpxInspectionEnabled,
         )
-    val latestRouteToolSession = rememberUpdatedState(routeToolSession)
     val latestMapView = rememberUpdatedState(mapView)
     val latestOnZoomLevelChange = rememberUpdatedState(onZoomLevelChange)
     val latestOnViewportChanged = rememberUpdatedState(onViewportChanged)
@@ -312,23 +285,8 @@ internal fun NavigateContent(
         remember(mapView, crownZoomEnabled, crownZoomInverted, zoomMin, zoomMax) {
             CrownZoomCoalescer()
         }
-    var routeToolOverlayRevision by remember { mutableIntStateOf(0) }
     var pendingDoubleTapPanningCheck by remember { mutableStateOf(false) }
     val panTelemetry = remember(mapView) { NavigatePanTelemetry() }
-
-    LaunchedEffect(reshapePreviewInspectMode, reshapePreviewPoints, mapView, zoomMin, zoomMax) {
-        val currentMapView = mapView ?: return@LaunchedEffect
-        if (!reshapePreviewInspectMode || reshapePreviewPoints.size < 2) return@LaunchedEffect
-        onUserPanStarted()
-        currentMapView.post {
-            fitMapViewToPreviewPoints(
-                mapView = currentMapView,
-                points = reshapePreviewPoints,
-                zoomMin = zoomMin,
-                zoomMax = zoomMax,
-            )
-        }
-    }
 
     fun applyMapZoomTarget(
         targetZoom: Int,
@@ -522,7 +480,6 @@ internal fun NavigateContent(
                 },
             )
         }
-    val routeToolModeActive = routeToolSession != null || reshapePreviewInspectMode
     val density = LocalDensity.current
     var visibleMapSizePx by remember { mutableStateOf(IntSize.Zero) }
     var clockChipWidthPx by remember { mutableIntStateOf(0) }
@@ -559,12 +516,12 @@ internal fun NavigateContent(
             mapFocusMode = mapFocusState.mapFocusMode,
             dashboardFullscreen = fullScreenPopupExpanded,
             visibleControls = mapFocusVisibleControls,
-            toolsAvailable = hasLocationPermission && mapView != null && !routeToolModeActive,
+            toolsAvailable = hasLocationPermission && mapView != null,
         )
     val suppressNavigateTimeForLayout =
         !fullScreenPopupExpanded &&
             adaptive.fontScale > 1f &&
-            ((showScaleBar && mapChrome.shows(MapFocusControl.SCALE)) || routeToolModeActive)
+            (showScaleBar && mapChrome.shows(MapFocusControl.SCALE))
     val shouldSuppressNavigateTime =
         shortcutTrayExpanded || !mapChrome.shows(MapFocusControl.TIME) || suppressNavigateTimeForLayout
     MapFocusModeEffects(mapFocusState)
@@ -714,14 +671,7 @@ internal fun NavigateContent(
                         }
                         if (centerChanged || zoomChanged) {
                             lastCenter = newCenter
-                            val routeToolOverlayRefreshed =
-                                shouldRefreshRouteToolOverlayForViewport(
-                                    routeToolSessionActive = latestRouteToolSession.value != null,
-                                )
-                            if (routeToolOverlayRefreshed) {
-                                routeToolOverlayRevision++
-                            }
-                            panTelemetry.onViewportChanged(routeToolOverlayRefreshed)
+                            panTelemetry.onViewportChanged()
                             latestOnViewportChanged.value(newCenter, newZoom)
                             if (pendingDoubleTapPanningCheck) {
                                 scheduleDoubleTapPanningCheck()
@@ -838,8 +788,6 @@ internal fun NavigateContent(
                                                     isDragging = true
                                                     panTelemetry.onPanStarted(
                                                         navMode = latestNavMode.value,
-                                                        routeToolSessionActive =
-                                                            latestRouteToolSession.value != null,
                                                         zoomLevel =
                                                             mapView.model.mapViewPosition.zoomLevel
                                                                 .toInt(),
@@ -996,10 +944,8 @@ internal fun NavigateContent(
                     sideButtonSize = sideButtonSize,
                     sideButtonIconSize = sideButtonIconSize,
                     shortcutTrayExpanded = shortcutTrayExpanded,
-                    routeToolModeActive = routeToolModeActive,
                     onShortcutTrayToggle = onShortcutTrayToggle,
                     onShortcutTrayDismiss = onShortcutTrayDismiss,
-                    onGpxToolsClick = onOpenGpxTools,
                     keepAppOpen = keepAppOpen,
                     onKeepAppOpenToggle = onKeepAppOpenToggle,
                     traceRecordingState = traceRecordingState,
@@ -1125,36 +1071,6 @@ internal fun NavigateContent(
                 message = recordingStatusMessage,
                 modifier = Modifier.align(Alignment.Center),
             )
-
-            NavigateRouteToolOverlayHost(
-                routeToolSession = routeToolSession,
-                activeGpxDetails = activeGpxDetails,
-                mapView = mapView,
-                mapRotationDeg = mapRotationDeg,
-                viewportRevision = routeToolOverlayRevision,
-                screenSize = screenSize,
-                isMetric = isMetric,
-                routeToolCreatePreview = routeToolCreatePreview,
-                routeToolCreatePreviewInProgress = routeToolCreatePreviewInProgress,
-                routeToolCreatePreviewMessage = routeToolCreatePreviewMessage,
-                routeToolDraftConnectorPoints = routeToolDraftConnectorPoints,
-                gpxTrackColor = gpxTrackColor,
-                onRouteToolPickHere = onRouteToolPickHere,
-                onRouteToolUndoLastPoint = onRouteToolUndoLastPoint,
-                onRouteToolSaveCreatePreview = onRouteToolSaveCreatePreview,
-                onRouteToolRefreshCreatePreview = onRouteToolRefreshCreatePreview,
-                onCancelRouteToolMode = onCancelRouteToolMode,
-                reshapePreviewInspectMode = reshapePreviewInspectMode,
-                reshapePreviewPoints = reshapePreviewPoints,
-                reshapePreviewTitle = reshapePreviewTitle,
-                reshapePreviewInstruction = reshapePreviewInstruction,
-                reshapePreviewBusy = reshapePreviewBusy,
-                reshapePreviewBusyMessage = reshapePreviewBusyMessage,
-                reshapePreviewMessage = reshapePreviewMessage,
-                onDismissReshapePreview = onDismissReshapePreview,
-                onSaveReshapePreview = onSaveReshapePreview,
-                visibleMapSizePx = visibleMapSizePx,
-            )
         } else {
             NavigatePermissionRequiredContent(
                 sizing = sizing,
@@ -1197,12 +1113,6 @@ internal fun pinchZoomOutStep(scaleFactor: Float): Int =
     } else {
         0
     }
-
-internal fun shouldOpenMapLongPressActions(
-    actionsEnabled: Boolean,
-    gpxInspectionHandled: Boolean,
-    selectingGpxPointB: Boolean,
-): Boolean = actionsEnabled && !gpxInspectionHandled && !selectingGpxPointB
 
 // Stateless Compose renderer: its direct UI inputs preserve the visible clock, status, and gestures.
 @Suppress("CyclomaticComplexMethod", "FunctionNaming", "LongMethod", "LongParameterList")
@@ -1369,7 +1279,6 @@ internal fun shouldEnterPanningAfterDoubleTap(
     return navigateHaversineMeters(center, marker) > thresholdMeters
 }
 
-internal fun shouldRefreshRouteToolOverlayForViewport(routeToolSessionActive: Boolean): Boolean = routeToolSessionActive
 
 private const val DOUBLE_TAP_PANNING_DISTANCE_THRESHOLD_METERS = 4.0
 private const val DOUBLE_TAP_PANNING_CHECK_DELAY_MS = 120L

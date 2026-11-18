@@ -50,12 +50,6 @@ import org.mapsforge.map.model.common.Observer
 
 private const val ELEVATION_TRACK_OUTLINE_ALPHA = 176
 private const val ELEVATION_TRACK_OUTLINE_WIDTH_EXTRA_PX = 3f
-private const val ROUTE_TOOL_PREVIEW_ALPHA = 228
-private const val ROUTE_TOOL_CREATE_PREVIEW_ALPHA = 238
-private const val ROUTE_TOOL_DRAFT_ALPHA = 170
-private const val ROUTE_TOOL_PREVIEW_RED = 0
-private const val ROUTE_TOOL_PREVIEW_GREEN = 217
-private const val ROUTE_TOOL_PREVIEW_BLUE = 232
 
 @Composable
 @OptIn(FlowPreview::class)
@@ -64,11 +58,8 @@ internal fun MapOverlays(
     mapViewModel: MapViewModel,
     mapHolder: MapHolder,
     activeGpxDetails: List<GpxTrackDetails>,
-    routeToolPreviewPoints: List<LatLong>,
     recordingTraceState: TraceRecordingUiState,
     recordingTraceFollowsMarker: Boolean,
-    routeToolCreatePreviewActive: Boolean,
-    routeToolDraftPoints: List<LatLong>,
     gpxTrackColor: Int,
     gpxTrackColorMode: String,
     gpxTrackWidth: Float,
@@ -232,9 +223,6 @@ internal fun MapOverlays(
     GpxAndInspectionOverlayEffect(
         mapView = mapView,
         activeGpxDetails = activeGpxDetails,
-        routeToolPreviewPoints = routeToolPreviewPoints,
-        routeToolCreatePreviewActive = routeToolCreatePreviewActive,
-        routeToolDraftPoints = routeToolDraftPoints,
         gpxTrackColor = gpxTrackColor,
         gpxTrackColorMode = gpxTrackColorMode,
         gpxTrackWidth = gpxTrackWidth,
@@ -443,9 +431,6 @@ private fun findExistingCompassConeLayer(mapView: MapView): CompassConeLayer? =
 private fun GpxAndInspectionOverlayEffect(
     mapView: MapView,
     activeGpxDetails: List<GpxTrackDetails>,
-    routeToolPreviewPoints: List<LatLong>,
-    routeToolCreatePreviewActive: Boolean,
-    routeToolDraftPoints: List<LatLong>,
     gpxTrackColor: Int,
     gpxTrackColorMode: String,
     gpxTrackWidth: Float,
@@ -470,14 +455,6 @@ private fun GpxAndInspectionOverlayEffect(
         remember {
             AndroidGraphicFactory.INSTANCE.createPaint().apply { setStyle(Style.STROKE) }
         }
-    val previewPaint =
-        remember {
-            AndroidGraphicFactory.INSTANCE.createPaint().apply { setStyle(Style.STROKE) }
-        }
-    val draftPaint =
-        remember {
-            AndroidGraphicFactory.INSTANCE.createPaint().apply { setStyle(Style.STROKE) }
-        }
 
     // Stable caches
     val polylinesById = remember(mapView) { mutableMapOf<String, List<Polyline>>() }
@@ -488,14 +465,6 @@ private fun GpxAndInspectionOverlayEffect(
     val lodById = remember(mapView) { mutableMapOf<String, TrackLodLevels>() }
     val trackLodCacheById = remember(mapView) { mutableMapOf<String, TrackLodLevels>() }
     val displayedLodBucketById = remember(mapView) { mutableMapOf<String, Int>() }
-    val previewPolyline =
-        remember(mapView) {
-            Polyline(previewPaint, AndroidGraphicFactory.INSTANCE)
-        }
-    val draftPolyline =
-        remember(mapView) {
-            Polyline(draftPaint, AndroidGraphicFactory.INSTANCE)
-        }
 
     // Bitmaps
     val markerBitmapA =
@@ -529,7 +498,7 @@ private fun GpxAndInspectionOverlayEffect(
             GpxDirectionArrowLayer(AndroidBitmap(createGpxDirectionArrowBitmap()))
         }
 
-    LaunchedEffect(gpxTrackColor, gpxTrackWidth, gpxTrackOpacityPercent, routeToolCreatePreviewActive) {
+    LaunchedEffect(gpxTrackColor, gpxTrackWidth, gpxTrackOpacityPercent) {
         trackPaint.color =
             applyOpacityToColor(
                 color = gpxTrackColor,
@@ -538,31 +507,6 @@ private fun GpxAndInspectionOverlayEffect(
         trackPaint.strokeWidth = gpxTrackWidth
         gapPaint.color = applyOpacityToColor(Color.rgb(128, 128, 128), gpxTrackOpacityPercent)
         gapPaint.strokeWidth = gpxTrackWidth
-        previewPaint.color =
-            if (routeToolCreatePreviewActive) {
-                Color.argb(
-                    ROUTE_TOOL_CREATE_PREVIEW_ALPHA,
-                    ROUTE_TOOL_PREVIEW_RED,
-                    ROUTE_TOOL_PREVIEW_GREEN,
-                    ROUTE_TOOL_PREVIEW_BLUE,
-                )
-            } else {
-                Color.argb(
-                    ROUTE_TOOL_PREVIEW_ALPHA,
-                    ROUTE_TOOL_PREVIEW_RED,
-                    ROUTE_TOOL_PREVIEW_GREEN,
-                    ROUTE_TOOL_PREVIEW_BLUE,
-                )
-            }
-        previewPaint.strokeWidth = maxOf(gpxTrackWidth + 2f, 6f)
-        draftPaint.color =
-            Color.argb(
-                ROUTE_TOOL_DRAFT_ALPHA,
-                ROUTE_TOOL_PREVIEW_RED,
-                ROUTE_TOOL_PREVIEW_GREEN,
-                ROUTE_TOOL_PREVIEW_BLUE,
-            )
-        draftPaint.strokeWidth = maxOf(gpxTrackWidth, 4f)
         requestMapRedraw()
     }
 
@@ -815,60 +759,6 @@ private fun GpxAndInspectionOverlayEffect(
         }
     }
 
-    LaunchedEffect(routeToolPreviewPoints) {
-        mapView.mutateLayers { layers ->
-            var changed = false
-            val hasPreview = routeToolPreviewPoints.size >= 2
-            val previewAttached = layers.contains(previewPolyline)
-
-            if (hasPreview) {
-                if (!previewAttached) {
-                    layers.add(previewPolyline)
-                    changed = true
-                }
-                if (!hasSameLatLongs(previewPolyline.latLongs, routeToolPreviewPoints)) {
-                    previewPolyline.latLongs.clear()
-                    previewPolyline.latLongs.addAll(routeToolPreviewPoints)
-                    changed = true
-                }
-            } else if (previewAttached) {
-                layers.remove(previewPolyline)
-                previewPolyline.latLongs.clear()
-                changed = true
-            }
-
-            val reordered = topOverlayCoordinator.sync(layers)
-            if (changed || reordered) requestMapRedraw()
-        }
-    }
-
-    LaunchedEffect(routeToolDraftPoints) {
-        mapView.mutateLayers { layers ->
-            var changed = false
-            val hasDraft = routeToolDraftPoints.size >= 2
-            val draftAttached = layers.contains(draftPolyline)
-
-            if (hasDraft) {
-                if (!draftAttached) {
-                    layers.add(draftPolyline)
-                    changed = true
-                }
-                if (!hasSameLatLongs(draftPolyline.latLongs, routeToolDraftPoints)) {
-                    draftPolyline.latLongs.clear()
-                    draftPolyline.latLongs.addAll(routeToolDraftPoints)
-                    changed = true
-                }
-            } else if (draftAttached) {
-                layers.remove(draftPolyline)
-                draftPolyline.latLongs.clear()
-                changed = true
-            }
-
-            val reordered = topOverlayCoordinator.sync(layers)
-            if (changed || reordered) requestMapRedraw()
-        }
-    }
-
     // Re-apply desired z-order when top overlays change.
     LaunchedEffect(locationMarker, selectedPointA, selectedPointB) {
         mapView.mutateLayers { layers ->
@@ -932,7 +822,6 @@ private fun GpxAndInspectionOverlayEffect(
                 layers.remove(directionArrowLayer)
                 markerAHolder[0]?.let(layers::remove)
                 markerBHolder[0]?.let(layers::remove)
-                layers.remove(previewPolyline)
 
                 polylinesById.clear()
                 elevationPolylinesById.clear()
@@ -943,7 +832,6 @@ private fun GpxAndInspectionOverlayEffect(
                 lodById.clear()
                 trackLodCacheById.clear()
                 displayedLodBucketById.clear()
-                previewPolyline.latLongs.clear()
                 markerAHolder[0] = null
                 markerBHolder[0] = null
 

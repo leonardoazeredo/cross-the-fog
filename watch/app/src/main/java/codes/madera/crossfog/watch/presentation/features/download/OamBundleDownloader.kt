@@ -24,10 +24,6 @@ import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.maps.Dem3CoverageUtils
 import codes.madera.crossfog.watch.core.maps.DemSignatureStore
 import codes.madera.crossfog.watch.core.maps.DemSource
-import codes.madera.crossfog.watch.core.routing.RoutingCoverageUtils
-import codes.madera.crossfog.watch.core.routing.routingSegmentPartFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentTargetFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentsDir
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.transfer.storage.partialFileUseGuard
 import codes.madera.crossfog.watch.data.repository.MapRepositoryImpl
@@ -58,7 +54,6 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import kotlin.coroutines.coroutineContext
 
-private const val OAM_REMOTE_BROUTER_SEGMENTS_BASE_URL = "https://brouter.de/brouter/segments4"
 private const val DEM_TELEMETRY_SAMPLE_LIMIT = 5
 
 data class OamDownloadProgress(
@@ -66,12 +61,6 @@ data class OamDownloadProgress(
     val detail: String,
     val bytesDone: Long = 0L,
     val totalBytes: Long? = null,
-)
-
-private data class RoutingSegmentDownloadResult(
-    val fileName: String,
-    val downloaded: Boolean,
-    val available: Boolean = true,
 )
 
 internal enum class DemTileDownloadOutcome {
@@ -167,15 +156,6 @@ internal fun buildRemoteFileRequestsForBundle(
                 ),
             )
         }
-        bundle.routingFileNames.forEach { fileName ->
-            val safeName = File(fileName).name
-            add(
-                RemoteFileRequest(
-                    url = "$OAM_REMOTE_BROUTER_SEGMENTS_BASE_URL/$safeName",
-                    fileName = safeName,
-                ),
-            )
-        }
         bundle.demTileIds
             .filterNot(shouldSkipKnownMissingDemTile)
             .forEach { tileId ->
@@ -219,13 +199,6 @@ class OamBundleDownloader(
                 if (!healthy) {
                     repairFileNames += area?.let { oamRemoteFileName(it.mapZipUrl) } ?: File(fileName).name
                 }
-            }
-            bundle.routingFileNames.forEach { fileName ->
-                val file = routingSegmentTargetFile(context, fileName)
-                val healthy =
-                    file.isHealthyLocalFile() &&
-                        (!thorough || runCatching { validateRoutingSegmentIndex(file, resources = context.resources) }.isSuccess)
-                if (!healthy) repairFileNames += File(fileName).name
             }
             bundle.demTileIds.forEach { tileId ->
                 if (isKnownMissingDemTile(tileId, bundle.demSource)) return@forEach
@@ -344,14 +317,6 @@ class OamBundleDownloader(
                 if (selection.includeMap) {
                     deleteZipAndPartial("${area.id}.map.zip")
                 }
-                if (selection.includeRouting) {
-                    routingSegmentNamesForArea(
-                        area = area,
-                        installedBundles = installedBundles,
-                    ).forEach { fileName ->
-                        routingSegmentPartFile(context, fileName).delete()
-                    }
-                }
                 if (selection.includeDem) {
                     runCatching {
                         demTileIdsForArea(
@@ -372,8 +337,6 @@ class OamBundleDownloader(
         forceMap: Boolean = forceMapAndPoi,
         forcePoi: Boolean = forceMapAndPoi,
         forceRefugesInfo: Boolean = forceMap,
-        forceRoutingSegments: Boolean = false,
-        forceRoutingFileNames: Set<String> = emptySet(),
         forceDemTiles: Boolean = false,
         forceDemTileIds: Set<String> = emptySet(),
         extractionKeepAliveState: () -> OamDownloadKeepAliveState = { OamDownloadKeepAliveState() },
@@ -388,7 +351,7 @@ class OamBundleDownloader(
             DebugTelemetry.log(
                 OAM_DOWNLOAD_TELEMETRY_TAG,
                 "event=bundle_start area=${area.id} map=${selection.includeMap} poi=${selection.includePoi} " +
-                    "routing=${selection.includeRouting} dem=${selection.includeDem} " +
+                    "dem=${selection.includeDem} " +
                     "demSource=${selection.demSource.id} refuges=${selection.includeRefugesInfo}",
             )
             val progressArbiter = OamBundleProgressArbiter(onProgress)
@@ -511,49 +474,6 @@ class OamBundleDownloader(
                 )
             }
 
-            var downloadedRoutingFileNames = existingBundle?.downloadedRoutingFileNames.orEmpty()
-            val routingFileNames =
-                if (selection.includeRouting) {
-                    val requiredSegments = routingSegmentNamesForArea(area = area, mapFileName = mapFileName)
-                    val segmentResults =
-                        requiredSegments.map { fileName ->
-                            val segmentUrl = "$BROUTER_SEGMENTS_BASE_URL/$fileName"
-                            val safeName = File(fileName).name
-                            val forceDownload = forceRoutingSegments || safeName in forceRoutingFileNames
-                            val localFileAvailable =
-                                routingSegmentTargetFile(context, safeName).isHealthyLocalFile()
-                            if (
-                                shouldFetchRemoteMetadataBeforeDownload(
-                                    localFileAvailable = localFileAvailable,
-                                    forceDownload = forceDownload,
-                                )
-                            ) {
-                                fetchRemoteMetadataOrNull(
-                                    RemoteFileRequest(
-                                        url = segmentUrl,
-                                        fileName = safeName,
-                                    ),
-                                )?.let { remoteFilesByUrl[it.url] = it }
-                            }
-                            progressArbiter.runNetwork { networkProgress ->
-                                downloadRoutingSegment(
-                                    fileName = safeName,
-                                    forceDownload = forceDownload,
-                                    onResponseMetadata = { metadata -> remoteFilesByUrl[metadata.url] = metadata },
-                                    onProgress = networkProgress,
-                                )
-                            }
-                        }
-                    val resultFileNames = segmentResults.filter { it.available }.map { it.fileName }
-                    downloadedRoutingFileNames =
-                        (downloadedRoutingFileNames + segmentResults.filter { it.downloaded }.map { it.fileName })
-                            .distinct()
-                            .filter { it in resultFileNames }
-                    resultFileNames
-                } else {
-                    existingBundle?.routingFileNames.orEmpty()
-                }
-
             var downloadedDemTileIds = existingBundle?.downloadedDemTileIds.orEmpty()
             val demTileIds =
                 if (selection.includeDem) {
@@ -643,8 +563,8 @@ class OamBundleDownloader(
                     mapFileName = mapFileName,
                     poiFileName = existingBundle?.poiFileName,
                     refugesInfoFileName = existingBundle?.refugesInfoFileName,
-                    routingFileNames = routingFileNames,
-                    downloadedRoutingFileNames = downloadedRoutingFileNames,
+                    routingFileNames = existingBundle?.routingFileNames.orEmpty(),
+                    downloadedRoutingFileNames = existingBundle?.downloadedRoutingFileNames.orEmpty(),
                     demSource =
                         if (selection.includeDem) {
                             selection.demSource
@@ -657,9 +577,6 @@ class OamBundleDownloader(
                     remoteFiles = remoteFilesByUrl.values.sortedBy { it.url },
                 )
             bundleStore.upsert(installed)
-            if (selection.includeRouting) {
-                RoutingCoverageUtils.clearCaches()
-            }
             if (selection.includeDem) {
                 DemSignatureStore.markDirty(context)
                 Dem3CoverageUtils.clearCaches()
@@ -674,7 +591,6 @@ class OamBundleDownloader(
     suspend fun deleteBundle(bundle: OamInstalledBundle) {
         withContext(Dispatchers.IO) {
             val otherBundles = bundleStore.listInstalledBundles().filterNot { it.areaId == bundle.areaId }
-            val routingFilesUsedByOtherBundles = otherBundles.flatMap { it.routingFileNames }.toSet()
             val demTilesUsedByOtherBundles =
                 otherBundles.filter { it.demSource == bundle.demSource }.flatMap { it.demTileIds }.toSet()
             val deletedFiles = mutableListOf<File>()
@@ -691,16 +607,6 @@ class OamBundleDownloader(
                 file.delete()
                 partial.delete()
             }
-            bundle.downloadedRoutingFileNames
-                .filterNot { it in routingFilesUsedByOtherBundles }
-                .forEach { fileName ->
-                    val file = routingSegmentTargetFile(context, fileName)
-                    val partial = routingSegmentPartFile(context, fileName)
-                    deletedFiles += listOf(file, partial)
-                    file.delete()
-                    partial.delete()
-                }
-            RoutingCoverageUtils.clearCaches()
             val remainingMapDemTiles =
                 mapRepository
                     .listMapFiles()
@@ -729,31 +635,6 @@ class OamBundleDownloader(
         val safeName = File(fileName).name
         File(downloadDir, safeName).delete()
         File(downloadDir, ".$safeName.part").delete()
-    }
-
-    private suspend fun routingSegmentNamesForArea(
-        area: OamDownloadArea,
-        installedBundles: List<OamInstalledBundle>,
-    ): Set<String> =
-        routingSegmentNamesForArea(
-            area = area,
-            mapFileName =
-                installedBundles
-                    .firstOrNull { it.areaId == area.id }
-                    ?.mapFileName,
-        ).toSet()
-
-    private suspend fun routingSegmentNamesForArea(
-        area: OamDownloadArea,
-        mapFileName: String?,
-    ): List<String> {
-        val mapFile =
-            mapFileForArea(area = area, mapFileName = mapFileName)
-                ?: throw IOException(context.resources.getString(R.string.download_routing_needs_the_map_in_this_bundle_or_an_installed_map_for, area.region))
-        return RoutingCoverageUtils
-            .requiredSegmentNamesForMapFile(mapFile)
-            ?.sorted()
-            ?: throw IOException(context.resources.getString(R.string.download_cannot_read_map_bounds_for_routing))
     }
 
     private suspend fun demTileIdsForArea(
@@ -890,79 +771,6 @@ class OamBundleDownloader(
                 totalBytes = archive.length().takeIf { it > 0L },
             ),
         )
-    }
-
-    private suspend fun downloadRoutingSegment(
-        fileName: String,
-        forceDownload: Boolean,
-        onResponseMetadata: (OamRemoteFileMetadata) -> Unit,
-        onProgress: (OamDownloadProgress) -> Unit,
-    ): RoutingSegmentDownloadResult {
-        val safeName = File(fileName).name
-        val targetFile = routingSegmentTargetFile(context, safeName)
-        if (forceDownload) {
-            routingSegmentPartFile(context, safeName).delete()
-        }
-        if (!forceDownload && targetFile.exists() && targetFile.length() > 0L) {
-            onProgress(
-                OamDownloadProgress(
-                    phase = "READY",
-                    detail = safeName,
-                    bytesDone = targetFile.length(),
-                    totalBytes = targetFile.length(),
-                ),
-            )
-            return RoutingSegmentDownloadResult(fileName = safeName, downloaded = false)
-        }
-        val url = "$BROUTER_SEGMENTS_BASE_URL/$safeName"
-        val result =
-            runCatching {
-                downloadFile(
-                    url = url,
-                    dir = routingSegmentsDir(context),
-                    fileName = safeName,
-                    label = context.resources.getString(R.string.download_routing),
-                    progressDetail = safeName,
-                    bufferSize = 512 * 1024,
-                    progressStepBytes = 1L * 1024 * 1024,
-                    fsync = true,
-                    onResponseMetadata = onResponseMetadata,
-                    onProgress = onProgress,
-                ).let { downloadedFile ->
-                    runCatching { validateRoutingSegmentIndex(downloadedFile, resources = context.resources) }
-                        .onFailure { error ->
-                            DebugTelemetry.log(
-                                OAM_DOWNLOAD_TELEMETRY_TAG,
-                                "event=routing_integrity_failed file=$safeName " +
-                                    "error=${error.message.orEmpty().replace(' ', '_')}",
-                            )
-                            downloadedFile.delete()
-                            routingSegmentPartFile(context, safeName).delete()
-                        }.getOrThrow()
-                }
-                RoutingSegmentDownloadResult(fileName = safeName, downloaded = true)
-            }.getOrElse { error ->
-                if (error.isHttpNotFound()) {
-                    DebugTelemetry.log(
-                        OAM_DOWNLOAD_TELEMETRY_TAG,
-                        "event=skip_missing_routing_segment file=$safeName url=$url",
-                    )
-                    onProgress(
-                        OamDownloadProgress(
-                            phase = "SKIPPED",
-                            detail = context.resources.getString(R.string.download_unavailable, safeName),
-                        ),
-                    )
-                    RoutingSegmentDownloadResult(
-                        fileName = safeName,
-                        downloaded = false,
-                        available = false,
-                    )
-                } else {
-                    throw error
-                }
-            }
-        return result
     }
 
     private suspend fun downloadDemTile(
@@ -1714,7 +1522,6 @@ class OamBundleDownloader(
         private const val DOWNLOAD_PROGRESS_TELEMETRY_INTERVAL_MS = 5_000L
         private const val EXTRACTION_STALL_HEARTBEAT_INTERVAL_MS = 30_000L
         private const val LARGE_DETAILED_DEM_TILE_THRESHOLD = 100
-        private const val BROUTER_SEGMENTS_BASE_URL = "https://brouter.de/brouter/segments4"
         private const val OAM_DOWNLOAD_TELEMETRY_TAG = "OamDownload"
     }
 }

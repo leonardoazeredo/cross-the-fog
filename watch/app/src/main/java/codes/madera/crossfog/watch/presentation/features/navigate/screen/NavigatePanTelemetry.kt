@@ -20,7 +20,6 @@ internal class NavigatePanTelemetry(
     private var lastViewportUpdateAtElapsedMs = 0L
     private var inputMoveCount = 0
     private var viewportUpdateCount = 0
-    private var routeToolOverlayRefreshCount = 0
     private var firstViewportLatencyMs: Long? = null
     private var maxInputGapMs = 0L
     private var maxViewportGapMs = 0L
@@ -28,7 +27,6 @@ internal class NavigatePanTelemetry(
 
     fun onPanStarted(
         navMode: NavMode,
-        routeToolSessionActive: Boolean,
         zoomLevel: Int,
     ) {
         if (!debugEnabled()) return
@@ -46,15 +44,11 @@ internal class NavigatePanTelemetry(
         lastViewportUpdateAtElapsedMs = 0L
         inputMoveCount = 0
         viewportUpdateCount = 0
-        routeToolOverlayRefreshCount = 0
         firstViewportLatencyMs = null
         maxInputGapMs = 0L
         maxViewportGapMs = 0L
         slowViewportGapCount = 0
-        log(
-            "event=map_pan stage=start id=$sessionId navMode=${navMode.name} " +
-                "routeToolActive=$routeToolSessionActive zoom=$zoomLevel",
-        )
+        log("event=map_pan stage=start id=$sessionId navMode=${navMode.name} zoom=$zoomLevel")
     }
 
     fun onInputMove() {
@@ -67,7 +61,7 @@ internal class NavigatePanTelemetry(
         inputMoveCount += 1
     }
 
-    fun onViewportChanged(routeToolOverlayRefreshed: Boolean) {
+    fun onViewportChanged() {
         if (!active || !debugEnabled()) return
         val now = nowElapsedMs()
         if (firstViewportLatencyMs == null) {
@@ -80,7 +74,6 @@ internal class NavigatePanTelemetry(
         }
         lastViewportUpdateAtElapsedMs = now
         viewportUpdateCount += 1
-        if (routeToolOverlayRefreshed) routeToolOverlayRefreshCount += 1
     }
 
     fun onPanFinished(
@@ -103,7 +96,6 @@ internal class NavigatePanTelemetry(
                 firstViewportLatencyMs = firstViewportLatencyMs,
                 maxViewportGapMs = maxViewportGapMs,
                 slowViewportGapCount = slowViewportGapCount,
-                routeToolOverlayRefreshCount = routeToolOverlayRefreshCount,
             )
         log(
             "event=map_pan stage=end id=$sessionId reason=$reason navMode=${navMode.name} zoom=$zoomLevel " +
@@ -113,8 +105,7 @@ internal class NavigatePanTelemetry(
                 "viewportHz=${summary.viewportUpdatesPerSecond.formatPanRate()} " +
                 "firstViewportLatencyMs=${summary.firstViewportLatencyMs ?: "na"} " +
                 "viewportMaxGapMs=${summary.maxViewportGapMs} " +
-                "slowViewportGaps=${summary.slowViewportGapCount} " +
-                "routeToolRefreshes=${summary.routeToolOverlayRefreshCount}",
+                "slowViewportGaps=${summary.slowViewportGapCount}",
         )
         reset()
         return summary
@@ -127,7 +118,6 @@ internal class NavigatePanTelemetry(
         lastViewportUpdateAtElapsedMs = 0L
         inputMoveCount = 0
         viewportUpdateCount = 0
-        routeToolOverlayRefreshCount = 0
         firstViewportLatencyMs = null
         maxInputGapMs = 0L
         maxViewportGapMs = 0L
@@ -143,7 +133,6 @@ internal data class NavigationPanTelemetrySummary(
     val firstViewportLatencyMs: Long?,
     val maxViewportGapMs: Long,
     val slowViewportGapCount: Int,
-    val routeToolOverlayRefreshCount: Int,
 ) {
     val inputMovesPerSecond: Float
         get() = eventsPerSecond(inputMoveCount, durationMs)

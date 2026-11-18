@@ -47,7 +47,6 @@ class OamBundleRefreshSummaryTest {
 
         assertEquals(false, forces.forceMap)
         assertEquals(true, forces.forcePoi)
-        assertEquals(setOf("E5_N46.rd5"), forces.forceRoutingFileNames)
         assertEquals(setOf("N45E007"), forces.forceDemTileIds)
     }
 
@@ -83,7 +82,6 @@ class OamBundleRefreshSummaryTest {
         assertEquals(1, summary.updateAvailableCount)
         assertEquals(true, forces.forceMap)
         assertEquals(false, forces.forcePoi)
-        assertEquals(setOf("E5_N45.rd5"), forces.forceRoutingFileNames)
         assertEquals(setOf("N45E006"), forces.forceDemTileIds)
     }
 
@@ -94,7 +92,6 @@ class OamBundleRefreshSummaryTest {
             OamDownloadSelection(
                 includeMap = true,
                 includePoi = true,
-                includeRouting = true,
                 includeDem = true,
                 demSource = DemSource.MAPZEN_SKADI_1S,
                 includeRefugesInfo = true,
@@ -124,7 +121,6 @@ class OamBundleRefreshSummaryTest {
                 OamDownloadSelection(
                     includeMap = false,
                     includePoi = false,
-                    includeRouting = false,
                     includeDem = false,
                     demSource = DemSource.MAPZEN_SKADI_1S,
                     includeRefugesInfo = false,
@@ -133,7 +129,6 @@ class OamBundleRefreshSummaryTest {
 
         assertEquals(true, refreshSelection.includeMap)
         assertEquals(true, refreshSelection.includePoi)
-        assertEquals(true, refreshSelection.includeRouting)
         assertEquals(true, refreshSelection.includeDem)
         assertEquals(true, refreshSelection.includeRefugesInfo)
         assertEquals(DemSource.MAPZEN_SKADI_1S, refreshSelection.demSource)
@@ -146,7 +141,6 @@ class OamBundleRefreshSummaryTest {
             OamDownloadSelection(
                 includeMap = true,
                 includePoi = true,
-                includeRouting = true,
                 includeDem = true,
                 includeRefugesInfo = true,
             )
@@ -174,7 +168,6 @@ class OamBundleRefreshSummaryTest {
         assertEquals(false, forces.forceMap)
         assertEquals(false, forces.forcePoi)
         assertEquals(false, forces.forceRefugesInfo)
-        assertEquals(emptySet<String>(), forces.forceRoutingFileNames)
         assertEquals(emptySet<String>(), forces.forceDemTileIds)
     }
 

@@ -2,7 +2,6 @@ package codes.madera.crossfog.watch.core.service.transfer.storage
 
 import android.content.Context
 import android.util.Log
-import codes.madera.crossfog.watch.core.routing.routingSegmentsDir
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -75,7 +74,6 @@ internal object StalePartialTransferCleaner {
                 add(context.getDir("maps", Context.MODE_PRIVATE))
                 add(context.getDir("poi", Context.MODE_PRIVATE))
                 add(bundleDownloads)
-                add(routingSegmentsDir(context))
                 add(File(context.filesDir, "mapsforge-themes/.transfers"))
                 add(
                     context.getExternalFilesDir(DEM_DIR_NAME)

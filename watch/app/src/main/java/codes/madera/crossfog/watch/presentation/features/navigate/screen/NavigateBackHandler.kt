@@ -10,29 +10,15 @@ import codes.madera.crossfog.watch.data.repository.SettingsRepository
 internal fun NavigateBackHandler(
     mapFocusMode: Boolean,
     onExitMapFocus: () -> Unit,
-    completedRouteToolDraftActive: Boolean,
-    routeToolExecutionInProgress: Boolean,
-    routeToolSessionActive: Boolean,
-    showRouteToolsPanel: Boolean,
     shortcutTrayExpanded: Boolean,
     backButtonExitsNavigation: Boolean,
     backButtonClosesApp: Boolean,
     onCloseApp: () -> Unit,
-    onDismissCompletedRouteToolDraft: () -> Unit,
-    onCancelRouteToolSession: () -> Unit,
-    onDismissRouteToolsPanel: () -> Unit,
     onDismissShortcutTray: () -> Unit,
     onMenuClick: () -> Unit,
 ) {
     BackHandler(enabled = !mapFocusMode) {
         when {
-            completedRouteToolDraftActive -> {
-                if (!routeToolExecutionInProgress) {
-                    onDismissCompletedRouteToolDraft()
-                }
-            }
-            routeToolSessionActive -> onCancelRouteToolSession()
-            showRouteToolsPanel -> onDismissRouteToolsPanel()
             shortcutTrayExpanded -> onDismissShortcutTray()
             else ->
                 handleNavigateBackWithoutOverlay(

@@ -18,17 +18,16 @@ class NavigatePanTelemetryTest {
 
         telemetry.onPanStarted(
             navMode = NavMode.COMPASS_FOLLOW,
-            routeToolSessionActive = false,
             zoomLevel = 15,
         )
         nowElapsedMs = 10L
         telemetry.onInputMove()
         nowElapsedMs = 25L
-        telemetry.onViewportChanged(routeToolOverlayRefreshed = false)
+        telemetry.onViewportChanged()
         nowElapsedMs = 85L
         telemetry.onInputMove()
         nowElapsedMs = 100L
-        telemetry.onViewportChanged(routeToolOverlayRefreshed = false)
+        telemetry.onViewportChanged()
         nowElapsedMs = 120L
 
         val summary =
@@ -45,36 +44,6 @@ class NavigatePanTelemetryTest {
         assertEquals(25L, summary?.firstViewportLatencyMs ?: -1L)
         assertEquals(75L, summary?.maxViewportGapMs ?: -1L)
         assertEquals(1, summary?.slowViewportGapCount ?: -1)
-        assertEquals(0, summary?.routeToolOverlayRefreshCount ?: -1)
         assertTrue(messages.last().contains("event=map_pan stage=end"))
-    }
-
-    @Test
-    fun panSummaryCountsRouteToolOverlayRefreshes() {
-        var nowElapsedMs = 0L
-        val telemetry =
-            NavigatePanTelemetry(
-                nowElapsedMs = { nowElapsedMs },
-                debugEnabled = { true },
-                log = {},
-            )
-
-        telemetry.onPanStarted(
-            navMode = NavMode.PANNING,
-            routeToolSessionActive = true,
-            zoomLevel = 16,
-        )
-        nowElapsedMs = 10L
-        telemetry.onViewportChanged(routeToolOverlayRefreshed = true)
-        nowElapsedMs = 20L
-
-        val summary =
-            telemetry.onPanFinished(
-                navMode = NavMode.PANNING,
-                reason = "touch_up",
-                zoomLevel = 16,
-            )
-
-        assertEquals(1, summary?.routeToolOverlayRefreshCount ?: -1)
     }
 }

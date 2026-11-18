@@ -11,7 +11,6 @@
 package codes.madera.crossfog.watch.presentation.features.maps
 
 import android.content.res.Resources
-import androidx.annotation.StringRes
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -90,7 +88,6 @@ import androidx.compose.foundation.lazy.itemsIndexed as foundationItemsIndexed
 
 private val MAP_DATA_BADGE_SIZE = 26.dp
 private val MAP_DATA_ICON_SIZE = 15.dp
-private val MAP_ROUTING_BADGE_SLOT_WIDTH = 22.dp
 private val MAP_DEM_BADGE_SLOT_WIDTH = 22.dp
 
 internal enum class DemMapBadgeState {
@@ -133,7 +130,6 @@ fun MapsScreen(
     val screenSize = rememberWearScreenSize()
     val adaptive = rememberWearAdaptiveSpec()
     val mapFiles by mapViewModel.mapFiles.collectAsState()
-    val routingPackFiles by mapViewModel.routingPackFiles.collectAsState()
     val demTileFiles by mapViewModel.demTileFiles.collectAsState()
     val selectedMapPath by mapViewModel.selectedMapPath.collectAsState()
     val mapTerrainUnavailable by mapViewModel.mapTerrainUnavailable.collectAsState()
@@ -163,9 +159,6 @@ fun MapsScreen(
     var showDemDataDialog by remember { mutableStateOf(false) }
     var demTileToDelete by remember { mutableStateOf<DemTileFileState?>(null) }
     var demSourceToDeleteAll by remember { mutableStateOf<DemSource?>(null) }
-    var showRoutingDataDialog by remember { mutableStateOf(false) }
-    var routingPackToDelete by remember { mutableStateOf<RoutingPackFileState?>(null) }
-    var showDeleteAllRoutingDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val helpPrefs =
@@ -397,17 +390,6 @@ fun MapsScreen(
         )
 
         DeleteConfirmationDialog(
-            visible = routingPackToDelete != null,
-            title = stringResource(R.string.maps_delete_routing_pack),
-            message = routingPackToDelete?.name ?: "",
-            onConfirm = {
-                routingPackToDelete?.let { mapViewModel.deleteRoutingPackFile(it.path) }
-                routingPackToDelete = null
-            },
-            onDismiss = { routingPackToDelete = null },
-        )
-
-        DeleteConfirmationDialog(
             visible = demTileToDelete != null,
             title = stringResource(R.string.maps_delete_dem_tile),
             message = demTileToDelete?.name ?: "",
@@ -434,107 +416,6 @@ fun MapsScreen(
             },
             onDismiss = { demSourceToDeleteAll = null },
         )
-
-        DeleteConfirmationDialog(
-            visible = showDeleteAllRoutingDialog,
-            title = stringResource(R.string.maps_delete_all_routing_data),
-            message = routingDeleteAllMessage(routingPackFiles, resources = resources),
-            onConfirm = {
-                mapViewModel.deleteAllRoutingPackFiles()
-                showDeleteAllRoutingDialog = false
-            },
-            onDismiss = { showDeleteAllRoutingDialog = false },
-        )
-
-        WearDataDialog(
-            visible = showRoutingDataDialog,
-            title = stringResource(R.string.maps_routing_data),
-            onDismiss = { showRoutingDataDialog = false },
-            bottomAction =
-                if (routingPackFiles.isNotEmpty()) {
-                    {
-                        Button(
-                            onClick = { showDeleteAllRoutingDialog = true },
-                            modifier =
-                                Modifier
-                                    .wrapContentWidth()
-                                    .height(32.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                ),
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(12.dp),
-                                )
-                                Spacer(modifier = Modifier.size(4.dp))
-                                Text(
-                                    text = stringResource(R.string.maps_delete_all),
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    null
-                },
-        ) {
-            item {
-                Text(
-                    text = routingPackSummary(routingPackFiles, resources = resources),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (routingPackFiles.isNotEmpty()) {
-                foundationItems(routingPackFiles) { pack ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.Start,
-                        ) {
-                            Text(
-                                text = pack.name,
-                                modifier = Modifier.basicMarquee(),
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Visible,
-                            )
-                            Text(
-                                text = formatRoutingStorageSize(pack.sizeBytes, resources = resources),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.68f),
-                            )
-                        }
-                        CompactIconHitTargetButton(
-                            onClick = { routingPackToDelete = pack },
-                            visualSize = 26.dp,
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = stringResource(R.string.maps_delete_routing_pack_2),
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
 
         val demDataHighFont = adaptive.fontScale > 1f
         WearDataDialog(
@@ -682,20 +563,6 @@ fun MapsScreen(
                 }
             }
             item {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.CallSplit,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(stringResource(R.string.download_routing_enables_offline_route_calculation))
-                }
-            }
-            item {
                 Text(
                     stringResource(R.string.maps_grey_means_missing_amber_partial_green_ready),
                     textAlign = TextAlign.Center,
@@ -753,23 +620,6 @@ fun MapsScreen(
                     Icon(
                         imageVector = Icons.Default.Landscape,
                         contentDescription = stringResource(R.string.maps_dem_data),
-                        modifier = Modifier.size(headerActionIconSize),
-                    )
-                }
-                CompactIconHitTargetButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        mapViewModel.loadRoutingPackFiles()
-                        showRoutingDataDialog = true
-                    },
-                    visualSize = headerActionButtonSize,
-                    visualOffsetY = headerActionVisualOffsetY,
-                    containerColor = Color.Black.copy(alpha = 0.7f),
-                    contentColor = Color.White,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.CallSplit,
-                        contentDescription = stringResource(R.string.maps_routing_data),
                         modifier = Modifier.size(headerActionIconSize),
                     )
                 }
@@ -1089,12 +939,6 @@ private fun MapItem(
                     DemMapBadgeState.PARTIAL -> Color(0xFFFFC857)
                     DemMapBadgeState.UNAVAILABLE -> Color(0xFF8E8E8E)
                 }
-            val routingIconTint =
-                when {
-                    !mapFile.routingCoverageKnown || mapFile.routingAvailableSegments == 0 -> Color(0xFF8E8E8E)
-                    mapFile.routingReady -> Color(0xFF76E36A)
-                    else -> Color(0xFFFFC857)
-                }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1163,57 +1007,9 @@ private fun MapItem(
                         }
                     }
                 }
-
-                Box(
-                    modifier =
-                        Modifier.size(
-                            width = MAP_ROUTING_BADGE_SLOT_WIDTH,
-                            height = MAP_DATA_BADGE_SIZE,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.CallSplit,
-                        contentDescription = stringResource(routingIconContentDescriptionRes(mapFile)),
-                        modifier = Modifier.size(MAP_DATA_ICON_SIZE),
-                        tint = routingIconTint,
-                    )
-                }
             }
         }
     }
-}
-
-@StringRes
-private fun routingIconContentDescriptionRes(mapFile: MapFileState): Int =
-    when {
-        !mapFile.routingCoverageKnown -> R.string.map_routing_coverage_unavailable
-        mapFile.routingRequiredSegments == 0 -> R.string.map_no_routing_packs_required
-        mapFile.routingReady -> R.string.map_routing_ready
-        mapFile.routingAvailableSegments > 0 -> R.string.map_routing_partially_available
-        else -> R.string.map_routing_unavailable
-    }
-
-private fun routingPackSummary(
-    packs: List<RoutingPackFileState>,
-    resources: Resources,
-): String {
-    if (packs.isEmpty()) return resources.getString(R.string.map_no_routing_packs)
-    val totalBytes = packs.sumOf { it.sizeBytes }
-    return resources.getQuantityString(
-        R.plurals.map_routing_pack_summary,
-        packs.size,
-        packs.size,
-        formatRoutingStorageSize(totalBytes, resources),
-    )
-}
-
-private fun routingDeleteAllMessage(
-    packs: List<RoutingPackFileState>,
-    resources: Resources,
-): String {
-    if (packs.isEmpty()) return resources.getString(R.string.map_no_routing_packs_installed)
-    return resources.getString(R.string.map_deletes_from_the_watch, routingPackSummary(packs, resources = resources))
 }
 
 @Composable

@@ -4,8 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import codes.madera.crossfog.watch.core.maps.theme.validateExternalRenderTheme
-import codes.madera.crossfog.watch.core.routing.BRouterRoutePlanner
-import codes.madera.crossfog.watch.core.routing.RoutePlanner
 import codes.madera.crossfog.watch.data.repository.*
 import codes.madera.crossfog.watch.data.repository.maps.theme.ExternalThemeStore
 import codes.madera.crossfog.watch.data.repository.maps.theme.ThemeRepository
@@ -85,10 +83,6 @@ class AppContainer(
         CompassViewModel(applicationContext as Application)
     }
 
-    private val routePlanner: RoutePlanner by lazy {
-        BRouterRoutePlanner(applicationContext)
-    }
-
     val gpxViewModel: GpxViewModel by lazy {
         GpxViewModel(
             resources = applicationContext.resources,
@@ -98,7 +92,6 @@ class AppContainer(
             settingsRepository = settingsRepository,
             routeServices =
                 GpxRouteServices(
-                    planner = routePlanner,
                     elevationProvider = RecordingElevationProvider(applicationContext),
                 ),
         )

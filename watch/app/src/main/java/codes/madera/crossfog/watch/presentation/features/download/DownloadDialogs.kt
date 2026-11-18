@@ -156,13 +156,6 @@ internal fun OamAttributionDialog(
         }
         item {
             Text(
-                text = stringResource(R.string.download_routing_enables_offline_route_calculation),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            Text(
                 text = stringResource(R.string.download_elevation_adds_altitude_slope_and_terrain_shading),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),

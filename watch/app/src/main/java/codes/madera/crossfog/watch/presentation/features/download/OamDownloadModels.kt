@@ -36,13 +36,12 @@ enum class OamBundleChoice(
 data class OamDownloadSelection(
     val includeMap: Boolean = true,
     val includePoi: Boolean = false,
-    val includeRouting: Boolean = true,
     val includeDem: Boolean = true,
     val demSource: DemSource = DemSource.DEFAULT,
     val includeRefugesInfo: Boolean = false,
 ) {
     val canDownload: Boolean
-        get() = includeMap || includePoi || includeRouting || includeDem || includeRefugesInfo
+        get() = includeMap || includePoi || includeDem || includeRefugesInfo
 
     fun toBundleChoice(): OamBundleChoice =
         when {
@@ -56,7 +55,6 @@ data class OamDownloadSelection(
         listOfNotNull(
             resources.getString(R.string.download_map).takeIf { includeMap },
             resources.getString(R.string.common_poi).takeIf { includePoi },
-            resources.getString(R.string.download_routing).takeIf { includeRouting },
             resources
                 .getString(
                     R.string.download_elevation,
@@ -173,7 +171,6 @@ internal data class OamBundleRefreshForces(
     val forceMap: Boolean = false,
     val forcePoi: Boolean = false,
     val forceRefugesInfo: Boolean = false,
-    val forceRoutingFileNames: Set<String> = emptySet(),
     val forceDemTileIds: Set<String> = emptySet(),
 )
 
@@ -183,11 +180,6 @@ internal fun OamBundleUpdateCheck.refreshForces(area: OamDownloadArea): OamBundl
         forceMap = oamRemoteFileName(area.mapZipUrl) in changedNames,
         forcePoi = oamRemoteFileName(area.poiZipUrl) in changedNames,
         forceRefugesInfo = bundle.refugesInfoFileName?.let { File(it).name in changedNames } == true,
-        forceRoutingFileNames =
-            bundle.routingFileNames
-                .map { File(it).name }
-                .filter { it in changedNames }
-                .toSet(),
         forceDemTileIds =
             bundle.demTileIds
                 .map { it.uppercase(Locale.ROOT) }
@@ -204,7 +196,6 @@ internal fun OamInstalledBundle.missingComponentsFor(selection: OamDownloadSelec
     OamDownloadSelection(
         includeMap = selection.includeMap && mapFileName == null,
         includePoi = selection.includePoi && poiFileName == null,
-        includeRouting = selection.includeRouting && routingFileNames.isEmpty(),
         includeDem = selection.includeDem && demTileIds.isEmpty(),
         demSource = selection.demSource,
         includeRefugesInfo = selection.includeRefugesInfo && refugesInfoFileName == null,

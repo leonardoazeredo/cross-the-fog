@@ -6,11 +6,6 @@ import codes.madera.crossfog.watch.GlanceMapWearApp
 import codes.madera.crossfog.watch.core.maps.Dem3CoverageUtils
 import codes.madera.crossfog.watch.core.maps.DemSignatureStore
 import codes.madera.crossfog.watch.core.maps.DemSource
-import codes.madera.crossfog.watch.core.routing.isRoutingSegmentFileName
-import codes.madera.crossfog.watch.core.routing.routingSegmentBounds
-import codes.madera.crossfog.watch.core.routing.routingSegmentPartFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentTargetFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentsDir
 import codes.madera.crossfog.watch.data.repository.internal.AtomicStreamWriter
 import codes.madera.crossfog.watch.data.repository.maps.theme.ThemePackageException
 import com.glancemap.shared.transfer.MapsforgeThemePackage
@@ -33,12 +28,6 @@ internal data class WatchMapWithBounds(
     val bbox: String,
 )
 
-internal data class WatchRoutingSegmentWithBounds(
-    val fileName: String,
-    val absolutePath: String,
-    val bbox: String,
-)
-
 internal class WatchFileOps(
     private val app: GlanceMapWearApp,
 ) {
@@ -53,7 +42,6 @@ internal class WatchFileOps(
     fun isSupportedTransferFileName(fileName: String): Boolean =
         fileName.endsWith(".gpx", ignoreCase = true) ||
             fileName.endsWith(".map", ignoreCase = true) ||
-            isRoutingSegmentFileName(fileName) ||
             isDemFileName(fileName) ||
             MapsforgeThemePackage.isTransferName(fileName)
 
@@ -61,7 +49,6 @@ internal class WatchFileOps(
         when {
             fileName.endsWith(".gpx", ignoreCase = true) -> container.gpxRepository.fileExists(fileName)
             fileName.endsWith(".map", ignoreCase = true) -> container.mapRepository.fileExists(fileName)
-            isRoutingSegmentFileName(fileName) -> routingSegmentTargetFile(app.applicationContext, fileName).exists()
             isDemFileName(fileName) -> demTargetFileForName(fileName).exists()
             // Packages are always atomically replaceable.
             MapsforgeThemePackage.isTransferName(fileName) -> false
@@ -73,8 +60,7 @@ internal class WatchFileOps(
     fun isReplaceableTransferFileName(fileName: String): Boolean = isReplaceable(fileName)
 
     private fun isReplaceable(fileName: String): Boolean =
-        isRoutingSegmentFileName(fileName) ||
-            MapsforgeThemePackage.isTransferName(fileName)
+        MapsforgeThemePackage.isTransferName(fileName)
 
     suspend fun deleteLocalFile(fileName: String) {
         runCatching {
@@ -86,12 +72,6 @@ internal class WatchFileOps(
                     val mapPath = File(app.getDir("maps", Context.MODE_PRIVATE), safeName).absolutePath
                     cleanupDemForMapPath(mapPath)
                     container.mapRepository.deleteMapFile(mapPath)
-                }
-                isRoutingSegmentFileName(fileName) -> {
-                    val target = routingSegmentTargetFile(app.applicationContext, fileName)
-                    if (target.exists()) target.delete()
-                    routingSegmentPartFile(app.applicationContext, fileName).delete()
-                    container.syncManager.requestMapSync()
                 }
                 isDemFileName(fileName) -> {
                     val target = demTargetFileForName(fileName)
@@ -123,23 +103,6 @@ internal class WatchFileOps(
                     bbox = "${bbox.minLongitude},${bbox.minLatitude},${bbox.maxLongitude},${bbox.maxLatitude}",
                 )
             }.sortedBy { it.fileName.lowercase(Locale.ROOT) }
-    }
-
-    fun listRoutingSegmentsWithBounds(): List<WatchRoutingSegmentWithBounds> {
-        return routingSegmentsDir(app.applicationContext)
-            .listFiles()
-            ?.asSequence()
-            ?.filter { it.isFile && isRoutingSegmentFileName(it.name) }
-            ?.mapNotNull { file ->
-                val bounds = routingSegmentBounds(file.name) ?: return@mapNotNull null
-                WatchRoutingSegmentWithBounds(
-                    fileName = file.name,
-                    absolutePath = file.absolutePath,
-                    bbox = "${bounds.minLon},${bounds.minLat},${bounds.maxLon},${bounds.maxLat}",
-                )
-            }?.sortedBy { it.fileName.lowercase(Locale.ROOT) }
-            ?.toList()
-            .orEmpty()
     }
 
     /**
@@ -208,35 +171,6 @@ internal class WatchFileOps(
                     sha256
                 }
 
-
-                isRoutingSegmentFileName(fileName) -> {
-                    val target = routingSegmentTargetFile(app.applicationContext, fileName)
-                    val options =
-                        AtomicStreamWriter.Options(
-                            bufferSize = 2 * 1024 * 1024,
-                            progressStepBytes = 8L * 1024 * 1024,
-                            fsync = true,
-                            failIfExists = false,
-                            expectedSize = expectedSize?.takeIf { it >= 0L },
-                            requireExactSize = expectedSize != null && expectedSize >= 0L,
-                            expectedSha256 = expectedSha256,
-                            resumeOffset = resumeOffset.coerceAtLeast(0L),
-                            keepPartialOnCancel = keepPartialOnCancel,
-                            keepPartialOnFailure = keepPartialOnFailure,
-                            computeSha256 = computeSha256,
-                            diagnosticContext = diagnosticContext,
-                        )
-                    val result =
-                        AtomicStreamWriter.writeAtomic(
-                            dir = target.parentFile ?: routingSegmentsDir(app.applicationContext),
-                            fileName = target.name,
-                            inputStream = inputStream,
-                            onProgress = onProgress,
-                            options = options,
-                        )
-                    container.syncManager.requestMapSync()
-                    result.sha256
-                }
 
                 isDemFileName(fileName) -> {
                     val target = demTargetFileForName(fileName)
@@ -421,11 +355,6 @@ internal class WatchFileOps(
                 cleanupDemForMapPath(mapPath)
                 container.mapRepository.deleteMapFile(mapPath)
             }
-            isRoutingSegmentFileName(safeName) -> {
-                val target = routingSegmentTargetFile(app.applicationContext, safeName)
-                if (target.exists()) target.delete()
-                routingSegmentPartFile(app.applicationContext, safeName).delete()
-            }
             isDemFileName(safeName) -> {
                 val target = demTargetFileForName(safeName)
                 if (target.exists()) target.delete()
@@ -484,7 +413,6 @@ internal class WatchFileOps(
             ) -> File(container.externalThemeStore.transferDirectory, sanitizeFileName(fileName))
             fileName.endsWith(".gpx", ignoreCase = true) -> File(app.getDir("gpx", Context.MODE_PRIVATE), fileName)
             fileName.endsWith(".map", ignoreCase = true) -> File(app.getDir("maps", Context.MODE_PRIVATE), fileName)
-            isRoutingSegmentFileName(fileName) -> routingSegmentTargetFile(app.applicationContext, fileName)
             isDemFileName(fileName) -> demTargetFileForName(fileName)
             else -> null
         }
@@ -502,7 +430,6 @@ internal class WatchFileOps(
                 val dir = app.getDir("maps", Context.MODE_PRIVATE)
                 File(dir, ".$fileName.part")
             }
-            isRoutingSegmentFileName(fileName) -> routingSegmentPartFile(app.applicationContext, fileName)
             isDemFileName(fileName) -> demPartFileForName(fileName)
             else -> null
         }

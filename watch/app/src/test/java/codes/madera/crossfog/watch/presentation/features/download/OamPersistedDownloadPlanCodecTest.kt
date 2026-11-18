@@ -16,7 +16,6 @@ class OamPersistedDownloadPlanCodecTest {
                     OamDownloadSelection(
                         includeMap = true,
                         includePoi = false,
-                        includeRouting = false,
                         includeDem = true,
                         demSource = DemSource.MAPZEN_SKADI_1S,
                         includeRefugesInfo = true,
@@ -38,7 +37,7 @@ class OamPersistedDownloadPlanCodecTest {
 
     @Test
     fun `unchanged pause resumes at completed area but changed settings start a new plan`() {
-        val originalSelection = OamDownloadSelection(includePoi = true, includeRouting = true)
+        val originalSelection = OamDownloadSelection(includePoi = true)
         val paused =
             OamPersistedDownloadPlan(
                 areaIds = listOf("europe-france", "europe-germany"),
@@ -52,7 +51,7 @@ class OamPersistedDownloadPlanCodecTest {
             resumedOrNewDownloadPlan(
                 paused,
                 paused.areaIds,
-                originalSelection.copy(includePoi = false, includeRouting = false),
+                originalSelection.copy(includePoi = false),
             )
 
         assertEquals(1, resumed.nextAreaIndex)
