@@ -202,6 +202,40 @@ function fresh(opts) { return new RouteTool(global.fakeMap(), opts || {}); }
   const t4 = fresh();
   t4.setFixedRoute(pins, C, flat); // no heights expected: sendable at once
   assert.ok(t4.routeRecord());
+
+  // late heights after the route was released for Send change nothing: coords, stats, record and revision stay
+  const late = { km: 9, seconds: 1, ascent: 9, descent: 9 };
+  const lateC = [[13.7, 51, 1], [13.71, 51, 2]];
+  const t6 = fresh();
+  const tok6 = t6.setFixedRoute(pins, C, flat, { refining: true });
+  assert.equal(t6.settleFixedRoute(tok6), true);
+  const rec6 = JSON.stringify(t6.routeRecord()), rev6 = t6.revision, stats6 = JSON.stringify(t6.stats), coords6 = JSON.stringify(t6.routeCoords);
+  assert.equal(t6.refineFixedRoute(tok6, lateC, late), false, "refine after settle is refused");
+  assert.equal(JSON.stringify(t6.routeRecord()), rec6, "the record Send holds (id and createdAt included) is unchanged");
+  assert.equal(t6.revision, rev6, "the send control is not told of a change");
+  assert.equal(JSON.stringify(t6.stats), stats6);
+  assert.equal(JSON.stringify(t6.routeCoords), coords6);
+  assert.equal(t6.settleFixedRoute(tok6), true, "settle twice is harmless");
+  assert.equal(t6.revision, rev6, "and the second settle tells nothing either");
+  assert.equal(JSON.stringify(t6.routeRecord()), rec6);
+
+  // one refine settles the route too: a second one is refused, and main.js's settle after a refine is harmless
+  const t7 = fresh();
+  const tok7 = t7.setFixedRoute(pins, C, flat, { refining: true });
+  assert.equal(t7.refineFixedRoute(tok7, C, stats), true, "refine before settle still works");
+  const rec7 = JSON.stringify(t7.routeRecord()), rev7 = t7.revision;
+  assert.equal(t7.refineFixedRoute(tok7, lateC, late), false, "a second refine is refused: the first one settled it");
+  assert.equal(t7.settleFixedRoute(tok7), true);
+  assert.equal(JSON.stringify(t7.routeRecord()), rec7);
+  assert.equal(t7.revision, rev7);
+
+  // a new hand-over after a settled one is refinable on its own token
+  const t8 = fresh();
+  const tok8 = t8.setFixedRoute(pins, C, flat, { refining: true });
+  t8.settleFixedRoute(tok8);
+  const tok8b = t8.setFixedRoute(pins, C, flat, { refining: true });
+  assert.notEqual(tok8b, tok8);
+  assert.equal(t8.refineFixedRoute(tok8b, C, stats), true, "the new hand-over is refinable though the old token was settled");
 })().then(async () => {
   // no record while the line is only a guess: routing in flight, or failed
   const tool = fresh();

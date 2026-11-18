@@ -60,6 +60,7 @@
     this.active = false;
     this._reqId = 0;
     this._refiningToken = null; // the _reqId of a fixed route whose heights are pending
+    this._doneToken = null;     // the _reqId of a fixed route that was refined or settled: it takes no more geometry
     this._suppressClick = false;
     this._grabbing = false;
 
@@ -156,9 +157,11 @@
   };
 
   // Swap in better geometry and stats for the route setFixedRoute returned the token for (heights
-  // that arrived late); ignored once the route was edited, replaced or cleared since.
+  // that arrived late); ignored once the route was edited, replaced or cleared since, and once it was
+  // settled or refined, so geometry that comes after Send was released changes nothing.
   RouteTool.prototype.refineFixedRoute = function (token, coords, stats) {
-    if (token !== this._reqId) return false;
+    if (token !== this._reqId || token === this._doneToken) return false;
+    this._doneToken = token;
     this._refiningToken = null;
     this._applyRoute(coords, stats);
     return true;
@@ -168,6 +171,7 @@
   // An edit or clear bumps _reqId, which also ends the wait, so nothing can stay blocked.
   RouteTool.prototype.settleFixedRoute = function (token) {
     if (token !== this._reqId) return false;
+    this._doneToken = token; // a flag rather than a bump of _reqId: a repeat settle stays true and the token still names this route
     if (this._refiningToken === token) {
       this._refiningToken = null;
       this._touch();
