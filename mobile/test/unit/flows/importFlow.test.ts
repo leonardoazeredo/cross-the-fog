@@ -393,7 +393,7 @@ function racing(opts: {
     await sharing;
     return { picking }; // wrapped: returning the promise itself would make the caller wait for the pick to end
   };
-  /** Lets the queued share read the saved fog again, answers its second question, and waits for the pick to end. */
+  /** The hand-over a pick that ended without a verdict must make: the queued share is asked about again. */
   const askAgain = async (picking: Promise<void>) => {
     await tick();
     reads.shift()?.();
@@ -433,14 +433,14 @@ describe("a share that waits while a pick starts", () => {
     t.answers[0]?.(true);
     await sharing;
 
-    expect(t.begun).toEqual(["a.zip"]); // the share did not begin beside the pick
+    expect(t.begun).toEqual(["a.zip"]);
     expect(t.flow.active()).toBe(true);
 
     const ended = t.flow.loaded(LOADED_OK);
     await t.tick();
-    t.reads.shift()?.(); // the queued share reads the saved fog again
+    t.reads.shift()?.();
     await t.tick();
-    expect(t.asked).toEqual(["b.zip", "b.zip"]); // and asks again
+    expect(t.asked).toEqual(["b.zip", "b.zip"]);
     t.answers[1]?.(true);
     await ended;
 
@@ -488,9 +488,9 @@ describe("a share that waits while a pick starts", () => {
     await t.readSaved();
     await t.pickA();
     t.answers[0]?.(true);
-    await first; // b.zip is queued behind the pick
+    await first;
 
-    await t.share("c.zip"); // arrives while b.zip is queued: the pick is still running
+    await t.share("c.zip");
 
     expect(t.released).toEqual(["file:///cache/a.zip", "file:///cache/b.zip"]);
     const ended = t.flow.loaded(LOADED_OK);
@@ -509,7 +509,7 @@ describe("a share that waits while a pick starts", () => {
     const { picking } = await t.queueBehindPick();
 
     t.cancelPick();
-    await t.askAgain(picking); // it asks again, since no verdict will come
+    await t.askAgain(picking);
 
     expect(t.asked).toEqual(["b.zip", "b.zip"]);
     expect(t.begun).toEqual(["b.zip"]);
@@ -564,9 +564,9 @@ describe("a share that waits while a pick starts", () => {
           : Promise.resolve(META),
     });
     const first = t.share("b.zip");
-    t.reads.shift()?.(); // no saved fog: b takes the import and waits on beginImport
+    t.reads.shift()?.();
     await t.tick();
-    await t.share("c.zip"); // queued behind b
+    await t.share("c.zip");
 
     failB(new Error("disk full"));
     await t.tick();
@@ -581,11 +581,11 @@ describe("a share that waits while a pick starts", () => {
     const t = racing({ current: "saved" });
     const b = t.share("b.zip");
     await t.readSaved();
-    await t.pickA(); // the pick is running while b's question is still open
-    await t.share("c.zip"); // arrives later and queues first
+    await t.pickA();
+    await t.share("c.zip");
     expect(t.released).toEqual(["file:///cache/a.zip"]);
 
-    t.answers[0]?.(true); // b is confirmed after c queued, so b replaces c
+    t.answers[0]?.(true);
     await b;
 
     expect(t.released).toEqual(["file:///cache/a.zip", "file:///cache/c.zip"]);
@@ -601,8 +601,8 @@ describe("a share that waits while a pick starts", () => {
 
   it("keeps the cached copy when the same file is shared twice while a pick runs", async () => {
     const t = racing({ current: "saved" });
-    const { picking } = await t.queueBehindPick(); // b.zip is queued
-    await t.share("b.zip"); // the same file again: the same cache path
+    const { picking } = await t.queueBehindPick();
+    await t.share("b.zip");
 
     expect(t.released).toEqual([]);
     t.cancelPick();
