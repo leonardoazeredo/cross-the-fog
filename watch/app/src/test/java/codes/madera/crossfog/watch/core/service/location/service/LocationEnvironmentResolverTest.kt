@@ -24,6 +24,21 @@ class LocationEnvironmentResolverTest {
     }
 
     @Test
+    fun autoFusedUnknownPhoneKeepsFusedLocationWithoutWarning() {
+        val decision =
+            resolveLocationEnvironmentDecision(
+                sourceMode = LocationSourceMode.AUTO_FUSED,
+                watchOnlyRequested = false,
+                watchGpsAvailability = WatchGpsAvailabilityReason.AVAILABLE,
+                phoneConnected = null,
+                locationSettings = satisfiedLocationSettings,
+            )
+
+        assertEquals(GpsEnvironmentWarning.NONE, decision.warning)
+        assertEquals(LocationEnvironmentAction.CONTINUE, decision.action)
+    }
+
+    @Test
     fun autoFusedPhoneDisconnectedWithoutWatchGpsShowsUnavailableWarning() {
         val decision =
             resolveLocationEnvironmentDecision(
