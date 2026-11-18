@@ -1128,7 +1128,8 @@ it("a verdict on the copy a running restore staged leaves it for the restore to 
   expect((await h.store.current())?.sha256).toBe(sha(B));
 });
 
-// The real backup flow over the real store; only the restore's own steps are scripted.
+// The flow that words a restore's outcome and decides the reload (`createBackupFlows`) over the real store; the
+// restore's own steps are scripted and the backup half is a stub.
 function realRestoreFlow(h: Harness, run: () => Promise<"restored">) {
   const flows = createBackupFlows({
     backup: { run: async () => ({ status: "cancelled" }) },

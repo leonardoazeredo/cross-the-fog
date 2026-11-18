@@ -22,7 +22,7 @@ export type RestoreResult =
 /**
  * A restore failed after it staged the fog store's pending copy and discarded it again. A page the renderer's
  * death had served that copy is still showing it, so the caller reloads the page; `cause` is the original failure.
- * The message is the cause's, as callers only ever log the class.
+ * The message is the cause's when that is an `Error` (callers only ever log the class).
  */
 export class RestoreFailedAfterStagingError extends Error {
   override readonly cause: unknown;
