@@ -83,28 +83,32 @@ function fnText(name) {
   assert.ok(start >= 0, `${name} not found in main.js`);
   return src.slice(start, src.indexOf("\n  }\n", start) + 4);
 }
-function loaders(files) {
+function loaders(files, unzip) {
   const shown = [], warns = [];
   const fogMap = new FogParser.FogMap();
   const importStats = { corrupt: 0 };
+  const calls = { fog: 0 };
   const scope = {
     fogMap, importStats, ImportMessages, FogParser,
-    decodeEnv: { fogMap, inflate: (b) => zlib.inflateSync(Buffer.from(b)), parseTileId: FogParser.parseTileId }, console: { warn: (...a) => warns.push(a) },
+    console: { warn: (...a) => warns.push(a) },
     pako: { inflate: (b) => zlib.inflateSync(Buffer.from(b)) },
-    FogZip: { unzip: () => files.map((f) => ({ name: "Sync/" + f.name, data: f.bytes })) },
-    map: { fitBounds() {} }, fogChanged() {},
+    FogZip: { unzip: unzip || (() => files.map((f) => ({ name: "Sync/" + f.name, data: f.bytes }))) },
+    map: { fitBounds() {} }, fogChanged() { calls.fog++; },
     setLoad: (m) => shown.push(m),
   };
   const names = Object.keys(scope);
   const warnLine = src.match(/^ {2}const warnDamaged = .*$/m);
   assert.ok(warnLine, "main.js declares warnDamaged");
+  const envLine = src.match(/^ {2}const decodeEnv = .*$/m); // the one that ships, run against the scope's pako and map
+  assert.ok(envLine, "main.js declares decodeEnv");
   const make = new Function(...names, `
+    ${envLine[0]}
     ${warnLine[0]}
     ${fnText("finishLoad")}
     ${fnText("loadFromInput")}
     ${fnText("loadFromZip")}
     return { loadFromInput, loadFromZip };`);
-  return { api: make(...names.map((k) => scope[k])), shown, warns, fogMap, importStats };
+  return { api: make(...names.map((k) => scope[k])), shown, warns, fogMap, importStats, calls };
 }
 const asFile = (f) => ({ name: f.name, arrayBuffer: async () => f.bytes.buffer.slice(f.bytes.byteOffset, f.bytes.byteOffset + f.bytes.byteLength) });
 const zipFile = { arrayBuffer: async () => new ArrayBuffer(0) };
@@ -121,6 +125,7 @@ const last = (r) => r.shown[r.shown.length - 1];
     { // all good: the status a good import always had, nothing logged, nothing counted
       const r = await run([goodTile(good[0]), goodTile(good[1])]);
       assert.equal(last(r), "2 tiles loaded ✓", source);
+      assert.equal(r.calls.fog, 1, "the fog is redrawn once");
       assert.equal(r.importStats.corrupt, 0);
       assert.deepEqual(r.warns, []);
     }
@@ -133,6 +138,7 @@ const last = (r) => r.shown[r.shown.length - 1];
     { // some damaged: the good ones show, the count is beside them, one log line with classes only
       const r = await run([goodTile(good[0]), cut(nameOf(1)), junkTile(nameOf(2))]);
       assert.equal(last(r), "1 tiles loaded ✓, but 2 tiles could not be read (damaged files).", source);
+      assert.equal(r.calls.fog, 1, "the decoded fog is still shown");
       assert.equal(r.fogMap.tileCount, 1);
       assert.equal(r.importStats.corrupt, 2);
       assert.equal(r.warns.length, 1);
@@ -143,6 +149,7 @@ const last = (r) => r.shown[r.shown.length - 1];
       assert.match(last(r), /^None of the fog tiles could be read: 2 damaged files\./, source);
       assert.doesNotMatch(last(r), /No fog tiles found/);
       assert.equal(r.fogMap.tileCount, 0);
+      assert.equal(r.calls.fog, 0);
     }
     { // none present: the old text, no log
       const r = await run([{ name: "notes.txt", bytes: Buffer.from("hello") }]);
@@ -164,6 +171,19 @@ const last = (r) => r.shown[r.shown.length - 1];
       }
     }
   }
+  { // a second import into the same map shows the map's total, not this import's count
+    const r = loaders([goodTile(good[1])]);
+    r.fogMap.addTile(good[0], zlib.inflateSync(goodBytes(good[0])));
+    await r.api.loadFromZip(zipFile);
+    assert.equal(last(r), "2 tiles loaded ✓");
+  }
+  { // an unzip that fails leaves no count of an earlier load behind
+    const r = loaders([], () => { throw new Error("bad zip"); });
+    r.importStats.corrupt = 99;
+    await r.api.loadFromZip(zipFile);
+    assert.equal(r.importStats.corrupt, 0);
+    assert.match(last(r), /^Couldn't open that \.zip/);
+  }
   { // folder only: a file that could not be read beside damaged ones
     const unreadable = { name: "cloud-only", arrayBuffer: async () => { throw new Error("not downloaded"); } };
     const r = loaders([]);
@@ -172,6 +192,14 @@ const last = (r) => r.shown[r.shown.length - 1];
     const r2 = loaders([]);
     await r2.api.loadFromInput([asFile(goodTile(good[0])), asFile(cut(nameOf(1))), unreadable]);
     assert.equal(last(r2), "1 tiles loaded ✓, but 1 tile could not be read (damaged files) and 1 file couldn't be read (files kept only in the cloud aren't downloaded, so try the .zip instead).");
+  }
+  { // the page loads the helper before main.js, and the phone's hook reads the count in a task queued by unzip, so
+    // nothing may yield to the event loop between the unzip and the count being published
+    const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+    const at = (n) => html.indexOf(`src="src/${n}"`);
+    assert.ok(at("importMessages.js") > 0 && at("importMessages.js") < at("main.js"), "importMessages.js loads before main.js");
+    const zipFn = fnText("loadFromZip");
+    assert.doesNotMatch(zipFn.slice(zipFn.indexOf("return; }\n") + 1), /\bawait\b|setTimeout|requestAnimationFrame/, "loadFromZip yields after the unzip returned");
   }
   { // main.js exposes the count to the phone adapter, and logs through the helper's tally only
     assert.match(src, /lastImport: importStats/);

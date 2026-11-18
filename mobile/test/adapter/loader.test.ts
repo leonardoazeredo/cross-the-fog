@@ -53,7 +53,7 @@ it("still reports noTiles when nothing that looks like a tile is there", async (
 
 it("treats a page that publishes no count as no damage", async () => {
   (window as unknown as Record<string, unknown>).CrossfogPage = undefined;
-  expect(await load(notABackup())).toEqual({ ok: false, reason: "noTiles" });
+  expect(await load(backupWithDamagedTiles(2, false))).toEqual({ ok: false, reason: "noTiles" });
 });
 
 it("reports unzip for bytes that aren't a zip", async () =>

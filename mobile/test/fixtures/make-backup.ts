@@ -228,7 +228,7 @@ function cutTile(): Uint8Array {
 }
 
 // The standard backup's good tiles plus `corrupt` damaged tile files beside them (none of the good ones when
-// `good` is false): a deflate stream cut off for half of them, a body cut short for the rest.
+// `good` is false): a body cut short for half of them (even indexes), bytes that are no deflate stream for the rest.
 export function backupWithDamagedTiles(corrupt: number, good = true): Uint8Array {
   const extras: Record<string, Uint8Array> = { ...STANDARD_EXTRAS };
   for (let i = 0; i < corrupt; i++) {

@@ -178,6 +178,17 @@ describe("import flow failures", () => {
     onlyNamesLogged();
   });
 
+  it("still words a damaged backup as damaged when the page cannot be reloaded", async () => {
+    let remounts = 0;
+    const { flow, notified } = setup({}, () => (remounts++ === 0 ? Promise.resolve() : fail()));
+    await flow.pick();
+
+    await flow.loaded({ ...LOADED_BAD, reason: "corrupt" });
+
+    expect(notified).toEqual([COPY.damagedBackup]);
+    onlyNamesLogged();
+  });
+
   it("keeps a running import when a refused share cannot be released", async () => {
     let choose: (f: SourceFile | null) => void = () => undefined;
     const busy: boolean[] = [];
