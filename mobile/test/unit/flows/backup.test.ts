@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { RestoreFailedAfterStagingError } from "../../../src/backup/restore.js";
 import { BackupError } from "../../../src/backup/types.js";
 import { COPY } from "../../../src/copy.js";
 import { createBackupFlows } from "../../../src/flows/backup.js";
@@ -108,5 +109,30 @@ describe("backup flows", () => {
     finish();
     await first;
     expect(await flows.restore()).toBe(true);
+  });
+});
+
+describe("a restore that throws", () => {
+  it("says it failed and leaves the page alone when nothing was staged", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { flows, notify } = setup({
+      restore: async () => {
+        throw new Error("disk at /data/user/0 is full");
+      },
+    });
+    expect(await flows.restore()).toBe(false);
+    expect(notify.mock.calls).toEqual([[COPY.restoreFailed]]);
+  });
+
+  it("says it failed once and has the page reload when the import was already staged", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { flows, notify } = setup({
+      restore: async () => {
+        throw new RestoreFailedAfterStagingError(new RangeError("disk at /data/user/0 is full"));
+      },
+    });
+    expect(await flows.restore()).toBe(true);
+    expect(notify.mock.calls).toEqual([[COPY.restoreFailed]]);
+    expect(warn).toHaveBeenCalledWith("crossfog: restore failed", "RangeError");
   });
 });

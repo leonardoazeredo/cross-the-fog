@@ -19,6 +19,20 @@ export type RestoreResult =
   | "notABackup"
   | "noSpace";
 
+/**
+ * A restore failed after it staged the fog store's pending copy and discarded it again. A page the renderer's
+ * death had served that copy is still showing it, so the caller reloads the page; `cause` is the original failure.
+ * The message is the cause's when that is an `Error` (callers only ever log the class).
+ */
+export class RestoreFailedAfterStagingError extends Error {
+  override readonly cause: unknown;
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "restore failed after staging");
+    this.name = "RestoreFailedAfterStagingError";
+    this.cause = cause;
+  }
+}
+
 // At its peak a restore holds, beside the live database: the cache copy of the backup (`tmpDb`),
 // the import zip in the cache (`tmpZip`), the fog store's pending copy of it, the database the
 // replacer builds from the backup (blobs still in it), and the second copy its VACUUM writes.
@@ -112,13 +126,14 @@ export function createRestoreFlow(deps: RestoreDeps): { run(): Promise<RestoreRe
         const settingsRow = await blob(backup, BLOB_SETTINGS);
         const settings =
           settingsRow === null ? null : new TextDecoder().decode(new Uint8Array(settingsRow.bytes));
-        let hasImport: boolean;
+        let hasImport = false;
         try {
           hasImport = await stageImport(backup, tmpZip);
           await deps.replaceDatabase(backup);
         } catch (e) {
           await fogStore.discardPending().catch(() => undefined);
-          throw e;
+          // Only a copy that was staged can have been served to a page.
+          throw hasImport ? new RestoreFailedAfterStagingError(e) : e;
         }
         try {
           if (hasImport) await fogStore.promotePending();

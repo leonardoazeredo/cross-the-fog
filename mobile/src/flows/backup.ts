@@ -1,5 +1,5 @@
 import type { BackupResult } from "../backup/backup.js";
-import type { RestoreResult } from "../backup/restore.js";
+import { RestoreFailedAfterStagingError, type RestoreResult } from "../backup/restore.js";
 import { BackupError } from "../backup/types.js";
 import { COPY } from "../copy.js";
 import { warnClass } from "./warn.js";
@@ -12,7 +12,7 @@ export interface BackupFlowsDeps {
 
 export interface BackupFlows {
   backup(): Promise<void>;
-  /** True when the phone's data was replaced, so the page must reload. */
+  /** True when the page must reload: the phone's data was replaced, or a restore failed after staging its fog copy. */
   restore(): Promise<boolean>;
 }
 
@@ -77,9 +77,12 @@ export function createBackupFlows(deps: BackupFlowsDeps): BackupFlows {
               return false;
           }
         } catch (e) {
-          warnClass("restore", "failed", e);
+          // A restore that failed with its copy staged and discarded: a page the renderer's death served that copy
+          // still shows it, so the page reloads onto the previous fog. It is told once, here.
+          const staged = e instanceof RestoreFailedAfterStagingError;
+          warnClass("restore", "failed", staged ? e.cause : e);
           deps.notify(COPY.restoreFailed);
-          return false;
+          return staged;
         }
       }),
   };
