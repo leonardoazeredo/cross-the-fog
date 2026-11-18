@@ -44,7 +44,7 @@ function line(...pts) {
   for (let i = 0; i < 3000; i++) zig.push([13.7 + (i * 4) / KX, LAT + ((i % 2) * 30 + Math.floor(i / 100) * 40) / KY, 0]);
   // Passes when any of up to RUNS runs is under the limit. One run stretched by a busy machine (a 290 ms
   // run was seen about once in three on a loaded one) says nothing about the code, whereas code that got
-  // several times slower is over the limit in every run, so best-of keeps the guard and drops the flake.
+  // about 8 times slower or more is over the limit in every run, so best-of keeps the guard and drops the flake.
   const RUNS = 7, LIMIT_MS = 250, took = [];
   for (let r = 0; r < RUNS; r++) {
     const t = process.hrtime.bigint();
