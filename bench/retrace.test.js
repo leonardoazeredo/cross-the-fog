@@ -39,12 +39,20 @@ function line(...pts) {
   assert.equal(rankKey({ area: 1000, newPct: 100 }, 1), 500);
   assert.ok(rankKey({ area: 1000, newPct: 60 }, 0.1) > rankKey({ area: 1000, newPct: 60 }, 0.4));
 }
-{ // guard against quadratic blow-up; 250 ms is generous for 3000 points on a laptop
+{ // guard against quadratic blow-up; 250 ms is about 8 times the 30 ms this takes for 3000 points on a laptop
   const zig = [];
   for (let i = 0; i < 3000; i++) zig.push([13.7 + (i * 4) / KX, LAT + ((i % 2) * 30 + Math.floor(i / 100) * 40) / KY, 0]);
-  const t = Date.now();
-  overlapFrac(zig, false);
-  assert.ok(Date.now() - t < 250, `overlapFrac took ${Date.now() - t} ms`);
+  // Passes when any of up to RUNS runs is under the limit. One run stretched by a busy machine (a 290 ms
+  // run was seen about once in three on a loaded one) says nothing about the code, whereas code that got
+  // about 8 times slower or more is over the limit in every run, so best-of keeps the guard and drops the flake.
+  const RUNS = 7, LIMIT_MS = 250, took = [];
+  for (let r = 0; r < RUNS; r++) {
+    const t = process.hrtime.bigint();
+    overlapFrac(zig, false);
+    took.push(Number(process.hrtime.bigint() - t) / 1e6);
+    if (took[r] < LIMIT_MS) break;
+  }
+  assert.ok(took[took.length - 1] < LIMIT_MS, `overlapFrac took ${took.map((ms) => ms.toFixed(0)).join(", ")} ms in ${took.length} runs, over ${LIMIT_MS} ms each time`);
 }
 (async () => {
 { // _rerouteReturn: the outbound edges are avoided, the result is outbound + new way home; null when there is nothing new
