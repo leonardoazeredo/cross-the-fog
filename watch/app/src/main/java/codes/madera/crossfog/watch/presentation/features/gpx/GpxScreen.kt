@@ -653,49 +653,6 @@ fun GpxScreen(
                         modifier = Modifier.size(headerActionIconSize),
                     )
                 }
-                if (gpxFiles.isNotEmpty()) {
-                    CompactIconHitTargetButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val nextSendMode = !isSendMode
-                            isSendMode = nextSendMode
-                            if (nextSendMode) {
-                                isRenameMode = false
-                                isDeleteMode = false
-                            } else {
-                                selectedSendPaths = emptySet()
-                            }
-                        },
-                        visualSize = headerActionButtonSize,
-                        visualOffsetY = headerActionVisualOffsetY,
-                        containerColor =
-                            if (isSendMode) {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            } else {
-                                Color.Black.copy(alpha = 0.7f)
-                            },
-                        contentColor =
-                            if (isSendMode) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                Color.White
-                            },
-                    ) {
-                        if (isSendMode) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.gpx_exit_send_mode),
-                                modifier = Modifier.size(headerActionIconSize),
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_mobile_arrow_right),
-                                contentDescription = stringResource(R.string.gpx_send_gpx_to_phone),
-                                modifier = Modifier.size(headerActionIconSize),
-                            )
-                        }
-                    }
-                }
             }
 
             // Middle list (takes all remaining space)
@@ -849,7 +806,6 @@ fun GpxScreen(
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     selectedSendPaths = emptySet()
                                     isSendMode = false
-                                    gpxViewModel.sendGpxFilesToPhone(paths)
                                 }
                             } else {
                                 navController.navigate(WatchRoutes.GPX_SETTINGS)

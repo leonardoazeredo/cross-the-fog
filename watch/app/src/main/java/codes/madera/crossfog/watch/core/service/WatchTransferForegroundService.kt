@@ -28,7 +28,6 @@ import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferRuntime
 import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferTerminalOutcome
 import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferTerminalState
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchFileOps
-import codes.madera.crossfog.watch.data.repository.WatchDataLayerRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +63,6 @@ class WatchTransferForegroundService :
     private val serviceInstanceId = Integer.toHexString(System.identityHashCode(this))
 
     private lateinit var notificationHelper: NotificationHelper
-    private lateinit var dataLayerRepository: WatchDataLayerRepository
     private val httpReceiver = HttpTransferStrategy()
     private lateinit var runner: TransferRunner
 
@@ -72,7 +70,6 @@ class WatchTransferForegroundService :
         super.onCreate()
         TransferDiagnostics.log("FgService", "Created instance=$serviceInstanceId")
 
-        dataLayerRepository = WatchDataLayerRepository(this)
         notificationHelper = NotificationHelper(this)
         notificationHelper.createNotificationChannel()
         runner =
@@ -81,7 +78,7 @@ class WatchTransferForegroundService :
                 notificationHelper = notificationHelper,
                 httpReceiver = httpReceiver,
                 sessionState = transferSessionState,
-                sendStatus = dataLayerRepository::sendStatus,
+                sendStatus = { _, _, _, _ -> },
                 claimTerminal = ::claimTerminal,
             )
     }
@@ -361,7 +358,6 @@ class WatchTransferForegroundService :
         val metadata = request.metadata
         app.applicationScope.launch(Dispatchers.IO) {
             runCatching {
-                dataLayerRepository.sendStatus(metadata.sourceNodeId, metadata.transferId, result.phase, result.detail)
             }.onFailure {
                 TransferDiagnostics.warn(
                     "FgService",
@@ -369,7 +365,6 @@ class WatchTransferForegroundService :
                 )
             }
             runCatching {
-                dataLayerRepository.sendAck(metadata.sourceNodeId, metadata.transferId, result.ackStatus, result.detail)
             }.onFailure {
                 TransferDiagnostics.warn(
                     "FgService",

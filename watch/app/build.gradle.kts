@@ -227,7 +227,6 @@ dependencies {
     implementation(libs.androidx.health.services)
 
     // Play Services / Coroutines
-    implementation(libs.play.services.wearable)
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.android)

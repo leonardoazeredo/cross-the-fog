@@ -88,10 +88,6 @@
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
 
-        <meta-data
-            android:name="com.google.android.gms.wearable.CHANNEL_BUFFER_SIZE"
-            android:value="${channelBufferSize}" />
-
         <activity
             android:name=".presentation.MainActivity"
             android:configChanges="locale|layoutDirection"
@@ -120,11 +116,6 @@
             android:exported="false" />
 
         <service
-            android:name=".core.service.ChannelTransferForegroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
-
-        <service
             android:name=".presentation.features.download.OamDownloadForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
@@ -133,16 +124,6 @@
             android:name=".presentation.features.maps.theme.StandaloneDemDownloadForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
-
-        <!-- ✅ Correct binding for WearableListenerService -->
-        <service
-            android:name=".core.service.DataLayerListenerService"
-            android:exported="true"
-            android:foregroundServiceType="dataSync">
-            <intent-filter>
-                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
-            </intent-filter>
-        </service>
 
     </application>
 

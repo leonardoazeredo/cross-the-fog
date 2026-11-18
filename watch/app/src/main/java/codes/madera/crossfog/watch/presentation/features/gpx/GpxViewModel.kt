@@ -10,7 +10,6 @@ import codes.madera.crossfog.watch.core.gpx.GpxElevationFilterConfig
 import codes.madera.crossfog.watch.core.gpx.GpxElevationFilterDefaults
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.location.policy.LocationFixPolicy
-import codes.madera.crossfog.watch.data.repository.GpxExportRepository
 import codes.madera.crossfog.watch.data.repository.GpxRepositoryImpl
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.presentation.SyncManager
@@ -102,7 +101,6 @@ data class GpxRouteServices(
 class GpxViewModel(
     private val resources: Resources,
     private val gpxRepository: GpxRepositoryImpl,
-    private val gpxExportRepository: GpxExportRepository,
     private val syncManager: SyncManager,
     private val settingsRepository: SettingsRepository,
     private val routeServices: GpxRouteServices,
@@ -1276,108 +1274,6 @@ class GpxViewModel(
                 reloadGpxFilesAndWait()
             }
             onComplete(result.map { })
-        }
-    }
-
-    fun sendGpxToPhone(path: String) {
-        val fileState = _gpxFiles.value.firstOrNull { it.path == path }
-        val displayName = fileState?.displayTitle ?: File(path).nameWithoutExtension
-        viewModelScope.launch {
-            _exportUiState.value =
-                GpxExportUiState(
-                    filePath = path,
-                    isSending = true,
-                    message = resources.getString(R.string.gpx_sending, displayName.take(18)),
-                )
-            val result =
-                withContext(Dispatchers.IO) {
-                    gpxExportRepository.sendGpxToPhone(
-                        file = File(path),
-                        displayName = displayName,
-                    )
-                }
-            _exportUiState.value =
-                result.fold(
-                    onSuccess = {
-                        GpxExportUiState(
-                            filePath = path,
-                            message = resources.getString(R.string.gpx_sent_to_phone),
-                        )
-                    },
-                    onFailure = { error ->
-                        GpxExportUiState(
-                            filePath = path,
-                            message =
-                                error
-                                    .routeToolFailureMessage(resources)
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?: resources.getString(R.string.gpx_send_failed),
-                        )
-                    },
-                )
-            delay(3_000L)
-            if (_exportUiState.value.filePath == path && !_exportUiState.value.isSending) {
-                _exportUiState.value = GpxExportUiState()
-            }
-        }
-    }
-
-    fun sendGpxFilesToPhone(paths: List<String>) {
-        val uniquePaths = paths.distinct().filter { path -> _gpxFiles.value.any { it.path == path } }
-        if (uniquePaths.isEmpty()) return
-        viewModelScope.launch {
-            var sentCount = 0
-            var failedCount = 0
-            uniquePaths.forEachIndexed { index, path ->
-                val fileState = _gpxFiles.value.firstOrNull { it.path == path }
-                val displayName = fileState?.displayTitle ?: File(path).nameWithoutExtension
-                _exportUiState.value =
-                    GpxExportUiState(
-                        filePath = path,
-                        isSending = true,
-                        message = resources.getString(R.string.gpx_sending_2, index + 1, uniquePaths.size),
-                    )
-                val result =
-                    withContext(Dispatchers.IO) {
-                        gpxExportRepository.sendGpxToPhone(
-                            file = File(path),
-                            displayName = displayName,
-                        )
-                    }
-                result.fold(
-                    onSuccess = {
-                        sentCount += 1
-                        _exportUiState.value =
-                            GpxExportUiState(
-                                filePath = path,
-                                message = resources.getString(R.string.gpx_sent, index + 1, uniquePaths.size),
-                            )
-                    },
-                    onFailure = { error ->
-                        failedCount += 1
-                        _exportUiState.value =
-                            GpxExportUiState(
-                                filePath = path,
-                                message =
-                                    error
-                                        .routeToolFailureMessage(resources)
-                                        ?.takeIf { it.isNotBlank() }
-                                        ?: resources.getString(R.string.gpx_send_failed),
-                            )
-                    },
-                )
-                delay(500L)
-            }
-
-            _exportUiState.value =
-                GpxExportUiState(
-                    filePath = uniquePaths.last(),
-                    message = batchSendSummary(sentCount = sentCount, failedCount = failedCount, resources = resources),
-                )
-            delay(3_000L)
-            if (!_exportUiState.value.isSending) {
-                _exportUiState.value = GpxExportUiState()
-            }
         }
     }
 

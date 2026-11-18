@@ -59,10 +59,6 @@ class AppContainer(
         GpxRepositoryImpl(applicationContext)
     }
 
-    val gpxExportRepository: GpxExportRepository by lazy {
-        GpxExportRepositoryImpl(applicationContext)
-    }
-
     val mapRepository: MapRepositoryImpl by lazy {
         MapRepositoryImpl(applicationContext)
     }
@@ -87,7 +83,6 @@ class AppContainer(
         GpxViewModel(
             resources = applicationContext.resources,
             gpxRepository = gpxRepository,
-            gpxExportRepository = gpxExportRepository,
             syncManager = syncManager,
             settingsRepository = settingsRepository,
             routeServices =
