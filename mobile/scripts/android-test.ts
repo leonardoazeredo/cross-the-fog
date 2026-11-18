@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,6 +7,7 @@ import {
   attachedDevices,
   defaultAndroidHome,
   missingTooling,
+  needsPrebuild,
   noDeviceMessage,
   PLANS,
 } from "./androidEnv.js";
@@ -58,9 +59,19 @@ if (plan.needsDevice) {
 
 // android/ is generated and git-ignored, so a fresh checkout or worktree has none; a gate that skipped
 // without it would pass while testing nothing.
-if (!existsSync(join(androidDir, "gradlew"))) {
-  say("mobile/android is missing; generating it (expo prebuild, about 5 s, no install)");
+const hasGradlew = existsSync(join(androidDir, "gradlew"));
+if (!hasGradlew) {
+  say("mobile/android is missing; generating the page (about 2 s)");
   if (run("pnpm", ["generate"], mobile, env) !== 0) process.exit(1);
+}
+
+// Prebuild only when android/ is missing or predates the shared link/ include: an android/ that was
+// prebuilt on purpose with other settings (CROSSFOG_E2E, say) is left as it is. Prebuild applies the
+// config plugins to an existing android/ too, once (plugins/withLinkProject.cjs).
+const settingsFile = join(androidDir, "settings.gradle");
+const settings = existsSync(settingsFile) ? readFileSync(settingsFile, "utf8") : null;
+if (!hasGradlew || needsPrebuild(settings)) {
+  say("expo prebuild (about 2 s, no install)");
   if (
     run(
       "pnpm",
@@ -74,8 +85,8 @@ if (!existsSync(join(androidDir, "gradlew"))) {
 }
 
 say(
-  `gradle ${plan.gradleTask} (about 20 to 60 s; a first run on a new machine downloads Gradle's dependencies)`,
+  `gradle ${plan.gradleTasks.join(" ")} (about 20 to 60 s; a first run on a new machine downloads Gradle's dependencies)`,
 );
-const status = run("./gradlew", [plan.gradleTask], androidDir, env);
+const status = run("./gradlew", plan.gradleTasks, androidDir, env);
 say(status === 0 ? "passed" : `failed (gradle exit ${status})`);
 process.exit(status);

@@ -12,7 +12,7 @@ Defog: a browser-only tool that reads a Fog of World `Sync/` folder (or backup .
 - No GitHub Pages site: `app/` ships only inside the phone app in `mobile/` (bundled into `generated/web.ts` by `pnpm generate`).
 - `Sync/` (personal location history) is gitignored: never commit it or anything derived from it.
 - Third-party libs are vendored in `app/vendor/`; there is nothing to install.
-- `watch/` is the Wear OS watch app: a one-time import of GlanceMap (ADR 0009), its own Gradle project, application id `codes.madera.crossfog.watch`. Upstream URL, pinned commit, what was left out and what is not byte-identical are in `watch/UPSTREAM.md`; read it before touching a file there. Build and test: in `watch/`, `./gradlew :app:assembleDebug :app:testDebugUnitTest` (JDK 21, `ANDROID_HOME` set; the build reads the git SHA, so it must run inside a git checkout). Not part of `pnpm verify`.
+- `watch/` is the Wear OS watch app: a one-time import of GlanceMap (ADR 0009), its own Gradle project, application id `codes.madera.crossfog.watch`. Upstream URL, pinned commit, what was left out and what is not byte-identical are in `watch/UPSTREAM.md`; read it before touching a file there. Build and test: in `watch/`, `./gradlew :app:assembleDebug :app:testDebugUnitTest` (JDK 21, `ANDROID_HOME` set; the build reads the git SHA, so it must run inside a git checkout). Not part of `pnpm verify`. `link/` is the Kotlin module shared by the phone app and `watch/` (ADR 0009, #407): both Gradle builds include it (`watch/settings.gradle.kts`, and `mobile/plugins/withLinkProject.cjs` for the generated phone project), the phone's `pnpm test:android` runs `:link:test`, and `link/README.md` says what may go in it.
 
 ## Architecture
 

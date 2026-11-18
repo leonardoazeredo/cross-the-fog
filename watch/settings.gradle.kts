@@ -30,3 +30,6 @@ dependencyResolutionManagement {
 rootProject.name = "GlanceMap"
 include(":app")
 include(":transfercontract")
+// The local link, shared with the phone app and built by both Gradle builds from one source.
+include(":link")
+project(":link").projectDir = file("../link")

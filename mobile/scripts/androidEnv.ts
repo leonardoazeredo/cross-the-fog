@@ -1,15 +1,24 @@
 import { join } from "node:path";
 
+/** What `plugins/withLinkProject.cjs` writes into the generated `settings.gradle`; a test keeps the two equal. */
+export const LINK_MARKER = "// crossfog: the shared link/ module";
+
+/** A generated `android/` needs `expo prebuild` when it is missing or was made before the link include existed. */
+export function needsPrebuild(settingsGradle: string | null): boolean {
+  return settingsGradle === null || !settingsGradle.includes(LINK_MARKER);
+}
+
 export type AndroidTestMode = "jvm" | "device";
 
 export interface AndroidPlan {
-  gradleTask: string;
+  /** Passed to one Gradle run, in this order. */
+  gradleTasks: string[];
   needsDevice: boolean;
 }
 
 export const PLANS: Record<AndroidTestMode, AndroidPlan> = {
-  jvm: { gradleTask: ":platform:testDebugUnitTest", needsDevice: false },
-  device: { gradleTask: ":platform:connectedDebugAndroidTest", needsDevice: true },
+  jvm: { gradleTasks: [":platform:testDebugUnitTest", ":link:test"], needsDevice: false },
+  device: { gradleTasks: [":platform:connectedDebugAndroidTest"], needsDevice: true },
 };
 
 /** The serials in the `device` state in `adb devices` output; an `offline` or `unauthorized` row is not a device to test on. */
