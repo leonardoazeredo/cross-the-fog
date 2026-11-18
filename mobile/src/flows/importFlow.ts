@@ -101,7 +101,8 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
-  // Only the newest queued share is kept, as before; the one it replaces will never run, so its cached copy goes now.
+  // Only the share that reached the queue last is kept (an older share whose question was confirmed later replaces a
+  // newer one); the one it replaces will never run, so its cached copy goes now.
   async function queueShare(file: SourceFile): Promise<void> {
     const replaced = pendingShare;
     pendingShare = file;
