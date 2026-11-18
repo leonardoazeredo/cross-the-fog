@@ -321,6 +321,8 @@ export function createController(deps: ControllerDeps): Controller {
       await started;
       if (restoring) {
         deps.notify(COPY.restoreRunning);
+        // Through the flow, not `deps.releaseSource`: a share of the same file may be waiting on its replace question.
+        await importFlow.refuse(file);
         return;
       }
       await importFlow.incoming(file);

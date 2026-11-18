@@ -62,7 +62,7 @@ interface Harness {
   devAddActivity: ReturnType<typeof vi.fn>;
 }
 
-function createHarness(opts: { devHandler?: boolean } = {}): Harness {
+function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = {}): Harness {
   const fs = createMemoryFileStore({ sources });
   const clock = { value: NOW };
   const store = createFogStore(fs, {
@@ -117,7 +117,9 @@ function createHarness(opts: { devHandler?: boolean } = {}): Harness {
     },
     releaseSource: (uri) => {
       released.push(uri);
-      return Promise.resolve();
+      return opts.releaseFails
+        ? Promise.reject(new Error(`cannot delete ${uri} under /data/user/0`))
+        : Promise.resolve();
     },
     now: () => clock.value,
     setBusy: (on) => busy.push(on),
@@ -771,6 +773,64 @@ it("refuses an import, a clear and a shared file while a restore runs", async ()
   await running;
   await h.c.onWebMessage(pickBackup);
   expect(h.pickFile).toHaveBeenCalledOnce();
+});
+
+it("releases the cached copy of a share it refuses while a restore runs, once", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const restoring = deferred<boolean>();
+  h.flows.restore.mockReturnValueOnce(restoring.promise);
+  const running = h.c.onWebMessage({ v: 1, type: "restore" });
+  await Promise.resolve();
+
+  await h.c.onIncoming({ uri: bSrc, name: "b.zip" });
+
+  expect(h.notified).toEqual([COPY.restoreRunning]);
+  expect(h.released).toEqual([bSrc]);
+  restoring.resolve(false);
+  await running;
+});
+
+it("still refuses a share during a restore when its cached copy cannot be released, and logs the class only", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const h = createHarness({ releaseFails: true });
+  await h.c.start();
+  const restoring = deferred<boolean>();
+  h.flows.restore.mockReturnValueOnce(restoring.promise);
+  const running = h.c.onWebMessage({ v: 1, type: "restore" });
+  await Promise.resolve();
+
+  await expect(h.c.onIncoming({ uri: bSrc, name: "b.zip" })).resolves.toBeUndefined();
+
+  expect(h.notified).toEqual([COPY.restoreRunning]);
+  expect(warn.mock.calls).toEqual([["crossfog: import could not release a source file", "Error"]]);
+  restoring.resolve(false);
+  await running;
+  warn.mockRestore();
+});
+
+it("keeps the cached copy a waiting share still needs when the same file is refused during a restore", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  const question = deferred<boolean>();
+  h.confirmReplace.mockReturnValueOnce(question.promise);
+  const first = h.c.onIncoming({ uri: bSrc, name: "b.zip" });
+  await vi.waitFor(() => expect(h.confirmReplace).toHaveBeenCalledOnce());
+  const restoring = deferred<boolean>();
+  h.flows.restore.mockReturnValueOnce(restoring.promise);
+  const running = h.c.onWebMessage({ v: 1, type: "restore" });
+  await Promise.resolve();
+
+  await h.c.onIncoming({ uri: bSrc, name: "b.zip" });
+  expect(h.notified).toContain(COPY.restoreRunning);
+  expect(h.released).toEqual([]);
+
+  question.resolve(true);
+  await first;
+  expect(h.released).toEqual([bSrc]);
+  restoring.resolve(false);
+  await running;
 });
 
 it("waits for the flow before the next page message is handled", async () => {
