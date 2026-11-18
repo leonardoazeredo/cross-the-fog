@@ -582,5 +582,55 @@ const T = (x, y) => ({ x, y });
       assert.equal(got, outage, "the outage error rethrows as it does today");
     } finally { console.warn = warn; }
   }
+  { // a call stopped by the caller's onTile still has its writes counted (the network hands tiles over in its Map alone)
+    const store = TileStore.memory({ maxEntries: 10 });
+    let gets = 0;
+    const realGet = store.get.bind(store);
+    store.get = async (k) => { gets++; return realGet(k); };
+    store.put = () => new Promise((_, reject) => setTimeout(() => reject(new Error("hung")), 5));
+    const network = async (tiles) => new Map(tiles.map((t) => [t.x + ":" + t.y, answerFor(t)]));
+    const stop = () => { throw new Error("stop"); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      for (let i = 1; i <= 3; i++) await c.fetchStreets([T(i, 1)], stop).then(() => assert.fail("stopped"), (e) => assert.equal(e.message, "stop"));
+      await c.fetchStreets([T(4, 1)]);
+      assert.equal(gets, 3, "three stopped calls with failing writes: the store is skipped");
+    } finally { console.warn = warn; }
+  }
+  { // a call that never touches the store (no tiles) says nothing about it
+    const { network } = fakeNetwork();
+    const store = TileStore.memory({ maxEntries: 10 });
+    let gets = 0;
+    store.get = async () => { gets++; throw new Error("hung"); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      await c.fetchStreets([T(1, 1)]);
+      await c.fetchStreets([T(2, 1)]);
+      await c.fetchStreets([]);
+      await c.fetchStreets([T(3, 1)]);
+      await c.fetchStreets([T(4, 1)]);
+      assert.equal(gets, 3, "the empty call did not reset the count");
+    } finally { console.warn = warn; }
+  }
+  { // two failing calls in flight together, the count at 2: the skip line is still logged once
+    const { network } = fakeNetwork();
+    const store = TileStore.memory({ maxEntries: 10 });
+    store.backend = "indexeddb";
+    store.get = async () => { throw new Error("hung"); };
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...a) => warned.push(a);
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      await c.fetchStreets([T(1, 1)]);
+      await c.fetchStreets([T(2, 1)]);
+      await Promise.all([c.fetchStreets([T(3, 1)]), c.fetchStreets([T(4, 1)])]);
+    } finally { console.warn = warn; }
+    assert.equal(warned.filter((w) => /skipped/.test(w[0])).length, 1);
+  }
   console.log("street-cache.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });

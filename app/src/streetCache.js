@@ -72,8 +72,9 @@
     // The run's opts (its clock, busy wait and stale) go to the network source, so a busy wait keeps to
     // the run's deadline and stop, and a replaced run's posts still waiting for a slot are not sent.
     async function fetchStreets(tiles, onTile, opts) {
-      const state = { storeDown: skipStore, touched: false, failed: false };
-      try { return await run(tiles, onTile, opts, state); } finally { settle(state); }
+      const state = { storeDown: skipStore, touched: false, failed: false, puts: [] };
+      // the writes are awaited on every exit, a stop from the caller's onTile included, so a failing one is counted
+      try { return await run(tiles, onTile, opts, state); } finally { await Promise.all(state.puts); settle(state); }
     }
 
     async function run(tiles, onTile, opts, state) {
@@ -97,7 +98,7 @@
       }
       if (!missing.length) return out;
 
-      const puts = [];
+      const puts = state.puts;
       const keep = (t, answer) => {
         if (!answer || out.has(idOf(t))) return;
         if (!state.storeDown) {
