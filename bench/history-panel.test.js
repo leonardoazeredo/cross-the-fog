@@ -79,12 +79,15 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
   function control(send) {
     let onClick = null;
     const btn = { disabled: true, addEventListener: (_, fn) => { onClick = fn; } }, chip = { textContent: "" };
-    const rec = { id: "r1", gpx: "<gpx/>" };
-    const route = { has: true, revision: 1 };
+    const route = { has: true, revision: 1, gpx: "<gpx/>" };
+    const sentRecords = [];
     const ctl = createSendControl({
-      button: btn, chip, getRecord: () => rec, hasRoute: () => route.has, revision: () => route.revision, canSend: () => true, send
+      button: btn, chip, getRecord: () => ({ id: "r1", gpx: route.gpx }), hasRoute: () => route.has, revision: () => route.revision, canSend: () => true,
+      // stands in for Sha256.hex: any pure function of the text shows the chip comparing contents
+      contentHash: (text) => "hash:" + text,
+      send: (rec) => { sentRecords.push(rec); send(rec); }
     });
-    return { ctl, chip, btn, route, tap: () => onClick() };
+    return { ctl, chip, btn, route, sentRecords, tap: () => onClick() };
   }
   try {
     const errors = [];
@@ -130,6 +133,42 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     lost.route.revision++;
     lost.ctl.update();
     assert.equal(lost.chip.textContent, "A route could not be sent. Send it again.", "an edit blanks the route's status and the line shows again, once; zero, negative and text counts add nothing");
+
+    // The revision is the hash of the GPX of this send, so a late answer for an earlier send of the same
+    // route id (edited and sent again) cannot say "On the watch" for the new one.
+    const sendTwice = control(() => {});
+    sendTwice.tap();
+    assert.equal(sendTwice.sentRecords[0].revision, "hash:<gpx/>", "the record carries the hash of its GPX");
+    assert.equal(sendTwice.sentRecords[0].gpx, "<gpx/>");
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: "hash:<gpx/>" });
+    assert.equal(sendTwice.chip.textContent, "Waiting for watch");
+    sendTwice.route.gpx = "<gpx v='2'/>"; sendTwice.route.revision++;
+    sendTwice.ctl.update();
+    assert.equal(sendTwice.chip.textContent, "", "an edit blanks the chip");
+    sendTwice.tap();
+    assert.equal(sendTwice.sentRecords[1].revision, "hash:<gpx v='2'/>");
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx/>" });
+    assert.equal(sendTwice.chip.textContent, "", "a late answer for v1 before the phone has answered v2 is ignored");
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: "hash:<gpx v='2'/>" });
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx/>" });
+    assert.equal(sendTwice.chip.textContent, "Waiting for watch", "a late onWatch for v1 does not say On the watch once v2 is waiting");
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "failed", revision: "hash:<gpx/>" });
+    assert.equal(sendTwice.chip.textContent, "Waiting for watch", "nor does a late failure of v1");
+    sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx v='2'/>" });
+    assert.equal(sendTwice.chip.textContent, "On the watch", "the answer for v2 does");
+
+    // A status with no revision (a phone or watch build from before revisions) is matched by route id alone,
+    // as it was; a revision that is present must match, whatever its shape.
+    const legacy = control(() => {});
+    legacy.tap();
+    legacy.ctl.routeStatus({ routeId: "r1", state: "onWatch" });
+    assert.equal(legacy.chip.textContent, "On the watch", "no revision: accepted by id");
+    const odd = control(() => {});
+    odd.tap();
+    for (const revision of ["", "x", 5, {}]) odd.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision });
+    assert.equal(odd.chip.textContent, "", "a revision that is present and not this send's is ignored");
+    odd.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: null });
+    assert.equal(odd.chip.textContent, "On the watch", "null reads as absent, like JSON null for any optional field");
 
     // the button follows hasRoute without building a record; an edit (a new revision) blanks the chip
     const edited = control(() => {});

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { NativeToWeb } from "../../../src/bridge/protocol.js";
 import { createFlows } from "../../../src/flows/compose.js";
@@ -9,6 +10,8 @@ import type { ActivityStore } from "../../../src/history/types.js";
 import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
 import { route } from "../history/fixtures.js";
 
+const revisionOf = async (gpx: string) => createHash("sha256").update(gpx, "utf8").digest("hex");
+
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const GPX =
   '<gpx><trk><trkseg><trkpt lat="51.4769" lon="0.0005"><time>2026-03-01T10:00:00Z</time></trkpt></trkseg></trk></gpx>';
@@ -18,7 +21,14 @@ function setup() {
   const activities = createMemoryActivityStore();
   const routes = createMemoryRouteStore();
   const sent: NativeToWeb[] = [];
-  const flows = createFlows({ link, activities, routes, send: (m) => sent.push(m), now: () => 0 });
+  const flows = createFlows({
+    revisionOf,
+    link,
+    activities,
+    routes,
+    send: (m) => sent.push(m),
+    now: () => 0,
+  });
   return { link, activities, routes, sent, flows };
 }
 
@@ -48,6 +58,7 @@ function setupWithRestore(restore: (swap: () => void) => Promise<boolean>) {
   const activities = swappableActivities();
   const sent: NativeToWeb[] = [];
   const flows = createFlows({
+    revisionOf,
     link,
     activities: activities.store,
     routes: createMemoryRouteStore(),
@@ -168,6 +179,7 @@ describe("composed flows", () => {
       },
     };
     const flows = createFlows({
+      revisionOf,
       link: flaky,
       activities,
       routes,
@@ -186,6 +198,7 @@ describe("composed flows", () => {
     const link = createFakeWatchLink();
     link.stageUnreadable(A);
     const flows = createFlows({
+      revisionOf,
       link,
       activities: createMemoryActivityStore(),
       routes: createMemoryRouteStore(),
@@ -225,6 +238,7 @@ describe("composed flows", () => {
     const chunk = { exportId: "e1", name: "abcd", index: 0, total: 1, files: 1, data: "" };
     const onChunk = vi.fn(async () => {});
     const withExport = createFlows({
+      revisionOf,
       link: createFakeWatchLink(),
       activities: createMemoryActivityStore(),
       routes: createMemoryRouteStore(),
@@ -276,6 +290,7 @@ describe("composed flows", () => {
       },
     };
     const flows = createFlows({
+      revisionOf,
       link,
       activities: slow,
       routes: createMemoryRouteStore(),

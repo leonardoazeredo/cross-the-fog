@@ -121,6 +121,11 @@ const webSamples = [
   { v: 1 as const, type: "back:result" as const, handled: true },
   { v: 1 as const, type: "sendRoute" as const, route },
   { v: 1 as const, type: "sendRoute" as const, route: bareRoute },
+  {
+    v: 1 as const,
+    type: "sendRoute" as const,
+    route: { ...route, revision: "0123456789abcdef".repeat(4) },
+  },
   { v: 1 as const, type: "needTrack" as const, activityId },
   { v: 1 as const, type: "deleteActivity" as const, activityId },
   {
@@ -197,6 +202,13 @@ const nativeSamples = [
   { v: 1 as const, type: "applySettings" as const, json: "{}" },
   { v: 1 as const, type: "routeStatus" as const, routeId, state: "waiting" as const },
   { v: 1 as const, type: "routeStatus" as const, routeId, state: "onWatch" as const },
+  {
+    v: 1 as const,
+    type: "routeStatus" as const,
+    routeId,
+    state: "onWatch" as const,
+    revision: "0123456789abcdef".repeat(4),
+  },
   {
     v: 1 as const,
     type: "routeStatus" as const,
@@ -300,6 +312,12 @@ describe("protocol", () => {
       JSON.stringify({ v: 1, type: "openExternal", url: "intent://scan#Intent;end" }),
     ],
     ["a file: link", JSON.stringify({ v: 1, type: "openExternal", url: "file:///etc/hosts" })],
+    ...["abc", "A".repeat(64), "g".repeat(64), "a".repeat(65), 5, null].map(
+      (revision): [string, string] => [
+        `a route with a revision of ${JSON.stringify(revision)}`,
+        JSON.stringify({ v: 1, type: "sendRoute", route: { ...route, revision } }),
+      ],
+    ),
     [
       "a route whose id is not a UUID",
       JSON.stringify({ v: 1, type: "sendRoute", route: { ...route, id: "route-1" } }),
@@ -489,6 +507,12 @@ describe("protocol", () => {
     ["an empty notice", { v: 1, type: "notice", text: "" }],
     ["a long notice", { v: 1, type: "notice", text: "x".repeat(501) }],
     ["a routeStatus with an unknown state", { v: 1, type: "routeStatus", routeId, state: "lost" }],
+    ...["abc", "A".repeat(64), "g".repeat(64), "a".repeat(65), 5, null].map(
+      (revision): [string, unknown] => [
+        `a routeStatus with a revision of ${JSON.stringify(revision)}`,
+        { v: 1, type: "routeStatus", routeId, state: "waiting", revision },
+      ],
+    ),
     [
       "a routeStatus whose id is not a UUID",
       { v: 1, type: "routeStatus", routeId: "r1", state: "waiting" },

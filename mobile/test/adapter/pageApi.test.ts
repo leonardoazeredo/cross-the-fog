@@ -188,7 +188,7 @@ it("keeps dispatching when one listener throws", () => {
   error.mockRestore();
 });
 
-it("hands routeStatus, linkStatus and activities to their listeners without the envelope", () => {
+it("hands routeStatus, linkStatus and activities to their listeners without the envelope, a revision included", () => {
   const { api, crossfog } = install();
   const onRoute = vi.fn();
   const onLink = vi.fn();
@@ -200,6 +200,8 @@ it("hands routeStatus, linkStatus and activities to their listeners without the 
   api.dispatch({ v: 1, type: "linkStatus", paired: true, reachable: false });
   api.dispatch({ v: 1, type: "activities", items: [] });
   expect(onRoute).toHaveBeenCalledExactlyOnceWith({ routeId, state: "failed", why: "x" });
+  api.dispatch({ v: 1, type: "routeStatus", routeId, state: "onWatch", revision: "a".repeat(64) });
+  expect(onRoute).toHaveBeenLastCalledWith({ routeId, state: "onWatch", revision: "a".repeat(64) });
   expect(onLink).toHaveBeenCalledExactlyOnceWith({ paired: true, reachable: false });
   expect(onActivities).toHaveBeenCalledExactlyOnceWith({ items: [] });
 });

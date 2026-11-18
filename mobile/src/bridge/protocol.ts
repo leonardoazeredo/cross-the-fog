@@ -55,6 +55,9 @@ const routeCoords = z
 // `ascentM` and `descentM` are null when no elevation arrived (app/src/routeLocal.js). The page gives every
 // route a walking time (app/src/estimates.js), but a null `seconds` is accepted too: a route without
 // one is sent rather than rejected.
+// The SHA-256 of a route's GPX as UTF-8 bytes, 64 lowercase hex digits: the value link/'s `Revision` computes.
+const routeRevision = z.string().regex(/^[0-9a-f]{64}$/);
+
 const routeRecord = z.object({
   id: uuid,
   createdAt: isoDate,
@@ -72,6 +75,8 @@ const routeRecord = z.object({
     descentM: nonNegative.nullable(),
   }),
   gpx: z.string().max(ROUTE_MAX_GPX_CHARS),
+  // The page's own hash of `gpx`; the phone computes the real one and refuses a send where they differ.
+  revision: routeRevision.optional(),
 });
 
 const activitySummary = z.object({
@@ -195,6 +200,8 @@ const nativeToWebSchema = z.union([
     routeId: uuid,
     state: z.enum(["waiting", "onWatch", "failed"]),
     why: z.string().max(500).optional(),
+    // Which GPX of this route id the state is for; absent for a status of a build with no revisions.
+    revision: routeRevision.optional(),
   }),
   z.object({
     v: z.literal(1),

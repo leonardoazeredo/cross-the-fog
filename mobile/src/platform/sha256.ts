@@ -6,3 +6,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const buffer = bytes as Uint8Array<ArrayBuffer>;
   return toHex(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, buffer));
 }
+
+/** A route's revision: the SHA-256 of its GPX as UTF-8 bytes, as link/'s `Revision.of` computes it. */
+export function gpxRevision(gpx: string): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(gpx));
+}

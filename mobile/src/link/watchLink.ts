@@ -14,7 +14,13 @@ import {
 const eventSchemas: { [E in keyof WatchLinkEvents]: z.ZodType<WatchLinkEvents[E]> } = {
   activityStaged: z.object({ activityId: z.uuid() }),
   linkStatus: linkStatusSchema,
-  routeSaved: z.object({ routeId: z.uuid() }),
+  routeSaved: z.object({
+    routeId: z.uuid(),
+    revision: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+  }),
 };
 
 // The watch lists a saved route under this name; a route has none of its own. Local time, as the

@@ -254,13 +254,19 @@
   // ----- Send to watch -------------------------------------------------------------
   const STATUS_TEXT = { waiting: "Waiting for watch", onWatch: "On the watch", failed: "Could not send" };
 
-  // opts: { button, chip, getRecord() -> RouteRecord | null, hasRoute() -> boolean, revision() -> number, send(record), canSend() }
+  // opts: { button, chip, getRecord() -> RouteRecord | null, hasRoute() -> boolean, revision() -> number,
+  //         contentHash(gpx) -> string, send(record), canSend() }
   // hasRoute is the cheap "is there something to send" (getRecord builds the whole GPX); revision moves
   // whenever the route may have changed. The chip speaks for the route as it was when sent: an edit or a
   // clear blanks it, and a status for any other route is ignored.
+  // A route keeps its id through edits, so the id alone cannot tell the send a status answers. The record
+  // sent carries `revision`, the SHA-256 of its GPX (contentHash), the phone checks it against its own and
+  // puts it on every status; a status whose revision is not this send's is ignored, so a late answer for v1
+  // cannot say "On the watch" for v2. A status with no revision (a build from before revisions) is matched
+  // by route id alone, as it was.
   function createSendControl(opts) {
     const btn = opts.button, chip = opts.chip;
-    let sent = null; // { id, revision } of the record last sent
+    let sent = null; // { id, revision, hash } of the record last sent: the route's change counter and the hash of its GPX
     let state = null; // waiting | onWatch | failed, for `sent`
     let paired = null;
     let unsent = 0; // routes the phone had to drop, until the user sends again
@@ -289,13 +295,14 @@
     btn.addEventListener("click", () => {
       const rec = record();
       if (!rec || !opts.canSend()) return;
-      sent = { id: rec.id, revision: opts.revision() };
+      const hash = opts.contentHash(rec.gpx);
+      sent = { id: rec.id, revision: opts.revision(), hash };
       state = null;
       unsent = 0;
       if (replyTimer) global.clearTimeout(replyTimer);
       replyTimer = null;
       try {
-        opts.send(rec);
+        opts.send({ ...rec, revision: hash });
         // No answer at all means the phone never took the route; a "waiting" answer is not timed out, as the watch may connect much later.
         replyTimer = global.setTimeout(() => {
           replyTimer = null;
@@ -316,6 +323,7 @@
       },
       routeStatus(msg) {
         if (!sent || msg.routeId !== sent.id || !STATUS_TEXT[msg.state] || !currentIs()) return;
+        if (msg.revision != null && msg.revision !== sent.hash) return;
         state = msg.state;
         paint();
       },
@@ -341,6 +349,7 @@
     const send = createSendControl({
       button: doc.getElementById("sendWatch"), chip: doc.getElementById("sendStatus"),
       getRecord: opts.getRecord, hasRoute: opts.hasRoute, revision: opts.revision,
+      contentHash: (gpx) => global.Sha256.hex(gpx),
       canSend: () => phone() != null,
       send: (record) => phone().sendRoute(record)
     });

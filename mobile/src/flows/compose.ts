@@ -28,6 +28,8 @@ export interface ComposeDeps {
   settings?: SettingsChannel;
   /** The Fog of World export; absent where the platform has none. */
   exportFlow?: ExportFlow;
+  /** `gpxRevision` where there is a native digest. */
+  revisionOf(gpx: string): Promise<string>;
   now(): number;
 }
 
@@ -37,7 +39,12 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
     routes: deps.routes,
     send: deps.send,
   });
-  const sendFlow = createSendFlow({ link: deps.link, routes: deps.routes, send: deps.send });
+  const sendFlow = createSendFlow({
+    link: deps.link,
+    routes: deps.routes,
+    send: deps.send,
+    revisionOf: deps.revisionOf,
+  });
   const handOff = createHandOffFlow({
     link: deps.link,
     activities: deps.activities,
