@@ -146,7 +146,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
     importActive = true;
     const ok = await doImport(file, "share");
-    if (!ok) clearImportActive();
+    if (!ok) await endImport();
   }
 
   return {
@@ -155,23 +155,25 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     async pick() {
       if (importActive) return;
       importActive = true;
+      // Every exit that ends the import without a verdict hands over a share that queued meanwhile, or it would wait
+      // for an unrelated import to finish.
       try {
         const file = await deps.pickFile();
         if (!file) {
-          clearImportActive();
+          await endImport();
           return;
         }
         if (!acceptIncoming(file.name)) {
           deps.notify(COPY.zipOnly);
-          clearImportActive();
+          await endImport();
           return;
         }
         const ok = await doImport(file, "picker");
-        if (!ok) clearImportActive();
+        if (!ok) await endImport();
       } catch (e) {
         warnClass("import", "could not pick a file", e);
         deps.notify(COPY.importFailed);
-        clearImportActive();
+        await endImport();
       }
     },
 

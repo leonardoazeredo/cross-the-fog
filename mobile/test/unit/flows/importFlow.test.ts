@@ -370,7 +370,23 @@ function racing(opts: { current: "saved" | "none" }) {
     reads.shift()?.();
     await tick();
   };
-  return { flow, begun, released, asked, answers, reads, share, pickA, readSaved, tick };
+  /** Starts a pick and leaves the picker open; `cancelPick` closes it with no file. */
+  const startPick = () => flow.pick();
+  const cancelPick = () => pickDone(null);
+  return {
+    flow,
+    begun,
+    released,
+    asked,
+    answers,
+    reads,
+    share,
+    pickA,
+    readSaved,
+    tick,
+    startPick,
+    cancelPick,
+  };
 }
 
 describe("a share that waits while a pick starts", () => {
@@ -454,6 +470,25 @@ describe("a share that waits while a pick starts", () => {
     await ended;
 
     expect(t.begun).toEqual(["a.zip", "c.zip"]);
+  });
+
+  it("hands the queued share over when the pick is cancelled in the picker", async () => {
+    const t = racing({ current: "saved" });
+    const sharing = t.share("b.zip");
+    await t.readSaved();
+    const picking = t.startPick();
+    t.answers[0]?.(true);
+    await sharing; // queued: the picker is still open
+
+    t.cancelPick();
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    expect(t.asked).toEqual(["b.zip", "b.zip"]); // it asks again, since no verdict will come
+    t.answers[1]?.(true);
+    await picking;
+
+    expect(t.begun).toEqual(["b.zip"]);
   });
 
   it("imports the share at once when no pick starts meanwhile", async () => {
