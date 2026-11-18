@@ -122,7 +122,7 @@ const last = (r) => r.shown[r.shown.length - 1];
       else await r.api.loadFromZip(zipFile);
       return r;
     };
-    { // all good: the status a good import always had, nothing logged, nothing counted
+    { // all good: the plain tile count, nothing logged, nothing counted
       const r = await run([goodTile(good[0]), goodTile(good[1])]);
       assert.equal(last(r), "2 tiles loaded ✓", source);
       assert.equal(r.calls.fog, 1, "the fog is redrawn once");
@@ -156,7 +156,7 @@ const last = (r) => r.shown[r.shown.length - 1];
       assert.equal(last(r), source === "folder" ? "No fog tiles found. Did you pick the Sync folder?" : "No fog tiles found in that .zip. Make sure it contains your Sync folder.");
       assert.deepEqual(r.warns, []);
     }
-    { // a second load starts its count again
+    { // a second load counts from zero
       const r = loaders([cut(nameOf(1))]);
       if (source === "folder") {
         await r.api.loadFromInput([asFile(cut(nameOf(1)))]);
@@ -165,7 +165,7 @@ const last = (r) => r.shown[r.shown.length - 1];
         assert.equal(r.importStats.corrupt, 0, "a good load after a damaged one starts from zero");
       } else {
         await r.api.loadFromZip(zipFile);
-        r.importStats.corrupt = 99; // left over from an earlier load
+        r.importStats.corrupt = 99; // a count a previous load left on the page
         await r.api.loadFromZip(zipFile);
         assert.equal(r.importStats.corrupt, 1, "the count is per load");
       }
@@ -177,7 +177,7 @@ const last = (r) => r.shown[r.shown.length - 1];
     await r.api.loadFromZip(zipFile);
     assert.equal(last(r), "2 tiles loaded ✓");
   }
-  { // an unzip that fails leaves no count of an earlier load behind
+  { // an unzip that fails clears the count a previous load left
     const r = loaders([], () => { throw new Error("bad zip"); });
     r.importStats.corrupt = 99;
     await r.api.loadFromZip(zipFile);
@@ -204,7 +204,7 @@ const last = (r) => r.shown[r.shown.length - 1];
   { // main.js exposes the count to the phone adapter, and logs through the helper's tally only
     assert.match(src, /lastImport: importStats/);
     for (const f of ["loadFromInput", "loadFromZip"]) {
-      assert.doesNotMatch(fnText(f), /catch \(e\) \{\}/, `${f} no longer drops a failed tile silently`);
+      assert.doesNotMatch(fnText(f), /catch \(e\) \{\}/, `${f} counts a failed tile instead of dropping it`);
       assert.doesNotMatch(fnText(f), /console\.\w+\([^)]*(\.name|\bf\b|\bent\b|\bbase\b)/, `${f} logs no file or tile name`);
     }
   }
