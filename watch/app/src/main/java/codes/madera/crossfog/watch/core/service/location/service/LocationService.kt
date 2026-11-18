@@ -226,7 +226,7 @@ class LocationService : Service() {
                 watchGpsLocationGateway.availabilityReason() == WatchGpsAvailabilityReason.AVAILABLE
             },
             checkPhoneConnection = {
-                false.also { latestPhoneConnected = it }
+                null
             },
             lastAnyAcceptedFixAtElapsedMs = { lastAnyAcceptedFixAtElapsedMs },
             lastCallbackAcceptedFixAtElapsedMs = { lastCallbackAcceptedFixAtElapsedMs },
@@ -940,7 +940,7 @@ class LocationService : Service() {
                 (requestSpec.sourceMode == LocationSourceMode.WATCH_GPS && !state.watchOnlyRequested)
         val phoneConnected =
             if (shouldCheckPhone) {
-                false
+                null
             } else {
                 null
             }
