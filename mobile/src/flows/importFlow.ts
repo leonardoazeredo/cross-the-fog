@@ -190,9 +190,10 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     incoming: handleIncoming,
 
     async loaded(msg) {
-      if (!importActive) {
-        // A pending copy served with no import running is one the user was told had failed (a discard that failed, a
-        // restore whose promote failed, a store read that ended an import): a verdict on it must not keep it.
+      if (!awaitingVerdict) {
+        // A pending copy served while no import is waiting for a verdict is one the user was told had failed (a discard
+        // that failed, a restore whose promote failed, a store read that ended an import); an import still choosing its
+        // file has staged nothing. A verdict on it must not keep it.
         try {
           await store.discardPending();
         } catch (e) {

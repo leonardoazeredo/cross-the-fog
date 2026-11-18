@@ -192,6 +192,57 @@ describe("import flow failures", () => {
     onlyNamesLogged();
   });
 
+  it("drops a bad verdict's leftover copy with no 'not a backup' notice", async () => {
+    const calls: string[] = [];
+    const { flow, queued, notified, remounts } = setup({
+      discardPending: async () => void calls.push("discard"),
+    });
+
+    await flow.loaded({
+      v: 1,
+      type: "loaded",
+      fingerprint: META.sha256,
+      ok: false,
+      reason: "unzip",
+    });
+
+    expect(calls).toEqual(["discard"]);
+    expect(remounts()).toBe(1);
+    expect(queued).toEqual([]);
+    expect(notified).toEqual([]);
+  });
+
+  it("drops a leftover copy's verdict while the picker is open and keeps that import going", async () => {
+    const calls: string[] = [];
+    let chosen: (f: SourceFile | null) => void = () => undefined;
+    const flow = createImportFlow({
+      store: {
+        recover: async () => ({ discardedPending: false }),
+        current: async () => null,
+        pending: async () => META,
+        beginImport: async () => META,
+        promotePending: async () => void calls.push("promote"),
+        discardPending: async () => void calls.push("discard"),
+        clear: async () => undefined,
+      },
+      pickFile: () => new Promise((r) => (chosen = r)),
+      confirmReplace: async () => true,
+      notify: () => undefined,
+      releaseSource: async () => undefined,
+      setBusy: () => undefined,
+      queueNotice: () => undefined,
+      remount: async () => undefined,
+    });
+    const picking = flow.pick();
+
+    await flow.loaded(LOADED_OK);
+
+    expect(calls).toEqual(["discard"]);
+    expect(flow.active()).toBe(true);
+    chosen(null);
+    await picking;
+  });
+
   it("does not reject when the page cannot be reloaded after dropping a verdict's copy", async () => {
     const { flow, notified, queued } = setup({}, fail);
 
