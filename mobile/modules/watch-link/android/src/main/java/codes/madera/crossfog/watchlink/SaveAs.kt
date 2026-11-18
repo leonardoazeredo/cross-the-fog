@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.util.Log
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -11,18 +12,34 @@ import java.io.OutputStream
 
 class CopyResult(val size: Long, val head: ByteArray)
 
-/** Streams between app-private files and documents the user picked; nothing backup-sized is held in memory. */
-class SaveAs(private val resolver: ContentResolver, cacheDir: File) {
+/**
+ * Streams between app-private files and documents the user picked; nothing backup-sized is held in memory.
+ * The seams exist for the tests: the default source length, document delete and report are the real ones.
+ */
+class SaveAs(
+  private val resolver: ContentResolver,
+  cacheDir: File,
+  private val lengthOf: (File) -> Long = { it.length() },
+  private val deleteDocument: (Uri) -> Unit = { deleteAt(resolver, it) },
+  private val report: (String) -> Unit = { Log.w(TAG, it) },
+) {
   private val cacheRoot = cacheDir.canonicalFile
 
-  /** Copies a cache file into the document at `uri` and returns the bytes written; a failed copy deletes the document. */
+  /**
+   * Copies a cache file into the document at `uri` and returns the bytes written. Anything that goes wrong,
+   * including a copy whose byte count is not the source's length, deletes the document and rethrows.
+   */
   fun copyToUri(sourcePath: String, uri: Uri): Long {
-    val source = inCache(sourcePath)
-    val out = resolver.openOutputStream(uri, "w") ?: throw IOException("cannot open the document")
     try {
-      return out.use { sink -> source.inputStream().use { input -> copy(input, sink).size } }
+      val source = inCache(sourcePath)
+      val expected = lengthOf(source)
+      val sink = resolver.openOutputStream(uri, "w") ?: throw IOException("cannot open the document")
+      val written = sink.use { out -> source.inputStream().use { input -> copy(input, out).size } }
+      if (written != expected) throw IOException("the copy is not the size of the source")
+      return written
     } catch (e: Exception) {
-      // The picker has already created the document; a half-written one must not stay.
+      // The picker has already created the document, so a failure at any point, even before the first
+      // byte, would leave an empty or half-written one in the user's folder.
       deleteQuietly(uri)
       throw e
     }
@@ -55,15 +72,27 @@ class SaveAs(private val resolver: ContentResolver, cacheDir: File) {
     return file
   }
 
+  // The copy's own failure is what the caller needs, so a delete that fails is only reported, by class: a
+  // message or path could name the user's folder.
   private fun deleteQuietly(uri: Uri) {
     try {
-      if (uri.scheme == "file") File(uri.path ?: return).delete()
-      else DocumentsContract.deleteDocument(resolver, uri)
-    } catch (_: Exception) {
+      deleteDocument(uri)
+    } catch (e: Exception) {
+      report("could not delete a document left by a failed save: ${e.javaClass.simpleName}")
     }
   }
 
   internal companion object {
+    private const val TAG = "SaveAs"
+    private fun deleteAt(resolver: ContentResolver, uri: Uri) {
+      if (uri.scheme == "file") {
+        val file = File(uri.path ?: return)
+        if (!file.delete() && file.exists()) throw IOException("the document is still there")
+      } else {
+        DocumentsContract.deleteDocument(resolver, uri)
+      }
+    }
+
     private const val BUFFER_BYTES = 1024 * 1024
     private const val HEAD_BYTES = 16
 
