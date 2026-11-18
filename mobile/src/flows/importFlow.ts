@@ -283,8 +283,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       }
       clearImportActive();
       // The queued share will never run, and its cached source is a copy of the user's location history, so it
-      // is released like every other dropped share (a failure is logged by class; the user has been told what
-      // happened either way).
+      // is released like every other dropped share (`release` logs a failure by class and carries on).
       const queued = pendingShare;
       pendingShare = null;
       if (queued) await release(queued.uri);
