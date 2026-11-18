@@ -12,7 +12,7 @@
   "include": [
     "app",
     "src",
-    "modules/watch-link",
+    "modules/platform",
     "scripts",
     "test/unit",
     "test/contract",

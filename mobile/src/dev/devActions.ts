@@ -1,7 +1,7 @@
 import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
-import WatchLink from "../../modules/watch-link";
+import Platform from "../../modules/platform";
 import { addActivityFromGpx } from "./addActivity.js";
 
 // Reached only through the `require` in WebShell's `devAddActivity`; import it nowhere else.
@@ -22,8 +22,8 @@ export function createDevAddActivity(
           return asset ? new File(asset.uri).text() : null;
         },
         async stage(offer) {
-          if (!WatchLink.stageForTest) throw new Error("this build cannot stage test offers");
-          await WatchLink.stageForTest(JSON.stringify(offer));
+          if (!Platform.stageForTest) throw new Error("this build cannot stage test offers");
+          await Platform.stageForTest(JSON.stringify(offer));
         },
         handOff,
         newId: randomUUID,

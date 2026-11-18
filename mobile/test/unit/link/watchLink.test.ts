@@ -11,7 +11,7 @@ const native = {
   queueRoute: vi.fn(),
   onLinkEvent: vi.fn(),
 };
-vi.mock("../../../src/platform/watchLinkModule", () => native);
+vi.mock("../../../src/platform/platformModule", () => native);
 
 const { createNativeWatchLink, routeName } = await import("../../../src/link/watchLink");
 

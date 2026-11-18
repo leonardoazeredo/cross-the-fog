@@ -19,7 +19,7 @@ import {
   keyPresence,
   keyState,
   resetKeys,
-} from "./watchLinkModule.js";
+} from "./platformModule.js";
 
 let opened: Promise<HistoryDatabase> | undefined;
 // Only the first open of the process keeps, puts back or discards a replaced copy; a missing live file is recovered on every open.

@@ -8,8 +8,8 @@ export interface AndroidPlan {
 }
 
 export const PLANS: Record<AndroidTestMode, AndroidPlan> = {
-  jvm: { gradleTask: ":watch-link:testDebugUnitTest", needsDevice: false },
-  device: { gradleTask: ":watch-link:connectedDebugAndroidTest", needsDevice: true },
+  jvm: { gradleTask: ":platform:testDebugUnitTest", needsDevice: false },
+  device: { gradleTask: ":platform:connectedDebugAndroidTest", needsDevice: true },
 };
 
 /** The serials in the `device` state in `adb devices` output; an `offline` or `unauthorized` row is not a device to test on. */

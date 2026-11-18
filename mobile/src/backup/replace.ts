@@ -1,7 +1,7 @@
 import type { AttachedBackup, SqlDriver } from "../db/driver.js";
 import type { DatabaseKeyHex } from "../db/keyHex.js";
 import { keyIsLostOrUnreadable } from "../db/keyState.js";
-import type { KeyState } from "../platform/watchLinkModule.js";
+import type { KeyState } from "../platform/platformModule.js";
 
 // The native DATABASE_FILES (Keys.kt) lists LIVE_DB and REPLACED_DB. RESTORING_DB is not in it: a
 // restore deletes and rebuilds it, so no state worth guarding ever lives there.

@@ -1,0 +1,30 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'codes.madera.crossfog.platform'
+version = '0.1.0'
+
+android {
+  namespace "codes.madera.crossfog.platform"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+  }
+  lint {
+    abortOnError false
+  }
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.13.2'
+  // The Android SDK's org.json is a stub on the JVM; this is the real one.
+  testImplementation 'org.json:json:20240303'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+  androidTestImplementation 'junit:junit:4.13.2'
+  androidTestImplementation 'net.zetetic:sqlcipher-android:4.5.4@aar'
+  androidTestImplementation 'androidx.sqlite:sqlite:2.2.0'
+}
