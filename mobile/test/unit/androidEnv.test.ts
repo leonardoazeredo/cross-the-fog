@@ -1,8 +1,11 @@
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import {
   attachedDevices,
   defaultAndroidHome,
+  LINK_MARKER,
   missingTooling,
+  needsPrebuild,
   noDeviceMessage,
   PLANS,
 } from "../../scripts/androidEnv.js";
@@ -44,4 +47,21 @@ it("names the SDK default and the missing serial", () => {
   expect(defaultAndroidHome("/Users/x")).toBe("/Users/x/Library/Android/sdk");
   expect(noDeviceMessage("emulator-5554")).toContain("emulator-5554");
   expect(noDeviceMessage(undefined)).toContain("No device is attached");
+});
+
+describe("needsPrebuild", () => {
+  const { MARKER } = createRequire(import.meta.url)("../../plugins/withLinkProject.cjs");
+
+  it("keeps the marker the config plugin writes", () => {
+    expect(LINK_MARKER).toBe(MARKER);
+  });
+
+  it("asks for a prebuild when android/ is missing or predates the link include", () => {
+    expect(needsPrebuild(null)).toBe(true);
+    expect(needsPrebuild("include ':app'\n")).toBe(true);
+  });
+
+  it("leaves an android/ that has the include alone", () => {
+    expect(needsPrebuild(`include ':app'\n${LINK_MARKER}\ninclude ':link'\n`)).toBe(false);
+  });
 });

@@ -1,5 +1,13 @@
 import { join } from "node:path";
 
+/** What `plugins/withLinkProject.cjs` writes into the generated `settings.gradle`; a test keeps the two equal. */
+export const LINK_MARKER = "// crossfog: the shared link/ module";
+
+/** A generated `android/` needs `expo prebuild` when it is missing or was made before the link include existed. */
+export function needsPrebuild(settingsGradle: string | null): boolean {
+  return settingsGradle === null || !settingsGradle.includes(LINK_MARKER);
+}
+
 export type AndroidTestMode = "jvm" | "device";
 
 export interface AndroidPlan {
