@@ -285,7 +285,7 @@
     // a held graph stays with its suggestion: once the streets or the fog outgrew it, the slot gets a
     // fresh planner; any other one is rebuilt in place by build()
     if (!had || (had.held && !had.isCurrent()))
-      this._planner = new global.GraphPlanner(this.streets, this.streets.newFrac, (id) => this.streets.walkable(id), undefined, () => this.fogMap.version || 0);
+      this._planner = new global.GraphPlanner(this.streets, this.streets.newFrac, undefined, undefined, () => this.fogMap.version || 0);
     return this._planner;
   };
 
