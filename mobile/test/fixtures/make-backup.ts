@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { zlibSync } from "fflate";
 
 export interface BlockSpec {
@@ -41,13 +42,22 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+const MASK2 = "eizxdwknmo";
+
+// Fog of World's own name for a tile (the page only reads a file as a tile when its name is this exact one):
+// the first 4 hex digits of the id's MD5, the id in MASK letters, its last two digits in MASK2 letters.
 export function tileFilename(x: number, y: number): string {
-  const id = y * 512 + x;
-  const digits = String(id)
-    .split("")
-    .map((d) => MASK[Number(d)])
-    .join("");
-  return `test${digits}zz`;
+  const digits = String(y * 512 + x);
+  const map = (d: string, mask: string) =>
+    d
+      .split("")
+      .map((c) => mask[Number(c)])
+      .join("");
+  return (
+    createHash("md5").update(digits).digest("hex").slice(0, 4) +
+    map(digits, MASK) +
+    map(digits.slice(-2), MASK2)
+  );
 }
 
 export function encodeTile(spec: TileSpec): Uint8Array {
@@ -219,6 +229,23 @@ export const STANDARD_TILE_COUNT = 2;
 
 export function standardBackup(): Uint8Array {
   return makeBackup(STANDARD_TILES, STANDARD_EXTRAS);
+}
+
+// A tile file Fog of World could have written, cut short: the right name, a valid deflate stream, a body shorter than
+// the tile header, so the parser throws on it.
+function cutTile(): Uint8Array {
+  return zlibSync(new Uint8Array(10), { level: 0 });
+}
+
+// The standard backup's good tiles plus `corrupt` damaged tile files beside them (none of the good ones when
+// `good` is false): a body cut short for half of them (even indexes), bytes that are no deflate stream for the rest.
+export function backupWithDamagedTiles(corrupt: number, good = true): Uint8Array {
+  const extras: Record<string, Uint8Array> = { ...STANDARD_EXTRAS };
+  for (let i = 0; i < corrupt; i++) {
+    const name = `Sync/${tileFilename(300 + i, 300)}`;
+    extras[name] = i % 2 === 0 ? cutTile() : new TextEncoder().encode("not a deflate stream");
+  }
+  return makeBackup(good ? STANDARD_TILES : [], extras);
 }
 
 export function notABackup(): Uint8Array {

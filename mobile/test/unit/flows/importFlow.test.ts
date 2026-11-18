@@ -101,6 +101,16 @@ describe("import flow verdicts", () => {
     expect(queued).toEqual([COPY.notABackup]);
     expect(remounts()).toBe(before + 1);
   });
+
+  it("words a copy whose tiles were all damaged as damaged, not as not a backup", async () => {
+    const { flow, queued } = setup({});
+    await flow.pick();
+
+    await flow.loaded({ ...LOADED_BAD, reason: "corrupt" });
+
+    expect(queued).toEqual([COPY.damagedBackup]);
+    expect(COPY.damagedBackup).not.toBe(COPY.notABackup);
+  });
 });
 
 describe("import flow failures", () => {
@@ -165,6 +175,17 @@ describe("import flow failures", () => {
     expect(busy.at(-1)).toBe(false);
     expect(queued).toEqual([]);
     expect(notified).toEqual([COPY.notABackup]);
+    onlyNamesLogged();
+  });
+
+  it("still words a damaged backup as damaged when the page cannot be reloaded", async () => {
+    let remounts = 0;
+    const { flow, notified } = setup({}, () => (remounts++ === 0 ? Promise.resolve() : fail()));
+    await flow.pick();
+
+    await flow.loaded({ ...LOADED_BAD, reason: "corrupt" });
+
+    expect(notified).toEqual([COPY.damagedBackup]);
     onlyNamesLogged();
   });
 
