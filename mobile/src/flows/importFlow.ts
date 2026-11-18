@@ -27,6 +27,8 @@ export interface ImportFlow {
   active(): boolean;
   pick(): Promise<void>;
   incoming(file: SourceFile): Promise<void>;
+  /** A share the caller turned away: its cached copy is released like any dropped share's, so a file another share still holds stays. */
+  refuse(file: SourceFile): Promise<void>;
   /** The page's verdict on the pending copy; the caller has checked that the copy is the pending one. */
   loaded(msg: Extract<WebToNative, { type: "loaded" }>): Promise<void>;
   /** The page died: an import in progress (picking, or waiting for the verdict) is abandoned, and a share queued behind it is dropped. */
@@ -222,6 +224,11 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     },
 
     incoming: handleIncoming,
+
+    async refuse(file) {
+      hold(file);
+      await release(file);
+    },
 
     async loaded(msg) {
       if (!awaitingVerdict) {
