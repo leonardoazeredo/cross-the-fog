@@ -14,7 +14,11 @@ const META: CopyMeta = {
 // The error message carries a path; `onlyNamesLogged` checks that only the error class reaches the log.
 const fail = () => Promise.reject(new Error("disk at /data/user/0 is full"));
 
-function setup(store: Partial<FogStore>, remount: () => Promise<void> = async () => undefined) {
+function setup(
+  store: Partial<FogStore>,
+  remount: () => Promise<void> = async () => undefined,
+  releaseSource?: (uri: string) => Promise<void>,
+) {
   let remounts = 0;
   const full: FogStore = {
     recover: async () => ({ discardedPending: false }),
@@ -39,9 +43,11 @@ function setup(store: Partial<FogStore>, remount: () => Promise<void> = async ()
       return true;
     },
     notify: (t) => notified.push(t),
-    releaseSource: async (uri) => {
-      released.push(uri);
-    },
+    releaseSource:
+      releaseSource ??
+      (async (uri) => {
+        released.push(uri);
+      }),
     setBusy: (on) => busy.push(on),
     queueNotice: (t) => queued.push(t),
     remount: () => {
@@ -529,6 +535,65 @@ describe("import flow failures", () => {
 
     expect(queued).toEqual([]);
     expect(discarded).toEqual([]);
+  });
+
+  it("releases the cached file of a share queued behind an import when the page dies", async () => {
+    const { flow, released, busy, queued } = setup({ pending: async () => null });
+    await flow.pick();
+    await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
+    expect(released).toEqual(["file:///cache/a.zip"]);
+
+    await flow.processGone();
+
+    expect(released).toEqual(["file:///cache/a.zip", "file:///cache/b.zip"]);
+    expect(flow.active()).toBe(false);
+    expect(busy.at(-1)).toBe(false);
+    expect(queued).toEqual([]);
+  });
+
+  it("releases nothing more when the page dies with no share queued", async () => {
+    const { flow, released } = setup({ pending: async () => null });
+    await flow.pick();
+
+    await flow.processGone();
+
+    expect(released).toEqual(["file:///cache/a.zip"]);
+  });
+
+  it("does not hand the share a dead page dropped to the next import", async () => {
+    const { flow, released, remounts } = setup({ pending: async () => null });
+    await flow.pick();
+    await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
+    await flow.processGone();
+    const before = remounts();
+
+    await flow.pick();
+
+    expect(released.filter((u) => u.endsWith("b.zip"))).toHaveLength(1);
+    expect(remounts()).toBe(before + 1);
+  });
+
+  it("logs a failed release of the queued share by class only and still ends the flow", async () => {
+    const released: string[] = [];
+    const { flow, busy, queued } = setup(
+      { pending: async () => null },
+      async () => undefined,
+      async (uri) => {
+        released.push(uri);
+        if (uri.endsWith("b.zip")) throw new Error("cannot delete /data/user/0/cache/b.zip");
+      },
+    );
+    await flow.pick();
+    await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
+
+    await expect(flow.processGone()).resolves.toBeUndefined();
+
+    expect(released).toContain("file:///cache/b.zip");
+    expect(flow.active()).toBe(false);
+    expect(busy.at(-1)).toBe(false);
+    expect(queued).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    onlyNamesLogged();
   });
 
   it("says only that the file is not a zip when a refused share cannot be released", async () => {
