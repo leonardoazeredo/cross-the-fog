@@ -70,7 +70,7 @@ export function createSendFlow(deps: SendDeps): SendFlow {
         return;
       }
       // After the status is read, so a status that cannot be read leaves the routes for the next page
-      // load instead of removing them with nobody told. A failure here only costs the line.
+      // load instead of removing them with nobody told. A failure here only costs the page the count: the status is still sent.
       let unsent = 0;
       try {
         unsent = await link.discardUnreadableRoutes();
