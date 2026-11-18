@@ -52,7 +52,6 @@ data class DiagnosticsSettingsSnapshot(
     val keepAppOpen: Boolean,
     val gpsInAmbientMode: Boolean,
     val gpsDebugTelemetry: Boolean,
-    val terrainEnabled: Boolean = false,
     val diagnosticsCaptureMode: String = SettingsRepository.DEFAULT_DIAGNOSTICS_CAPTURE_MODE,
     val gpsPassiveLocationExperiment: Boolean,
     val backButtonExitsNavigation: Boolean,
@@ -830,7 +829,6 @@ object DiagnosticsExporter {
                     "copyMb=${formatBytesToMb(demDisk.copyBytes)} copyMs=${demDisk.copyMs} " +
                     "hits=${demDisk.hits} fallbackTiles=${demDisk.fallbackTiles}",
             )
-            writer.appendLine("worldWindTileCacheSizeMb=${formatBytesToMb(cacheSnapshot.worldWindTileCacheSizeBytes)}")
             if (cacheSnapshot.tileCacheBuckets.isEmpty()) {
                 writer.appendLine("tileCacheBuckets=none")
             } else {
@@ -942,7 +940,6 @@ object DiagnosticsExporter {
             writer.appendLine("gpsPositionFilterEnabled=true")
             writer.appendLine()
             writer.appendLine("Battery Benchmark Context")
-            writer.appendLine("terrainEnabled=${settings.terrainEnabled}")
             val batteryBenchmarkMode =
                 settings.diagnosticsCaptureMode == SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_BATTERY
             writer.appendLine(

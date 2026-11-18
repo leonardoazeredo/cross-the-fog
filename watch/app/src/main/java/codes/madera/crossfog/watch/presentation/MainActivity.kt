@@ -53,8 +53,6 @@ import codes.madera.crossfog.watch.presentation.features.download.DownloadSettin
 import codes.madera.crossfog.watch.presentation.features.gpx.GpxScreen
 import codes.madera.crossfog.watch.presentation.features.home.MainScreen
 import codes.madera.crossfog.watch.presentation.features.maps.MapsScreen
-import codes.madera.crossfog.watch.presentation.features.maps.terrain3d.RunWatchWorldWind
-import codes.madera.crossfog.watch.presentation.features.maps.terrain3d.WatchWorldWindRuntime
 import codes.madera.crossfog.watch.presentation.features.navigate.AmbientScreen
 import codes.madera.crossfog.watch.presentation.features.navigate.NavigateScreen
 import codes.madera.crossfog.watch.presentation.features.navigate.UI_RECORDING_START_REACQUIRE_SOURCE
@@ -428,10 +426,6 @@ class MainActivity : ComponentActivity() {
                     recordingActionPromptRequestToken += 1L
                 }
 
-                // Hosted above the routes and the ambient screen so the 3D session survives leaving the map.
-                val terrainRuntime = remember { WatchWorldWindRuntime() }
-                RunWatchWorldWind(terrainRuntime)
-
                 if (isAmbient) {
                     AmbientScreen(
                         ambientTick = ambientTickMs,
@@ -507,7 +501,6 @@ class MainActivity : ComponentActivity() {
                                         launchSingleTop = true
                                     }
                                 },
-                                terrainRuntime = terrainRuntime,
                             )
                         }
 

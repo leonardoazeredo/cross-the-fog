@@ -3,21 +3,18 @@ package codes.madera.crossfog.watch.presentation.features.maps
 import codes.madera.crossfog.watch.core.maps.DemCoverageSummary
 
 internal data class TerrainFeatureState(
-    val terrain3d: Boolean,
     val hill: Boolean,
     val slope: Boolean,
 )
 
 internal suspend fun disableTerrainFeatures(
     state: TerrainFeatureState,
-    disable3d: suspend () -> Unit,
     disableHill: suspend () -> Unit,
     disableSlope: suspend () -> Unit,
 ): Boolean {
-    if (state.terrain3d) disable3d()
     if (state.hill) disableHill()
     if (state.slope) disableSlope()
-    return state.terrain3d || state.hill || state.slope
+    return state.hill || state.slope
 }
 
 internal suspend fun selectMapWithTerrainGuard(

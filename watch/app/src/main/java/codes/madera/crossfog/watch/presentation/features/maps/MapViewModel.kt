@@ -1060,14 +1060,12 @@ class MapViewModel(
                         }
                     },
                     disableFeatures = {
-                        val terrainEnabled = settingsRepository.terrain3dEnabled.first()
                         val toggles =
                             themeRepository.getThemeItems().first().filterIsInstance<ThemeListItem.GlobalToggle>()
                         val hillEnabled = toggles.any { it.id == ThemeUiIds.HILL_SHADING && it.enabled }
                         val slopeEnabled = toggles.any { it.id == ThemeUiIds.RELIEF_OVERLAY && it.enabled }
                         disableTerrainFeatures(
-                            state = TerrainFeatureState(terrainEnabled, hillEnabled, slopeEnabled),
-                            disable3d = { settingsRepository.setTerrain3dEnabled(false) },
+                            state = TerrainFeatureState(hillEnabled, slopeEnabled),
                             disableHill = { themeRepository.setHillShadingEnabled(false) },
                             disableSlope = { themeRepository.setReliefOverlayEnabled(false) },
                         )

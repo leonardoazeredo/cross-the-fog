@@ -15,13 +15,12 @@ class TerrainMapSelectionTest {
             val events = mutableListOf<String>()
             val changed =
                 disableTerrainFeatures(
-                    TerrainFeatureState(terrain3d = true, hill = true, slope = true),
-                    disable3d = { events += "3d" },
+                    TerrainFeatureState(hill = true, slope = true),
                     disableHill = { events += "hill" },
                     disableSlope = { events += "slope" },
                 )
             assertEquals(true, changed)
-            assertEquals(listOf("3d", "hill", "slope"), events)
+            assertEquals(listOf("hill", "slope"), events)
         }
 
     @Test
@@ -30,8 +29,7 @@ class TerrainMapSelectionTest {
             val events = mutableListOf<String>()
             val changed =
                 disableTerrainFeatures(
-                    TerrainFeatureState(terrain3d = false, hill = true, slope = false),
-                    disable3d = { events += "3d" },
+                    TerrainFeatureState(hill = true, slope = false),
                     disableHill = { events += "hill" },
                     disableSlope = { events += "slope" },
                 )

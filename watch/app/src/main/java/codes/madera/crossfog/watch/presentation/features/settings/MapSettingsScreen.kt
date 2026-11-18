@@ -40,8 +40,6 @@ fun MapSettingsScreen(
     val listTokens = rememberSettingsListTokens()
     val autoRecenterEnabled by viewModel.autoRecenterEnabled.collectAsState()
     val autoRecenterDelay by viewModel.autoRecenterDelay.collectAsState(initial = 5)
-    val terrain3dEnabled by viewModel.terrain3dEnabled.collectAsState()
-    val hiking3dThemeSelected by themeViewModel.hiking3dThemeSelected.collectAsState()
     val liveElevation by viewModel.liveElevation.collectAsState()
     val liveDistance by viewModel.liveDistance.collectAsState()
     val navigationMarkerAnchorMode by viewModel.navigationMarkerAnchorMode.collectAsState()
@@ -255,42 +253,6 @@ fun MapSettingsScreen(
             )
         }
         item {
-            SettingsToggleChip(
-                checked = terrain3dEnabled,
-                onCheckedChanged = { enabled ->
-                    if (!enabled) {
-                        viewModel.setTerrain3dEnabled(false)
-                    } else {
-                        scope.launch {
-                            val readiness = themeViewModel.demReadinessForMap(selectedMapPath)
-                            if (canEnableTerrain3d(readiness)) {
-                                viewModel.setTerrain3dEnabled(true)
-                            } else {
-                                viewModel.setTerrain3dEnabled(false)
-                                demSetupReason =
-                                    if (selectedMapPath.isNullOrBlank()) {
-                                        DemSetupReason.HILL_SHADING_MAP_REQUIRED
-                                    } else {
-                                        DemSetupReason.TERRAIN_3D
-                                    }
-                                showDemSetupDialog = true
-                            }
-                        }
-                    }
-                },
-                label = stringResource(R.string.map_terrain_3d_experimental),
-            )
-        }
-        if (terrain3dEnabled) {
-            item {
-                SettingsToggleChip(
-                    checked = hiking3dThemeSelected,
-                    onCheckedChanged = themeViewModel::setHiking3dThemeEnabled,
-                    label = stringResource(R.string.map_terrain_3d_hiking_theme),
-                )
-            }
-        }
-        item {
             SettingsSectionChip(
                 label = stringResource(R.string.map_theme),
                 secondaryLabel = stringResource(R.string.map_open_theme_settings),
@@ -357,8 +319,6 @@ private fun DemSource.arcSeconds(): Int =
         DemSource.MAPSFORGE_DEM3 -> 3
         DemSource.MAPZEN_SKADI_1S -> 1
     }
-
-internal fun canEnableTerrain3d(readiness: DemMapReadiness): Boolean = readiness.isReady && readiness.hasAnyTerrain
 
 @Composable
 private fun RecenterDelaySetting(

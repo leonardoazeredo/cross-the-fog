@@ -29,7 +29,6 @@ enum class DemSetupReason {
     HILL_SHADING_VISIBLE_AREA,
     LIVE_ELEVATION,
     SLOPE_OVERLAY,
-    TERRAIN_3D,
     MAP_TERRAIN_UNAVAILABLE,
 }
 
@@ -49,7 +48,6 @@ fun DemSetupBottomSheet(
             DemSetupReason.HILL_SHADING_VISIBLE_AREA -> stringResource(R.string.maps_no_terrain_data)
             DemSetupReason.LIVE_ELEVATION -> stringResource(R.string.maps_elevation_data_needed)
             DemSetupReason.SLOPE_OVERLAY -> stringResource(R.string.maps_elevation_data_needed)
-            DemSetupReason.TERRAIN_3D -> stringResource(R.string.maps_elevation_data_needed)
             DemSetupReason.MAP_TERRAIN_UNAVAILABLE -> stringResource(R.string.maps_no_terrain_data)
         }
     val message =
@@ -66,7 +64,6 @@ fun DemSetupBottomSheet(
                 stringResource(R.string.maps_live_elevation_needs_dem_data_for_this_map_open_maps_and_tap_the_dem_i)
             DemSetupReason.SLOPE_OVERLAY ->
                 stringResource(R.string.maps_slope_overlay_needs_dem_data_for_this_map_open_maps_and_tap_the_dem_ic)
-            DemSetupReason.TERRAIN_3D -> stringResource(R.string.maps_3d_terrain_dem_required)
             DemSetupReason.MAP_TERRAIN_UNAVAILABLE -> stringResource(R.string.maps_terrain_features_disabled_no_dem)
         }
 

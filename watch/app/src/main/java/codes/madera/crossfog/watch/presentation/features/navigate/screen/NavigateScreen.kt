@@ -42,7 +42,6 @@ import codes.madera.crossfog.watch.presentation.features.maps.MapHolder
 import codes.madera.crossfog.watch.presentation.features.maps.MapRenderer
 import codes.madera.crossfog.watch.presentation.features.maps.MapViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.MapZoomChangeAttribution
-import codes.madera.crossfog.watch.presentation.features.maps.terrain3d.WatchWorldWindRuntime
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCalibrationEffects
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCompassEffects
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCompassWakeTelemetry
@@ -95,7 +94,6 @@ fun NavigateScreen(
     onCloseApp: () -> Unit,
     onOpenGpxToolsSettings: () -> Unit = {},
     onOpenMapBundles: (LatLong) -> Unit = {},
-    terrainRuntime: WatchWorldWindRuntime? = null,
     compassViewModel: CompassViewModel = viewModel(),
     navigateViewModel: NavigateViewModel = viewModel(),
 ) {
@@ -192,7 +190,6 @@ fun NavigateScreen(
     with<NavigateSettingsState, Unit>(navigateSettings) {
         // ---- VMS ----
         val selectedMapPath by mapViewModel.selectedMapPath.collectAsState()
-        val terrain3dEnabled by settingsViewModel.terrain3dEnabled.collectAsState()
         val installedMapBounds by mapViewModel.installedMapBounds.collectAsState()
         val missingMapPromptDisabled by mapViewModel.missingMapPromptDisabled.collectAsState()
         val missingMapPromptDismissed by mapViewModel.missingMapPromptDismissed.collectAsState()
@@ -1076,7 +1073,6 @@ fun NavigateScreen(
             }
 
         NavigateContent(
-            hostedTerrainRuntime = terrainRuntime,
             mapFocusState = mapFocusState,
             mapFocusVisibleControls = mapFocusVisibleControls,
             onEnterMapFocus = ::enterMapFocus,
@@ -1084,9 +1080,6 @@ fun NavigateScreen(
             hasLocationPermission = locationPermissionState.hasLocationPermission || offlineMode,
             focusRequester = focusRequester,
             mapHolder = mapHolder,
-            terrain3dEnabled = terrain3dEnabled,
-            terrainMapPath = selectedMapPath,
-            terrainInteractive = isScreenResumed && screenState.isInteractive,
             onMapViewReadyForRendering = { mapViewModel.onMapViewReadyForRendering() },
             onNavigateTimeSuppressedChange = onNavigateTimeSuppressedChange,
             showNavigateTime = showNavigateTime,
