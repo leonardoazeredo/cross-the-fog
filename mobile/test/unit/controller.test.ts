@@ -1097,4 +1097,30 @@ it("a verdict on a leftover copy drops it and reloads the page onto the saved fo
   expect(await h.store.pending()).toBeNull();
   expect((await h.store.current())?.sha256).toBe(sha(A));
   expect(h.remounts.count).toBe(mounts + 1);
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(noNotice(h)).toEqual([]);
+});
+
+it("a verdict on the copy a running restore staged leaves it for the restore to promote", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const gate = deferred<boolean>();
+  h.flows.restore.mockImplementation(async () => {
+    await h.store.beginImport({ uri: bSrc, name: "b.zip" }, "picker");
+    await gate.promise;
+    await h.store.promotePending();
+    return true;
+  });
+  const restoring = h.c.onWebMessage({ v: 1, type: "restore" });
+  await vi.waitFor(async () => expect(await h.store.pending()).not.toBeNull());
+
+  await h.c.onProcessGone();
+  await h.c.onWebMessage(ready);
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.pending())?.sha256).toBe(sha(B));
+  gate.resolve(true);
+  await restoring;
+  expect((await h.store.current())?.sha256).toBe(sha(B));
 });

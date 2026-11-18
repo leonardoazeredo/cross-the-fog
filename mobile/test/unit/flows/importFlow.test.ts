@@ -166,7 +166,7 @@ describe("import flow failures", () => {
 
   it("drops a verdict's copy instead of keeping it when no import is running", async () => {
     const calls: string[] = [];
-    const { flow } = setup({
+    const { flow, queued, notified } = setup({
       promotePending: async () => void calls.push("promote"),
       discardPending: async () => void calls.push("discard"),
     });
@@ -174,6 +174,8 @@ describe("import flow failures", () => {
     await flow.loaded(LOADED_OK);
 
     expect(calls).toEqual(["discard"]);
+    expect(queued).toEqual([]);
+    expect(notified).toEqual([]);
     expect(flow.active()).toBe(false);
   });
 
