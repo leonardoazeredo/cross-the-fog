@@ -194,8 +194,46 @@ function fakes({ failing = new Set(), delay = false } = {}) {
       await el.elevationAt([lonLatAt(2203, 1371, 30, 30)]);
     } finally { console.warn = realWarn; }
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /offline/);
-    assert.doesNotMatch(warnings[0], /2203|1371|13\.|51\./);
+    assert.match(warnings[0], /fetch/);
+    assert.doesNotMatch(warnings[0], /offline|2203|1371|13\.|51\./);
+  }
+
+  { // a log line names the stage and the error's class, never its message: a message can hold a URL or a tile number
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...a) => warnings.push(a.join(" "));
+    try {
+      const url = "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/12/2203/1371.png";
+      const named = (message, name) => Object.assign(new Error(message), { name });
+      let fetchErr = null;
+      let decodeErr = null;
+      const el = Elevation.create({
+        store: TileStore.memory(),
+        fetchTile: async () => { if (fetchErr !== null) throw fetchErr; return new Uint8Array([1]); },
+        decodeTile: async () => { if (decodeErr !== null) throw decodeErr; return planeTile(); },
+      });
+      const at = [lonLatAt(2203, 1371, 30, 30)];
+      fetchErr = new Error("Failed to fetch " + url + " (503)");
+      await el.elevationAt(at);
+      fetchErr = new Error("Failed to fetch " + url + " (504)"); // same stage and class: no second line
+      await el.elevationAt(at);
+      fetchErr = null;
+      decodeErr = new TypeError("bad png at 12/2203/1371 offset 4096");
+      await el.elevationAt(at);
+      decodeErr = new TypeError("bad png at 12/2204/1371 offset 8192");
+      await el.elevationAt(at);
+      decodeErr = null;
+      fetchErr = named("odd", "Bad Name: 2203/1371");
+      await el.elevationAt(at);
+      fetchErr = "a thrown string 2203/1371";
+      await el.elevationAt(at);
+    } finally { console.warn = realWarn; }
+    assert.equal(warnings.length, 4, "one line per stage and class: " + JSON.stringify(warnings));
+    assert.match(warnings[0], /fetch.*Error/);
+    assert.match(warnings[1], /decode.*TypeError/);
+    assert.match(warnings[2], /fetch.*unknown/, "a name that is not a plain identifier is not printed");
+    assert.match(warnings[3], /fetch.*string/);
+    for (const w of warnings) assert.doesNotMatch(w, /https?:|amazonaws|\d{3,}|offset|Failed to fetch|bad png|thrown string/);
   }
 
   { // the default fetch asks for the terrarium tile of the bucket's own host, with no body, headers or credentials
