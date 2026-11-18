@@ -927,3 +927,219 @@ it("still runs the flows' ready, and sends no verdict, when the store read fails
   expect(h.flows.ready).toHaveBeenCalledTimes(1);
   expect(h.sent.filter((m) => m.type === "none" || m.type === "reload")).toEqual([]);
 });
+
+// A promote that failed or a pending copy that cannot be read must not leave a copy the user was told had failed:
+// these run over the real FogStore, failing single file operations underneath it.
+const savedThenImportingB = async (): Promise<Harness> => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  h.picks.push({ uri: bSrc, name: "b.zip" });
+  await h.c.start();
+  await h.c.onWebMessage(pickBackup);
+  await h.c.onWebMessage(ready);
+  return h;
+};
+const failCreatingPointers = (h: Harness): void => {
+  const real = h.fs.createText.bind(h.fs);
+  h.fs.createText = async (name, text) => {
+    if (name.startsWith("current-")) throw new Error("path detail");
+    return real(name, text);
+  };
+};
+const failRemovingPending = (h: Harness): void => {
+  const real = h.fs.remove.bind(h.fs);
+  h.fs.remove = async (name) => {
+    if (name === "pending.json") throw new Error("path detail");
+    return real(name);
+  };
+};
+const noNotice = (h: Harness) => h.sent.filter((m) => m.type === "notice");
+
+it("a failed promote drops the copy, puts the previous fog back and says so once", async () => {
+  const h = await savedThenImportingB();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  failCreatingPointers(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+
+  expect(await h.store.pending()).toBeNull();
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(h.remounts.count).toBe(2);
+  expect(h.notified).toEqual([]);
+  expect(h.busy.at(-1)).toBe(false);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
+
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({
+    role: "current",
+    fingerprint: sha(A),
+  });
+  expect(noNotice(h)).toEqual([{ v: 1, type: "notice", text: COPY.importFailed }]);
+  expect(await h.store.recover()).toEqual({ discardedPending: false });
+});
+
+it("a failed promote with nothing saved before leaves no fog and says so once", async () => {
+  const h = createHarness();
+  h.picks.push({ uri: bSrc, name: "b.zip" });
+  await h.c.start();
+  await h.c.onWebMessage(pickBackup);
+  await h.c.onWebMessage(ready);
+  failCreatingPointers(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+  await h.c.onWebMessage(ready);
+
+  expect(h.sent.find((m) => m.type === "none")).toBeDefined();
+  expect(noNotice(h)).toEqual([{ v: 1, type: "notice", text: COPY.importFailed }]);
+  expect(await h.store.recover()).toEqual({ discardedPending: false });
+});
+
+it("a failed promote whose copy cannot be dropped says so now and leaves the page alone", async () => {
+  const h = await savedThenImportingB();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  failCreatingPointers(h);
+  failRemovingPending(h);
+  h.sent.length = 0;
+
+  await expect(h.c.onWebMessage(loadedB)).resolves.toBeUndefined();
+
+  expect(h.notified).toEqual([COPY.importFailed]);
+  expect(h.remounts.count).toBe(1);
+  expect(noNotice(h)).toEqual([]);
+  expect(h.busy.at(-1)).toBe(false);
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
+});
+
+it("a page that dies while its pending copy cannot be read still loses the copy", async () => {
+  const h = await savedThenImportingB();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const read = vi.spyOn(h.store, "pending").mockRejectedValueOnce(new Error("path detail"));
+
+  await h.c.onProcessGone();
+  read.mockRestore();
+
+  expect(await h.store.pending()).toBeNull();
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({
+    role: "current",
+    fingerprint: sha(A),
+  });
+  expect(noNotice(h)).toEqual([{ v: 1, type: "notice", text: COPY.importFailed }]);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
+});
+
+it("a page that dies while its pending copy can neither be read nor dropped says so once", async () => {
+  const h = await savedThenImportingB();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValueOnce(new Error("path detail"));
+  failRemovingPending(h);
+
+  await expect(h.c.onProcessGone()).resolves.toBeUndefined();
+
+  expect(h.busy.at(-1)).toBe(false);
+  expect(h.notified).toEqual([]);
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(noNotice(h)).toEqual([{ v: 1, type: "notice", text: COPY.importFailed }]);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
+});
+
+it("a share queued behind an import whose promote failed is staged after the unkept copy is dropped", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  await h.c.onIncoming({ uri: cSrc, name: "c.zip" });
+  failCreatingPointers(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+  await h.c.onWebMessage(ready);
+
+  expect((await h.store.pending())?.sha256).toBe(sha(C));
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({
+    role: "pending",
+    fingerprint: sha(C),
+  });
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+});
+
+it("a verdict on a copy that could not be dropped does not keep it", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValueOnce(new Error("path detail"));
+  const realRemove = h.fs.remove.bind(h.fs);
+  failRemovingPending(h);
+
+  await h.c.onProcessGone();
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({ role: "pending" });
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(h.notified).toEqual([]);
+  h.fs.remove = realRemove;
+});
+
+it("a verdict on a leftover copy drops it and reloads the page onto the saved fog", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  await h.store.beginImport({ uri: bSrc, name: "b.zip" }, "picker");
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({ role: "pending" });
+  const mounts = h.remounts.count;
+
+  await h.c.onWebMessage(loadedB);
+
+  expect(await h.store.pending()).toBeNull();
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  expect(h.remounts.count).toBe(mounts + 1);
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(noNotice(h)).toEqual([]);
+});
+
+it("a verdict on the copy a running restore staged leaves it for the restore to promote", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const gate = deferred<boolean>();
+  h.flows.restore.mockImplementation(async () => {
+    await h.store.beginImport({ uri: bSrc, name: "b.zip" }, "picker");
+    await gate.promise;
+    await h.store.promotePending();
+    return true;
+  });
+  const restoring = h.c.onWebMessage({ v: 1, type: "restore" });
+  await vi.waitFor(async () => expect(await h.store.pending()).not.toBeNull());
+
+  await h.c.onProcessGone();
+  await h.c.onWebMessage(ready);
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.pending())?.sha256).toBe(sha(B));
+  gate.resolve(true);
+  await restoring;
+  expect((await h.store.current())?.sha256).toBe(sha(B));
+});
+
+it("a verdict on the saved fog while a restore runs still clears the reload guard", async () => {
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  const gate = deferred<boolean>();
+  h.flows.restore.mockImplementation(() => gate.promise);
+  const restoring = h.c.onWebMessage({ v: 1, type: "restore" });
+
+  await h.c.onProcessGone();
+  await h.c.onWebMessage(ready);
+  expect(h.fs.files.has("restoring.json")).toBe(true);
+  await h.c.onWebMessage({ v: 1, type: "loaded", fingerprint: sha(A), ok: true, tiles: 1 });
+
+  expect(h.fs.files.has("restoring.json")).toBe(false);
+  gate.resolve(false);
+  await restoring;
+});
