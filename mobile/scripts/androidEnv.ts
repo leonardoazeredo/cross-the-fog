@@ -8,6 +8,14 @@ export function needsPrebuild(settingsGradle: string | null): boolean {
   return settingsGradle === null || !settingsGradle.includes(LINK_MARKER);
 }
 
+/** Where the generated settings.gradle points `:link`, relative to `android/`; the plugin writes the same path. */
+export const LINK_DIR_FROM_ANDROID = "../../link";
+
+/** Gradle would fail an include whose directory is missing only at configuration, and the message names no fix. */
+export function linkMissingMessage(linkDir: string): string {
+  return `android-test: the shared module is not at ${linkDir} (the generated android/settings.gradle includes it from there). Run from a full checkout, or delete mobile/android so prebuild rewrites the include.`;
+}
+
 export type AndroidTestMode = "jvm" | "device";
 
 export interface AndroidPlan {

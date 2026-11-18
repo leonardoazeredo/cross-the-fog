@@ -9,6 +9,17 @@ The local link between the phone app and the watch app (ADR 0002 and 0009): writ
 
 The Kotlin plugin version comes from whichever build includes the project, so `build.gradle.kts` applies it without one. **Nothing newer than Kotlin 2.2 may be used here**: the phone build is the older of the two, and `build.gradle.kts` sets `languageVersion` and `apiVersion` to 2.2 so a newer feature fails to compile in both builds instead of only in the phone's. Raise them when the phone build's Kotlin reaches the next version. The JVM target is 17, as in `watch/`.
 
+## Protocol and framing
+
+Version 1, in `codes.madera.crossfog.link`:
+
+- `Framing`: a frame is a 4-byte big-endian length then the body; at most 16 MiB (`MAX_FRAME_BYTES`), no empty frame; the length is checked before a body byte is read.
+- `Messages`: the six messages as `{"v":1,"type":...}` JSON objects. Every field is checked for type, presence and bounds before a value exists; a refusal is a `ProtocolException` whose `error` is a `ProtocolError` and whose message never holds input.
+- `Revision`: SHA-256 of a route's GPX text as UTF-8, 64 lowercase hex digits.
+- `Protocol`: the versions spoken and how two ends agree on one. A `hello` is always `v` 1 and lists every version its sender speaks; a v1 endpoint that gets no common version answers with its own `hello` and closes.
+- `Items`: the same offers as a staged or queued file holds them, with no envelope (the phone module reads those).
+- `src/test/resources/vectors/messages.json`: frames in and what each must give, run by `:link:test` and by the phone module's tests (made-up data only).
+
 ## JSON
 
 `org.json`, `compileOnly` plus the real artifact in `testImplementation`. Android provides `org.json` at runtime in both apps, so no library ships, no compiler plugin is tied to a Kotlin version and no licence notice is needed; the stub in the Android SDK does not run on the JVM, hence the artifact for tests.

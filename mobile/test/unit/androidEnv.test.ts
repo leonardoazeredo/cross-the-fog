@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   attachedDevices,
   defaultAndroidHome,
+  LINK_DIR_FROM_ANDROID,
   LINK_MARKER,
+  linkMissingMessage,
   missingTooling,
   needsPrebuild,
   noDeviceMessage,
@@ -63,5 +65,20 @@ describe("needsPrebuild", () => {
 
   it("leaves an android/ that has the include alone", () => {
     expect(needsPrebuild(`include ':app'\n${LINK_MARKER}\ninclude ':link'\n`)).toBe(false);
+  });
+});
+
+describe("the link/ include", () => {
+  it("is the path the config plugin writes into settings.gradle", () => {
+    const { applyLinkProject } = createRequire(import.meta.url)(
+      "../../plugins/withLinkProject.cjs",
+    );
+    expect(applyLinkProject("")).toContain(`new File(rootDir, '${LINK_DIR_FROM_ANDROID}')`);
+  });
+
+  it("has a message that names the path and the fix", () => {
+    const message = linkMissingMessage("/x/link");
+    expect(message).toContain("/x/link");
+    expect(message).toContain("delete mobile/android");
   });
 });

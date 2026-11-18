@@ -1,5 +1,6 @@
 package codes.madera.crossfog.platform
 
+import codes.madera.crossfog.link.ActivityOffer
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import java.io.File
 import java.security.InvalidKeyException

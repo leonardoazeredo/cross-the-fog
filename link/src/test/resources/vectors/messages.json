@@ -1,0 +1,149 @@
+{
+  "about": "Frames in and what they must give. `frame` is the whole length-prefixed frame as hex. A case with `canonical` must parse, and the parsed message encoded again must be exactly `canonical`; when `roundTrip` is true the frame must also be exactly Framing.encode(canonical). A case with `error` must be refused with that ProtocolError. Made-up data only. Read by link/ (:link:test) and by the phone module's tests.",
+  "cases": [
+    {
+      "name": "hello",
+      "frame": "000000257b2276223a312c2274797065223a2268656c6c6f222c2276657273696f6e73223a5b315d7d",
+      "canonical": "{\"v\":1,\"type\":\"hello\",\"versions\":[1]}",
+      "roundTrip": true
+    },
+    {
+      "name": "hello_lists_later_versions",
+      "frame": "000000297b2276223a312c2274797065223a2268656c6c6f222c2276657273696f6e73223a5b312c322c335d7d",
+      "canonical": "{\"v\":1,\"type\":\"hello\",\"versions\":[1,2,3]}",
+      "roundTrip": true
+    },
+    {
+      "name": "ping",
+      "frame": "000000157b2276223a312c2274797065223a2270696e67227d",
+      "canonical": "{\"v\":1,\"type\":\"ping\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "route_offer",
+      "frame": "000001317b2276223a312c2274797065223a22726f7574654f66666572222c22726f7574654964223a2231313131313131312d313131312d343131312d383131312d313131313131313131313131222c226e616d65223a225465737420726f757465222c22637265617465644174223a22323032362d30312d30325430333a30343a30355a222c227265766973696f6e223a2230396164623439643239376639613235643239346537613437366138616264336539373965343561333161636265333038366263646363306665613431623231222c22677078223a223c6770782076657273696f6e3d5c22312e315c223e3c74726b3e3c74726b7365673e3c74726b7074206c61743d5c22312e305c22206c6f6e3d5c22322e305c222f3e3c2f74726b7365673e3c2f74726b3e3c2f6770783e227d",
+      "canonical": "{\"v\":1,\"type\":\"routeOffer\",\"routeId\":\"11111111-1111-4111-8111-111111111111\",\"name\":\"Test route\",\"createdAt\":\"2026-01-02T03:04:05Z\",\"revision\":\"09adb49d297f9a25d294e7a476a8abd3e979e45a31acbe3086bcdcc0fea41b21\",\"gpx\":\"<gpx version=\\\"1.1\\\"><trk><trkseg><trkpt lat=\\\"1.0\\\" lon=\\\"2.0\\\"/></trkseg></trk></gpx>\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "route_saved",
+      "frame": "0000009a7b2276223a312c2274797065223a22726f7574655361766564222c22726f7574654964223a2231313131313131312d313131312d343131312d383131312d313131313131313131313131222c227265766973696f6e223a2230396164623439643239376639613235643239346537613437366138616264336539373965343561333161636265333038366263646363306665613431623231227d",
+      "canonical": "{\"v\":1,\"type\":\"routeSaved\",\"routeId\":\"11111111-1111-4111-8111-111111111111\",\"revision\":\"09adb49d297f9a25d294e7a476a8abd3e979e45a31acbe3086bcdcc0fea41b21\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "activity_offer_on_a_route",
+      "frame": "000000f87b2276223a312c2274797065223a2261637469766974794f66666572222c2261637469766974794964223a2232323232323232322d323232322d343232322d383232322d323232323232323232323232222c22726f7574654964223a2231313131313131312d313131312d343131312d383131312d313131313131313131313131222c22656e636f64657256657273696f6e223a2231222c22677078223a223c6770782076657273696f6e3d5c22312e315c223e3c74726b3e3c74726b7365673e3c74726b7074206c61743d5c22312e305c22206c6f6e3d5c22322e305c222f3e3c2f74726b7365673e3c2f74726b3e3c2f6770783e227d",
+      "canonical": "{\"v\":1,\"type\":\"activityOffer\",\"activityId\":\"22222222-2222-4222-8222-222222222222\",\"routeId\":\"11111111-1111-4111-8111-111111111111\",\"encoderVersion\":\"1\",\"gpx\":\"<gpx version=\\\"1.1\\\"><trk><trkseg><trkpt lat=\\\"1.0\\\" lon=\\\"2.0\\\"/></trkseg></trk></gpx>\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "activity_offer_without_a_route",
+      "frame": "000000c77b2276223a312c2274797065223a2261637469766974794f66666572222c2261637469766974794964223a2232323232323232322d323232322d343232322d383232322d323232323232323232323232222c22656e636f64657256657273696f6e223a2231222c22677078223a223c6770782076657273696f6e3d5c22312e315c223e3c74726b3e3c74726b7365673e3c74726b7074206c61743d5c22312e305c22206c6f6e3d5c22322e305c222f3e3c2f74726b7365673e3c2f74726b3e3c2f6770783e227d",
+      "canonical": "{\"v\":1,\"type\":\"activityOffer\",\"activityId\":\"22222222-2222-4222-8222-222222222222\",\"encoderVersion\":\"1\",\"gpx\":\"<gpx version=\\\"1.1\\\"><trk><trkseg><trkpt lat=\\\"1.0\\\" lon=\\\"2.0\\\"/></trkseg></trk></gpx>\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "activity_stored",
+      "frame": "000000537b2276223a312c2274797065223a22616374697669747953746f726564222c2261637469766974794964223a2232323232323232322d323232322d343232322d383232322d323232323232323232323232227d",
+      "canonical": "{\"v\":1,\"type\":\"activityStored\",\"activityId\":\"22222222-2222-4222-8222-222222222222\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "unknown_fields_are_ignored",
+      "frame": "0000006c7b226e6f7465223a2278222c2274797065223a22616374697669747953746f726564222c2261637469766974794964223a2232323232323232322d323232322d343232322d383232322d323232323232323232323232222c2276223a312c226578747261223a5b312c325d7d",
+      "canonical": "{\"v\":1,\"type\":\"activityStored\",\"activityId\":\"22222222-2222-4222-8222-222222222222\"}",
+      "roundTrip": false
+    },
+    {
+      "name": "zero_length_frame",
+      "frame": "00000000",
+      "error": "FRAME_EMPTY"
+    },
+    {
+      "name": "length_over_the_limit",
+      "frame": "01000001",
+      "error": "FRAME_TOO_LARGE"
+    },
+    {
+      "name": "length_with_the_top_bit_set",
+      "frame": "ffffffff",
+      "error": "FRAME_TOO_LARGE"
+    },
+    {
+      "name": "truncated_prefix",
+      "frame": "0000",
+      "error": "FRAME_TRUNCATED"
+    },
+    {
+      "name": "truncated_body",
+      "frame": "0000000a616263",
+      "error": "FRAME_TRUNCATED"
+    },
+    {
+      "name": "trailing_bytes",
+      "frame": "000000157b2276223a312c2274797065223a2270696e67227d00",
+      "error": "FRAME_TRAILING_BYTES"
+    },
+    {
+      "name": "not_json",
+      "frame": "00000005706c61696e",
+      "error": "NOT_A_JSON_OBJECT"
+    },
+    {
+      "name": "json_array",
+      "frame": "000000025b5d",
+      "error": "NOT_A_JSON_OBJECT"
+    },
+    {
+      "name": "text_after_the_object",
+      "frame": "000000167b2276223a312c2274797065223a2270696e67227d7b",
+      "error": "NOT_A_JSON_OBJECT"
+    },
+    {
+      "name": "unknown_type",
+      "frame": "000000197b2276223a312c2274797065223a2274656c65706f7274227d",
+      "error": "UNKNOWN_TYPE"
+    },
+    {
+      "name": "no_type",
+      "frame": "000000077b2276223a317d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "version_as_text",
+      "frame": "000000177b2276223a2231222c2274797065223a2270696e67227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "version_2_message",
+      "frame": "000000157b2276223a322c2274797065223a2270696e67227d",
+      "error": "UNSUPPORTED_VERSION"
+    },
+    {
+      "name": "version_2_hello",
+      "frame": "000000257b2276223a322c2274797065223a2268656c6c6f222c2276657273696f6e73223a5b325d7d",
+      "error": "UNSUPPORTED_VERSION"
+    },
+    {
+      "name": "hello_without_versions",
+      "frame": "000000247b2276223a312c2274797065223a2268656c6c6f222c2276657273696f6e73223a5b5d7d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "route_offer_revision_of_another_gpx",
+      "frame": "0000011e7b2276223a312c2274797065223a22726f7574654f66666572222c22726f7574654964223a2231313131313131312d313131312d343131312d383131312d313131313131313131313131222c226e616d65223a225465737420726f757465222c22637265617465644174223a2274222c227265766973696f6e223a2230303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030222c22677078223a223c6770782076657273696f6e3d5c22312e315c223e3c74726b3e3c74726b7365673e3c74726b7074206c61743d5c22312e305c22206c6f6e3d5c22322e305c222f3e3c2f74726b7365673e3c2f74726b3e3c2f6770783e227d",
+      "error": "REVISION_MISMATCH"
+    },
+    {
+      "name": "route_offer_without_a_revision",
+      "frame": "000000d07b2276223a312c2274797065223a22726f7574654f66666572222c22726f7574654964223a2231313131313131312d313131312d343131312d383131312d313131313131313131313131222c226e616d65223a225465737420726f757465222c22637265617465644174223a2274222c22677078223a223c6770782076657273696f6e3d5c22312e315c223e3c74726b3e3c74726b7365673e3c74726b7074206c61743d5c22312e305c22206c6f6e3d5c22322e305c222f3e3c2f74726b7365673e3c2f74726b3e3c2f6770783e227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "activity_stored_with_a_bad_id",
+      "frame": "000000337b2276223a312c2274797065223a22616374697669747953746f726564222c2261637469766974794964223a222e2e2f78227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    }
+  ]
+}

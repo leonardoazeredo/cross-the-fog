@@ -1,5 +1,7 @@
 package codes.madera.crossfog.platform
 
+import codes.madera.crossfog.link.Framing
+
 import java.io.File
 import java.io.IOException
 import javax.crypto.spec.SecretKeySpec
@@ -174,7 +176,7 @@ class StagingStoreTest {
   @Test
   fun anItemLargerThanTheFrameLimitIsUnreadableNotMissing() {
     store().stage(a, byteArrayOf(1))
-    File(dir, "$a.bin").writeBytes(ByteArray(MAX_FRAME_BYTES + 1024))
+    File(dir, "$a.bin").writeBytes(ByteArray(Framing.MAX_FRAME_BYTES + 1024))
     assertThrows(UnreadableItemException::class.java) { store().read(a) }
   }
 
