@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
+import { RestoreFailedAfterStagingError } from "../../src/backup/restore.js";
 import type { NativeToWeb, WebToNative } from "../../src/bridge/protocol.js";
 import type { Controller } from "../../src/controller.js";
 import { createController } from "../../src/controller.js";
 import { COPY } from "../../src/copy.js";
+import { createBackupFlows } from "../../src/flows/backup.js";
 import type { Flows } from "../../src/flows/types.js";
 import { createNoopFlows } from "../../src/flows/types.js";
 import { createReloadGuard } from "../../src/fog/reloadGuard.js";
@@ -1124,6 +1126,76 @@ it("a verdict on the copy a running restore staged leaves it for the restore to 
   gate.resolve(true);
   await restoring;
   expect((await h.store.current())?.sha256).toBe(sha(B));
+});
+
+// The real backup flow over the real store; only the restore's own steps are scripted.
+function realRestoreFlow(h: Harness, run: () => Promise<"restored">) {
+  const flows = createBackupFlows({
+    backup: { run: async () => ({ status: "cancelled" }) },
+    restore: { run },
+    notify: (text) => h.notified.push(text),
+  });
+  h.flows.restore.mockImplementation(flows.restore);
+}
+
+it("puts the page back on the previous fog when a restore fails after the page was served its staged copy", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  const gate = deferred<void>();
+  realRestoreFlow(h, async () => {
+    await h.store.beginImport({ uri: bSrc, name: "b.zip" }, "picker");
+    await gate.promise;
+    await h.store.discardPending();
+    throw new RestoreFailedAfterStagingError(new Error("replace failed"));
+  });
+  const restoring = h.c.onWebMessage({ v: 1, type: "restore" });
+  await vi.waitFor(async () => expect(await h.store.pending()).not.toBeNull());
+  await h.c.onProcessGone();
+  await h.c.onWebMessage(ready);
+  expect(h.sent.at(-1)).toMatchObject({ type: "reload", fingerprint: sha(B) });
+  const mounts = h.remounts.count;
+
+  gate.resolve();
+  await restoring;
+  expect(h.remounts.count).toBe(mounts + 1);
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+
+  expect(h.sent.at(-1)).toMatchObject({ type: "reload", fingerprint: sha(A) });
+  expect(h.notified.filter((t) => t === COPY.restoreFailed)).toHaveLength(1);
+  expect(await h.store.pending()).toBeNull();
+  warn.mockRestore();
+});
+
+it("leaves the page alone when a restore fails before it staged anything", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const h = createHarness();
+  await saveToStore(h.store, aSrc, "a.zip");
+  await h.c.start();
+  const mounts = h.remounts.count;
+  realRestoreFlow(h, async () => {
+    throw new Error("could not copy the backup");
+  });
+
+  await h.c.onWebMessage({ v: 1, type: "restore" });
+
+  expect(h.remounts.count).toBe(mounts);
+  expect(h.notified.filter((t) => t === COPY.restoreFailed)).toHaveLength(1);
+  warn.mockRestore();
+});
+
+it("reloads the page once, with no failure notice, after a restore that succeeded", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const mounts = h.remounts.count;
+  realRestoreFlow(h, async () => "restored");
+
+  await h.c.onWebMessage({ v: 1, type: "restore" });
+
+  expect(h.remounts.count).toBe(mounts + 1);
+  expect(h.notified).toEqual([COPY.restoreDone]);
 });
 
 it("a verdict on the saved fog while a restore runs still clears the reload guard", async () => {

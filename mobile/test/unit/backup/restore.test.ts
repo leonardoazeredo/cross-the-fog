@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackupFlow } from "../../../src/backup/backup.js";
 import { createDatabaseReplacer } from "../../../src/backup/replace.js";
-import { createRestoreFlow, type RestoreDeps } from "../../../src/backup/restore.js";
+import {
+  createRestoreFlow,
+  type RestoreDeps,
+  RestoreFailedAfterStagingError,
+} from "../../../src/backup/restore.js";
 import type { PassphraseAnswer } from "../../../src/backup/types.js";
 import { SCHEMA_VERSION } from "../../../src/db/schema.js";
 import { createActivityStore } from "../../../src/history/activityStore.js";
@@ -276,6 +280,44 @@ describe("restore flow", () => {
     expect(await target.fogStore.pending()).toBeNull();
     expect(r.apply).not.toHaveBeenCalled();
     expect(target.scratch.left()).toEqual([]);
+  });
+
+  it("says the failure came after the import was staged when swapping the database fails", async () => {
+    const boom = new RangeError("disk full");
+    const r = restore({
+      replaceDatabase: async () => {
+        throw boom;
+      },
+    });
+    const failure = await r.run().catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(RestoreFailedAfterStagingError);
+    expect((failure as RestoreFailedAfterStagingError).cause).toBe(boom);
+    expect(await target.fogStore.pending()).toBeNull();
+  });
+
+  it("does not say it staged anything when staging the import itself fails", async () => {
+    const r = restore({
+      fogStore: {
+        ...target.fogStore,
+        beginImport: async () => {
+          throw new Error("no space");
+        },
+      },
+    });
+    const failure = await r.run().catch((e: unknown) => e);
+    expect(failure).not.toBeInstanceOf(RestoreFailedAfterStagingError);
+  });
+
+  it("does not say it staged anything when the backup holds no import", async () => {
+    await source.fogStore.clear();
+    backupFile = await makeBackup({ kind: "passphrase", passphrase: PASS });
+    const r = restore({
+      replaceDatabase: async () => {
+        throw new Error("disk full");
+      },
+    });
+    const failure = await r.run().catch((e: unknown) => e);
+    expect(failure).not.toBeInstanceOf(RestoreFailedAfterStagingError);
   });
 
   it("leaves the database alone when staging the import fails", async () => {
