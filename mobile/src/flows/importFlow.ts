@@ -1,6 +1,6 @@
 import type { WebToNative } from "../bridge/protocol.js";
 import { COPY } from "../copy.js";
-import type { FogStore, SourceFile } from "../fog/store.js";
+import type { CopyMeta, FogStore, SourceFile } from "../fog/store.js";
 import { acceptIncoming } from "../import/incoming.js";
 import { warnClass } from "./warn.js";
 
@@ -58,6 +58,29 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     pendingShare = null;
     if (queued) {
       await handleIncoming(queued);
+    }
+  }
+
+  // A promote that failed leaves the copy pending and the page showing it, and the next start's recover would drop it
+  // and tell the user a second time. So the copy goes now and the previous fog comes back, with one notice.
+  async function dropUnkeptCopy(): Promise<void> {
+    try {
+      await store.discardPending();
+    } catch (e) {
+      // The copy stays, and a remount would serve it as the pending copy again and let the page's next verdict keep
+      // it after the user was told it failed. The page is left alone and the next start drops the copy.
+      warnClass("import", "could not drop an import it could not keep", e);
+      deps.notify(COPY.importFailed);
+      await endImport();
+      return;
+    }
+    await endImport();
+    try {
+      await deps.remount();
+      deps.queueNotice(COPY.importFailed);
+    } catch (e) {
+      warnClass("import", "could not reload after an import it could not keep", e);
+      deps.notify(COPY.importFailed);
     }
   }
 
@@ -169,9 +192,13 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
         if (msg.ok) await store.promotePending();
         else await store.discardPending();
       } catch (e) {
-        // No remount: after a failed discard the page would be handed the same bad copy again, and after a
-        // failed promote the page already shows the import it could not keep.
-        warnClass("import", msg.ok ? "could not keep an import" : "could not drop a bad import", e);
+        if (msg.ok) {
+          warnClass("import", "could not keep an import", e);
+          await dropUnkeptCopy();
+          return;
+        }
+        // No remount: after a failed discard the page would be handed the same bad copy again.
+        warnClass("import", "could not drop a bad import", e);
         deps.notify(COPY.importFailed);
         await endImport();
         return;
@@ -195,14 +222,23 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
 
     async processGone() {
       if (!importActive) return;
+      // A pending copy that cannot be read may still be on disk, and the next `ready` would serve it with no import
+      // active, so it is dropped unread.
+      let pending: CopyMeta | null = null;
+      let unreadable = false;
       try {
-        const pending = await store.pending();
-        if (pending) {
-          await store.discardPending();
-          deps.queueNotice(COPY.importFailed);
-        }
+        pending = await store.pending();
       } catch (e) {
-        warnClass("import", "could not drop an interrupted import", e);
+        warnClass("import", "could not read an interrupted import", e);
+        unreadable = true;
+      }
+      if (pending || unreadable) {
+        try {
+          await store.discardPending();
+        } catch (e) {
+          warnClass("import", "could not drop an interrupted import", e);
+        }
+        // Said once whether or not the copy could be dropped: the import has failed either way.
         deps.queueNotice(COPY.importFailed);
       }
       clearImportActive();

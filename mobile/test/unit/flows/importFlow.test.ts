@@ -104,8 +104,12 @@ describe("import flow verdicts", () => {
 });
 
 describe("import flow failures", () => {
-  it("ends the import and says so when the good copy cannot be promoted", async () => {
-    const { flow, busy, notified, remounts } = setup({ promotePending: fail });
+  it("drops the copy, reloads the previous fog and says so once when the good copy cannot be promoted", async () => {
+    const discarded: string[] = [];
+    const { flow, busy, notified, queued, remounts } = setup({
+      promotePending: fail,
+      discardPending: async () => void discarded.push("d"),
+    });
     await flow.pick();
     expect(flow.active()).toBe(true);
     expect(remounts()).toBe(1);
@@ -114,10 +118,47 @@ describe("import flow failures", () => {
       flow.loaded({ v: 1, type: "loaded", fingerprint: META.sha256, ok: true, tiles: 1 }),
     ).resolves.toBeUndefined();
 
+    expect(discarded).toEqual(["d"]);
+    expect(flow.active()).toBe(false);
+    expect(busy.at(-1)).toBe(false);
+    expect(queued).toEqual([COPY.importFailed]);
+    expect(notified).toEqual([]);
+    expect(remounts()).toBe(2);
+    onlyNamesLogged();
+  });
+
+  it("tells the user now and leaves the page alone when the unkept copy cannot be dropped either", async () => {
+    const { flow, busy, notified, queued, remounts } = setup({
+      promotePending: fail,
+      discardPending: fail,
+    });
+    await flow.pick();
+
+    await expect(
+      flow.loaded({ v: 1, type: "loaded", fingerprint: META.sha256, ok: true, tiles: 1 }),
+    ).resolves.toBeUndefined();
+
     expect(flow.active()).toBe(false);
     expect(busy.at(-1)).toBe(false);
     expect(notified).toEqual([COPY.importFailed]);
+    expect(queued).toEqual([]);
     expect(remounts()).toBe(1);
+    onlyNamesLogged();
+  });
+
+  it("falls back to a toast when the previous fog cannot be reloaded after a failed promote", async () => {
+    let remounts = 0;
+    const { flow, notified, queued } = setup({ promotePending: fail }, () =>
+      remounts++ === 0 ? Promise.resolve() : fail(),
+    );
+    await flow.pick();
+
+    await expect(
+      flow.loaded({ v: 1, type: "loaded", fingerprint: META.sha256, ok: true, tiles: 1 }),
+    ).resolves.toBeUndefined();
+
+    expect(notified).toEqual([COPY.importFailed]);
+    expect(queued).toEqual([]);
     onlyNamesLogged();
   });
 
@@ -146,7 +187,7 @@ describe("import flow failures", () => {
 
     expect(confirms).toEqual(["b.zip"]);
     expect(flow.active()).toBe(true);
-    expect(remounts()).toBe(2);
+    expect(remounts()).toBe(3);
   });
 
   it("ends the import and does not reject when the page cannot be reloaded after a bad copy", async () => {
@@ -288,6 +329,49 @@ describe("import flow failures", () => {
     expect(busy.at(-1)).toBe(false);
     expect(notified).toEqual([COPY.importFailed]);
     onlyNamesLogged();
+  });
+
+  it("drops an interrupted import's copy even when the pending copy cannot be read", async () => {
+    const discarded: string[] = [];
+    const { flow, busy, queued } = setup({
+      pending: fail,
+      discardPending: async () => void discarded.push("d"),
+    });
+    await flow.pick();
+
+    await flow.processGone();
+
+    expect(discarded).toEqual(["d"]);
+    expect(flow.active()).toBe(false);
+    expect(busy.at(-1)).toBe(false);
+    expect(queued).toEqual([COPY.importFailed]);
+    onlyNamesLogged();
+  });
+
+  it("says an interrupted import failed once when its copy can neither be read nor dropped", async () => {
+    const { flow, queued } = setup({ pending: fail, discardPending: fail });
+    await flow.pick();
+
+    await expect(flow.processGone()).resolves.toBeUndefined();
+
+    expect(flow.active()).toBe(false);
+    expect(queued).toEqual([COPY.importFailed]);
+    expect(warn).toHaveBeenCalledTimes(2);
+    onlyNamesLogged();
+  });
+
+  it("says nothing when the page dies with no pending copy", async () => {
+    const discarded: string[] = [];
+    const { flow, queued } = setup({
+      pending: async () => null,
+      discardPending: async () => void discarded.push("d"),
+    });
+    await flow.pick();
+
+    await flow.processGone();
+
+    expect(queued).toEqual([]);
+    expect(discarded).toEqual([]);
   });
 
   it("says only that the file is not a zip when a refused share cannot be released", async () => {
