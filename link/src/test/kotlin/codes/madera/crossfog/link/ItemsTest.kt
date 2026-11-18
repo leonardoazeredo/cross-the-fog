@@ -97,11 +97,20 @@ class ItemsTest {
   }
 
   @Test
-  fun acceptsABodyExactlyAtTheLimit() {
+  fun refusesAnItemThatFitsTheCapBareButNotOnceFramed() {
+    val head = activity(gpx = "\"\"").size
+    val padded = activity(gpx = "\"${"a".repeat(Framing.MAX_FRAME_BYTES - head - 10)}\"")
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Items.activityOffer(padded) })
+    val route = """{"routeId":"$route","name":"R","createdAt":"t","gpx":"${"a".repeat(Framing.MAX_FRAME_BYTES - 120)}"}"""
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Items.routeOffer(route.toByteArray()) })
+  }
+
+  @Test
+  fun theBareParseAcceptsABodyExactlyAtTheLimit() {
     val head = activity(gpx = "\"\"").size
     val padded = activity(gpx = "\"${"a".repeat(Framing.MAX_FRAME_BYTES - head)}\"")
     assertEquals(Framing.MAX_FRAME_BYTES, padded.size)
-    assertEquals(Framing.MAX_FRAME_BYTES - head, Items.activityOffer(padded).gpx.length)
+    assertEquals(Framing.MAX_FRAME_BYTES - head, Messages.activityOffer(Messages.parseObject(padded)).gpx.length)
   }
 
   @Test
@@ -122,6 +131,13 @@ class ItemsTest {
     assertEquals(RouteOffer(route, "R", "t", "<gpx/>"), Items.routeOffer(ok.toByteArray()))
     val wrong = ok.replace(Revision.of("<gpx/>"), "0".repeat(64))
     assertEquals(ProtocolError.REVISION_MISMATCH, errorOf { Items.routeOffer(wrong.toByteArray()) })
+  }
+
+  @Test
+  fun aQueuedRouteWithAMalformedRevisionIsRefusedAndANullOneReadsAsAbsent() {
+    val base = """"routeId":"$route","name":"R","createdAt":"t","gpx":"<gpx/>""""
+    assertEquals(ProtocolError.FIELD_MISSING_OR_INVALID, errorOf { Items.routeOffer("{$base,\"revision\":\"${Revision.of("<gpx/>").uppercase()}\"}".toByteArray()) })
+    assertEquals(RouteOffer(route, "R", "t", "<gpx/>"), Items.routeOffer("{$base,\"revision\":null}".toByteArray()))
   }
 
   @Test

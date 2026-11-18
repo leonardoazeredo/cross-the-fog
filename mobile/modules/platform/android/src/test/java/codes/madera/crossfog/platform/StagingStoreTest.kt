@@ -1,7 +1,6 @@
 package codes.madera.crossfog.platform
 
 import codes.madera.crossfog.link.Framing
-
 import java.io.File
 import java.io.IOException
 import javax.crypto.spec.SecretKeySpec

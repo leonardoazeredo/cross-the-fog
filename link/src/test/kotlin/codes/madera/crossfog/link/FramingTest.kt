@@ -103,6 +103,38 @@ class FramingTest {
   }
 
   @Test
+  fun writingRefusesWhatReadingWould() {
+    val out = ByteArrayOutputStream()
+    assertEquals(ProtocolError.FRAME_EMPTY, errorOf { Framing.writeFrame(out, ByteArray(0)) })
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Framing.writeFrame(out, ByteArray(Framing.MAX_FRAME_BYTES + 1)) })
+    assertEquals(0, out.size())
+    assertEquals(ProtocolError.FRAME_EMPTY, errorOf { Framing.readFrame(ByteArrayInputStream(prefix(0))) })
+  }
+
+  @Test
+  fun theReaderJoinsABodyLargerThanItsChunk() {
+    val big = ByteArray(64 * 1024 + 1) { (it % 251).toByte() }
+    val out = ByteArrayOutputStream()
+    Framing.writeFrame(out, big)
+    Framing.writeFrame(out, "after".toByteArray())
+    val input = ByteArrayInputStream(out.toByteArray())
+    assertArrayEquals(big, Framing.readFrame(input))
+    assertArrayEquals("after".toByteArray(), Framing.readFrame(input))
+  }
+
+  @Test
+  fun aLargeFrameCutOffAfterItsFirstChunkIsTruncated() {
+    val frame = Framing.encode(ByteArray(200 * 1024))
+    assertEquals(ProtocolError.FRAME_TRUNCATED, errorOf { Framing.readFrame(ByteArrayInputStream(frame.copyOf(100 * 1024))) })
+  }
+
+  @Test
+  fun aStreamFrameExactlyAtTheLimitIsRead() {
+    val body = ByteArray(Framing.MAX_FRAME_BYTES)
+    assertEquals(Framing.MAX_FRAME_BYTES, Framing.readFrame(ByteArrayInputStream(Framing.encode(body)))!!.size)
+  }
+
+  @Test
   fun anErrorMessageNamesNoInput() {
     val e = assertThrows(ProtocolException::class.java) { Framing.decode("secret".toByteArray()) }
     assertEquals(false, e.message!!.contains("secret"))

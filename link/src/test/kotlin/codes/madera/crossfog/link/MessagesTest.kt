@@ -185,6 +185,32 @@ class MessagesTest {
     assertEquals(ActivityStored(activity), m)
   }
 
+  // org.json on Android accepts all of these; the strict check in front of it must not.
+  @Test
+  fun syntaxOnlyALooseParserAcceptsIsRefused() {
+    for (text in listOf(
+      "{\"v\":1,\"type\":\"ping\"}\u0000junk{", """{"v":1,"type":"ping"}//x""", """{"v":1,"type":"ping"}#x""", """{"v":1,"type":"ping"}/*x*/""",
+      """{"v":1,"type":"ping"/*x*/}""", "{\"v\":1,\"type\":\"ping\"\n# x\n}",
+      """{"v":0x1,"type":"ping"}""", """{"v":01,"type":"ping"}""", """{"v":+1,"type":"ping"}""", """{"v":1.,"type":"ping"}""",
+      """{"v":1,"type":"ping",}""", """{v:1,"type":"ping"}""", """{'v':1,'type':'ping'}""", """{"v":1;"type":"ping"}""",
+      """{"v":1,"type":"ping","type":"routeOffer"}""", """{"v":1,"v":2,"type":"ping"}""",
+      """{"v":1,"type":"pi\ng"}""".replace("\\n", "\\x"), "{\"v\":1,\"type\":\"pi\u0001ng\"}", """{"v":1,"type":"ping","a":NaN}""",
+      """{"v":1,"type":"ping","a":[1,]}""", """{"v":1,"type":"ping","a":tru}""",
+    )) {
+      assertEquals(text, ProtocolError.NOT_A_JSON_OBJECT, errorOf(text))
+    }
+  }
+
+  @Test
+  fun duplicateKeysAreJudgedOnTheirDecodedText() {
+    assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","\u0074ype":"x"}"""))
+  }
+
+  @Test
+  fun whitespaceAndEscapesJsonAllowsAreAccepted() {
+    assertEquals(Ping, parse(" \t\r\n{ \"v\" : 1 ,\"type\":\"p\\u0069ng\" , \"x\":[1, -2.5e+3, true, false, null, {}] }\n"))
+  }
+
   @Test
   fun aFrameThatIsNotAJsonObjectIsRefused() {
     for (text in listOf("", "[]", "null", "{", "plain", "\"x\"", "5")) {
@@ -193,10 +219,9 @@ class MessagesTest {
   }
 
   @Test
-  fun aDeeplyNestedFrameIsRefusedWithoutCrashing() {
-    // Recent org.json stops at a nesting limit with a syntax error; Android's recurses until the stack ends.
-    val deep = "{\"a\":".repeat(200_000)
-    assertEquals(true, errorOf(deep) in setOf(ProtocolError.NESTED_TOO_DEEPLY, ProtocolError.NOT_A_JSON_OBJECT))
+  fun aDeeplyNestedFrameIsRefusedByNameWithoutCrashing() {
+    assertEquals(ProtocolError.NESTED_TOO_DEEPLY, errorOf("{\"a\":".repeat(200_000)))
+    assertEquals(ProtocolError.NESTED_TOO_DEEPLY, errorOf("""{"v":1,"type":"ping","x":${"[".repeat(50)}${"]".repeat(50)}}"""))
   }
 
   @Test
@@ -225,6 +250,17 @@ class MessagesTest {
       assertFalse(e.message!!, e.message!!.contains(secret))
       assertNull(e.cause)
     }
+  }
+
+  @Test
+  fun textThatNeedsEscapingSurvivesTheWire() {
+    val tricky = "a\\b \"q\" \t\u0001\u001f \n\r \u000c\b é \uD83D\uDE00 </x> /"
+    val offer = RouteOffer(route, tricky, "t", tricky)
+    val bytes = Messages.encode(offer)
+    assertEquals(offer, Messages.parse(bytes))
+    val text = String(bytes, Charsets.UTF_8)
+    assertEquals(false, text.any { it < ' ' })
+    assertEquals(true, text.contains("\\\\b") && text.contains("\\u0001") && text.contains("\\u001f") && text.contains("\\t"))
   }
 
   @Test

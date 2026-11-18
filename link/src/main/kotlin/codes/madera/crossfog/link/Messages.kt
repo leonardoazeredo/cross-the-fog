@@ -3,7 +3,6 @@ package codes.madera.crossfog.link
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
-import org.json.JSONTokener
 
 /**
  * The messages of the link, version 1. On the wire each is a JSON object `{"v":1,"type":...}` in
@@ -142,9 +141,6 @@ object Messages {
     return out.append('"').toString()
   }
 
-  // What JSONTokener.nextClean returns at the end of its input.
-  private const val END = '\u0000'
-
   private fun versions(value: Any?): List<Int> {
     val array = value as? JSONArray ?: throw Fields.invalid("versions")
     if (array.length() !in 1..Hello.MAX_VERSIONS) throw Fields.invalid("versions")
@@ -157,18 +153,13 @@ object Messages {
 
   internal fun parseObject(bytes: ByteArray): JSONObject {
     if (bytes.size > Framing.MAX_FRAME_BYTES) throw ProtocolException(ProtocolError.FRAME_TOO_LARGE)
-    // org.json puts the whole input into its syntax-error message, so the cause is dropped.
+    val text = String(bytes, Charsets.UTF_8)
+    StrictJson.requireObject(text)
+    // Valid by now, so org.json only builds the object. Its own syntax error would quote the input.
     return try {
-      val tokener = JSONTokener(String(bytes, Charsets.UTF_8))
-      val parsed = JSONObject(tokener)
-      // org.json stops at the end of the first object and ignores whatever follows it.
-      if (tokener.nextClean() != END) throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
-      parsed
+      JSONObject(text)
     } catch (e: JSONException) {
       throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
-    } catch (e: StackOverflowError) {
-      // org.json recurses, so a deeply nested frame must not take the process down.
-      throw ProtocolException(ProtocolError.NESTED_TOO_DEEPLY)
     }
   }
 
