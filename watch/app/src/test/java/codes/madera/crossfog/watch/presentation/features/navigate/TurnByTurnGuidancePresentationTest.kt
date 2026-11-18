@@ -1,0 +1,123 @@
+package codes.madera.crossfog.watch.presentation.features.navigate
+
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GuidanceMode
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GuidanceTerrainConfirmation
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GuidanceTerrainPreview
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.RouteInstruction
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.RouteInstructionCommand
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnByTurnGuidanceState
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.messageRes
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.mapsforge.core.model.LatLong
+
+class TurnByTurnGuidancePresentationTest {
+    @Test
+    fun pausedGuidanceKeepsTheLatestActiveDashboardState() {
+        val latestActiveState = state(distanceMeters = 180.0)
+        val pausedCurrentState =
+            latestActiveState.copy(
+                active = false,
+                mode = GuidanceMode.WAITING_FOR_LOCATION,
+                nextInstruction = null,
+                distanceToInstructionMeters = null,
+                distanceRemainingMeters = null,
+                routeProgressFraction = null,
+            )
+
+        val displayState =
+            pausedGuidanceDisplayState(
+                currentState = pausedCurrentState,
+                latestActiveState = latestActiveState,
+                paused = true,
+            )
+
+        assertEquals(latestActiveState, displayState)
+    }
+
+    @Test
+    fun mapRemainingDetailsRequireAnEnabledOnRouteGuidanceSession() {
+        val visible =
+            GuidanceMapRemainingDisplayState(
+                enabled = true,
+                guidanceActive = true,
+                paused = false,
+                offRoute = false,
+                guideBackToRouteActive = false,
+                suppressed = false,
+            )
+        assertTrue(
+            shouldShowGuidanceMapRemainingDetails(visible),
+        )
+        assertTrue(
+            shouldShowGuidanceMapRemainingDetails(
+                visible.copy(
+                    guidanceActive = false,
+                    paused = true,
+                ),
+            ),
+        )
+        assertFalse(
+            shouldShowGuidanceMapRemainingDetails(
+                visible.copy(enabled = false),
+            ),
+        )
+        assertFalse(
+            shouldShowGuidanceMapRemainingDetails(
+                visible.copy(offRoute = true),
+            ),
+        )
+        assertFalse(
+            shouldShowGuidanceMapRemainingDetails(
+                visible.copy(suppressed = true),
+            ),
+        )
+    }
+
+    @Test
+    fun voiceContinueStraightPromptOnlySpeaksForMeaningfulStraightSections() {
+        assertTrue(shouldSpeakContinueStraightPrompt(state(distanceMeters = 600.0)))
+        assertFalse(shouldSpeakContinueStraightPrompt(state(distanceMeters = 300.0)))
+        assertFalse(
+            shouldSpeakContinueStraightPrompt(
+                state(
+                    distanceMeters = 600.0,
+                    command = RouteInstructionCommand.CONTINUE,
+                ),
+            ),
+        )
+    }
+
+    private fun state(
+        distanceMeters: Double,
+        command: RouteInstructionCommand = RouteInstructionCommand.RIGHT,
+        terrain: GuidanceTerrainPreview? = null,
+        recentManeuverTerrain: GuidanceTerrainConfirmation? = null,
+    ): TurnByTurnGuidanceState =
+        TurnByTurnGuidanceState(
+            active = true,
+            mode = GuidanceMode.FOLLOW_ROUTE,
+            trackTitle = "Route",
+            nextInstruction =
+                RouteInstruction(
+                    command = command,
+                    messageRes = command.messageRes,
+                    latLong = LatLong(45.0, 6.0),
+                    trackPointIndex = 1,
+                    distanceFromStartMeters = 200.0,
+                    turnAngleDegrees = 90f,
+                ),
+            distanceToInstructionMeters = distanceMeters,
+            distanceToStartMeters = 0.0,
+            bearingToStartDegrees = null,
+            distanceToRouteMeters = 0.0,
+            bearingToRouteDegrees = null,
+            distanceRemainingMeters = 500.0,
+            routeProgressFraction = 0.25f,
+            offRoute = false,
+            nextSegmentTerrain = terrain,
+            recentManeuverTerrain = recentManeuverTerrain,
+        )
+}

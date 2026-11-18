@@ -10,7 +10,7 @@ Thumbs.db
 *~
 
 # Design scratch (mockups, screenshots)
-design/
+/design/
 
 # Benchmark caches (BRouter/Overpass responses) and result dumps: local only
 bench/cache/

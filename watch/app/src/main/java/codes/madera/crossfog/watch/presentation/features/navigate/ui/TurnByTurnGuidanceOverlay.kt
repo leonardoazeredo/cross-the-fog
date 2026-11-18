@@ -1,0 +1,1294 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
+package codes.madera.crossfog.watch.presentation.features.navigate
+
+import android.content.res.Resources
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import androidx.wear.compose.foundation.AnchorType
+import androidx.wear.compose.foundation.ArcPaddingValues
+import androidx.wear.compose.foundation.CurvedDirection
+import androidx.wear.compose.foundation.CurvedLayout
+import androidx.wear.compose.foundation.CurvedModifier
+import androidx.wear.compose.foundation.CurvedTextStyle
+import androidx.wear.compose.foundation.background
+import androidx.wear.compose.foundation.basicCurvedText
+import androidx.wear.compose.foundation.padding
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.SwipeToDismissBox
+import androidx.wear.compose.material3.Text
+import codes.madera.crossfog.watch.R
+import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
+import codes.madera.crossfog.watch.data.repository.TURN_BY_TURN_DASHBOARD_PAGE_SLOT_COUNT
+import codes.madera.crossfog.watch.data.repository.normalizeTurnByTurnDashboardMetricSlots
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GuidanceMode
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GuidanceTerrainDirection
+import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnByTurnGuidanceState
+import codes.madera.crossfog.watch.presentation.features.recording.dashboard.RecordingFullscreenPageShell
+import codes.madera.crossfog.watch.presentation.features.settings.OptionPickerDialog
+import codes.madera.crossfog.watch.presentation.ui.WearScreenSize
+import codes.madera.crossfog.watch.presentation.ui.cappedFontScale
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
+
+@Composable
+@Suppress("CyclomaticComplexMethod", "FunctionName", "LongMethod", "LongParameterList")
+internal fun BoxScope.TurnByTurnGuidanceOverlay(
+    state: TurnByTurnGuidanceState,
+    paused: Boolean,
+    dashboardMetricSlots: List<String>,
+    voiceGuidanceEnabled: Boolean,
+    screenSize: WearScreenSize,
+    isMetric: Boolean,
+    compassHeadingDeg: Float,
+    guideBackToRouteActive: Boolean,
+    showGuideBackPrompt: Boolean,
+    startDecisionPrompt: GuidanceDecisionPrompt?,
+    expandRequestToken: Long,
+    actionPromptRequestToken: Long,
+    compactPopupEnabled: Boolean,
+    compactPopupSuppressed: Boolean,
+    elevationProgressRingEnabled: Boolean,
+    routeProgressRingSegments: List<RouteProgressRingSegment>,
+    suppressed: Boolean = false,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+    onVoiceGuidanceChange: (Boolean) -> Unit,
+    onDashboardMetricSelected: (Int, String) -> Unit,
+    onExpandedChange: (Boolean) -> Unit,
+    onGuideBackToRoute: () -> Unit,
+    onDismissGuideBackPrompt: () -> Unit,
+    onAcceptStartDecisionPrompt: () -> Unit,
+    onDismissStartDecisionPrompt: () -> Unit,
+) {
+    val resources = LocalResources.current
+    LaunchedEffect(state.active) {
+        if (!state.active) {
+            onExpandedChange(false)
+        }
+    }
+    if (!state.active && !paused) return
+
+    var expanded by remember(state.trackTitle) { mutableStateOf(false) }
+    val expandedVisibility = remember(state.trackTitle) { MutableTransitionState(false) }
+    expandedVisibility.targetState = expanded
+    val popupOwnsTimeChip =
+        fullScreenPopupTransitionOwnsTimeChip(
+            currentlyVisible = expandedVisibility.currentState,
+            targetVisible = expandedVisibility.targetState,
+        )
+
+    fun expandPopup() {
+        onExpandedChange(true)
+        expanded = true
+    }
+    var showActionPrompt by remember(state.trackTitle, paused) { mutableStateOf(false) }
+    var arrivalPromptDismissed by remember(state.trackTitle) { mutableStateOf(false) }
+    var expandedPageIndex by remember(state.trackTitle) { mutableIntStateOf(0) }
+    var selectedDashboardSlot by remember(state.trackTitle) { mutableStateOf<Int?>(null) }
+    var lastHandledExpandRequestToken by remember {
+        mutableLongStateOf(expandRequestToken)
+    }
+    var lastHandledActionPromptRequestToken by remember {
+        mutableLongStateOf(actionPromptRequestToken)
+    }
+    val dashboardSlots = normalizeTurnByTurnDashboardMetricSlots(dashboardMetricSlots)
+    val dashboardPageCount = dashboardSlots.size / TURN_BY_TURN_DASHBOARD_PAGE_SLOT_COUNT
+    val expandedPageCount = dashboardPageCount + 1
+    LaunchedEffect(expandedPageCount) {
+        expandedPageIndex = expandedPageIndex.coerceIn(0, expandedPageCount - 1)
+    }
+    LaunchedEffect(suppressed) {
+        if (suppressed) {
+            expanded = false
+            showActionPrompt = false
+            onExpandedChange(false)
+        }
+    }
+    LaunchedEffect(popupOwnsTimeChip) {
+        onExpandedChange(popupOwnsTimeChip)
+    }
+    LaunchedEffect(expandRequestToken) {
+        val shouldHandle =
+            expandRequestToken != 0L &&
+                expandRequestToken != lastHandledExpandRequestToken
+        lastHandledExpandRequestToken = expandRequestToken
+        if (shouldHandle && !suppressed && (state.active || paused)) {
+            DebugTelemetry.log("TurnByTurn", "event=time_chip_expand handled=true")
+            showActionPrompt = false
+            expandPopup()
+        }
+    }
+    LaunchedEffect(actionPromptRequestToken) {
+        val shouldHandle =
+            actionPromptRequestToken != 0L &&
+                actionPromptRequestToken != lastHandledActionPromptRequestToken
+        lastHandledActionPromptRequestToken = actionPromptRequestToken
+        if (shouldHandle && !suppressed && (state.active || paused)) {
+            DebugTelemetry.log("TurnByTurn", "event=time_chip_long_press handled=true")
+            expanded = false
+            showActionPrompt = true
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { onExpandedChange(false) }
+    }
+    if (suppressed) return
+
+    val topPadding =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 54.dp
+            WearScreenSize.MEDIUM -> 50.dp
+            WearScreenSize.SMALL -> 46.dp
+        }
+    val compactMinWidth =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 82.dp
+            WearScreenSize.MEDIUM -> 82.dp
+            WearScreenSize.SMALL -> 78.dp
+        }
+    val compactMaxWidth =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 112.dp
+            WearScreenSize.MEDIUM -> 112.dp
+            WearScreenSize.SMALL -> 108.dp
+        }
+    val compactIconSize =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 17.dp
+            WearScreenSize.MEDIUM -> 16.dp
+            WearScreenSize.SMALL -> 15.dp
+        }
+    val titleFont =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 11.sp
+            WearScreenSize.MEDIUM -> 10.sp
+            WearScreenSize.SMALL -> 10.sp
+        }
+
+    AnimatedVisibility(
+        visibleState = expandedVisibility,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier =
+            Modifier
+                .align(Alignment.Center)
+                .fillMaxSize(),
+    ) {
+        SwipeToDismissBox(onDismissed = { expanded = false }) { isBackground ->
+            if (!isBackground) {
+                RecordingFullscreenPageShell(
+                    pageIndex = expandedPageIndex,
+                    pageCount = expandedPageCount,
+                    dragKey = state.mode to paused,
+                    onPreviousPage = { expandedPageIndex = (expandedPageIndex - 1).coerceAtLeast(0) },
+                    onNextPage = { expandedPageIndex = (expandedPageIndex + 1).coerceAtMost(expandedPageCount - 1) },
+                    onShowActions = { showActionPrompt = true },
+                    onDismiss = { expanded = false },
+                    telemetryTag = "TurnByTurn",
+                ) {
+                    GuidanceRouteProgressChrome(
+                        state = state,
+                        isMetric = isMetric,
+                        showDetails = !state.offRoute || guideBackToRouteActive,
+                        elevationProgressRingEnabled = elevationProgressRingEnabled,
+                        routeProgressRingSegments = routeProgressRingSegments,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    if (expandedPageIndex == 0) {
+                        ExpandedGuidanceOverlay(
+                            state = state,
+                            screenSize = screenSize,
+                            isMetric = isMetric,
+                            compassHeadingDeg = compassHeadingDeg,
+                            guideBackToRouteActive = guideBackToRouteActive,
+                            showGuideBackPrompt = showGuideBackPrompt,
+                            voiceGuidanceEnabled = voiceGuidanceEnabled,
+                            onVoiceGuidanceChange = onVoiceGuidanceChange,
+                            onGuideBackToRoute = onGuideBackToRoute,
+                            onLongPress = { showActionPrompt = true },
+                        )
+                    } else {
+                        val metricPageIndex = expandedPageIndex - 1
+                        val pageSlots =
+                            dashboardSlots
+                                .drop(metricPageIndex * TURN_BY_TURN_DASHBOARD_PAGE_SLOT_COUNT)
+                                .take(TURN_BY_TURN_DASHBOARD_PAGE_SLOT_COUNT)
+                        TurnByTurnMetricDashboardPage(
+                            state = state,
+                            slots = pageSlots,
+                            screenSize = screenSize,
+                            isMetric = isMetric,
+                            onSlotLongPress = { pageSlot ->
+                                selectedDashboardSlot =
+                                    metricPageIndex * TURN_BY_TURN_DASHBOARD_PAGE_SLOT_COUNT + pageSlot
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (!expanded && compactPopupEnabled && !compactPopupSuppressed) {
+        val compactBackground = Color.Black.copy(alpha = 0.9f)
+        val compactBorder = Color.Transparent
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = topPadding)
+                    .width(compactMaxWidth)
+                    .height(48.dp)
+                    .combinedClickable(
+                        onClick = {
+                            DebugTelemetry.log("TurnByTurn", "event=compact_popup_tap mode=guidance")
+                            showActionPrompt = false
+                            expandPopup()
+                        },
+                        onLongClick = {
+                            DebugTelemetry.log("TurnByTurn", "event=compact_popup_long_press mode=guidance")
+                            showActionPrompt = true
+                        },
+                    ),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .widthIn(min = compactMinWidth, max = compactMaxWidth)
+                        .heightIn(min = 30.dp)
+                        .background(compactBackground, RoundedCornerShape(8.dp))
+                        .border(1.dp, compactBorder, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                cappedFontScale(maxFontScale = 1.2f) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        GuidanceManeuverIcon(
+                            state = state,
+                            compassHeadingDeg = compassHeadingDeg,
+                            guideBackToRouteActive = guideBackToRouteActive,
+                            modifier = Modifier.size(compactIconSize),
+                        )
+                        Text(
+                            text =
+                                if (paused) {
+                                    stringResource(R.string.navigate_paused)
+                                } else {
+                                    guidanceCompactText(state, isMetric, guideBackToRouteActive, resources = resources)
+                                },
+                            color = if (state.offRoute) OFF_ROUTE_AMBER else Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = titleFont,
+                            lineHeight = titleFont * 1.1f,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+    selectedDashboardSlot?.let { slotIndex ->
+        OptionPickerDialog(
+            visible = true,
+            title = stringResource(R.string.navigate_dashboard_measure),
+            selectedValue = dashboardSlots[slotIndex],
+            options =
+                turnByTurnMetricPickerOptions
+                    .map { (value, labelRes) ->
+                        value to stringResource(labelRes)
+                    }.sortedBy { it.second.lowercase() },
+            onDismiss = { selectedDashboardSlot = null },
+            onSelect = { metricId ->
+                onDashboardMetricSelected(slotIndex, metricId)
+                selectedDashboardSlot = null
+            },
+        )
+    }
+
+    if (showActionPrompt) {
+        GuidanceActionPromptCard(
+            paused = paused,
+            onPause = {
+                showActionPrompt = false
+                expanded = false
+                onPause()
+            },
+            onResume = {
+                showActionPrompt = false
+                onResume()
+            },
+            onStop = {
+                showActionPrompt = false
+                expanded = false
+                onStop()
+            },
+            onCancel = { showActionPrompt = false },
+            modifier =
+                if (expanded) {
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 36.dp)
+                } else {
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = topPadding + 36.dp)
+                },
+        )
+    } else if (startDecisionPrompt != null) {
+        GuidanceDecisionPromptCard(
+            title = startDecisionPrompt.title,
+            detail = startDecisionPrompt.detail,
+            acceptText = startDecisionPrompt.acceptText,
+            dismissText = startDecisionPrompt.dismissText,
+            onAccept = onAcceptStartDecisionPrompt,
+            onDismiss = onDismissStartDecisionPrompt,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 36.dp),
+        )
+    } else if (showGuideBackPrompt) {
+        GuidanceDecisionPromptCard(
+            title = stringResource(R.string.navigate_off_route),
+            detail =
+                state.distanceToRouteMeters?.let {
+                    stringResource(
+                        R.string.navigate_from_gpx,
+                        formatLiveDistanceLabel(it, isMetric, resources = resources),
+                    )
+                } ?: stringResource(R.string.navigate_guide_back),
+            acceptText = stringResource(R.string.navigate_guide),
+            dismissText = stringResource(R.string.navigate_ignore),
+            onAccept = onGuideBackToRoute,
+            onDismiss = onDismissGuideBackPrompt,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 36.dp),
+        )
+    } else if (state.mode == GuidanceMode.FINISHED && !arrivalPromptDismissed) {
+        GuidanceDecisionPromptCard(
+            title = stringResource(R.string.navigate_route_complete),
+            detail = stringResource(R.string.navigate_end_turn_by_turn_guidance),
+            acceptText = stringResource(R.string.navigate_end),
+            dismissText = stringResource(R.string.navigate_keep),
+            onAccept = onStop,
+            onDismiss = { arrivalPromptDismissed = true },
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 36.dp),
+        )
+    }
+}
+
+internal data class GuidanceDecisionPrompt(
+    val title: String,
+    val detail: String,
+    val acceptText: String,
+    val dismissText: String,
+)
+
+@Composable
+private fun ExpandedGuidanceOverlay(
+    state: TurnByTurnGuidanceState,
+    screenSize: WearScreenSize,
+    isMetric: Boolean,
+    compassHeadingDeg: Float,
+    guideBackToRouteActive: Boolean,
+    showGuideBackPrompt: Boolean,
+    voiceGuidanceEnabled: Boolean,
+    onVoiceGuidanceChange: (Boolean) -> Unit,
+    onGuideBackToRoute: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val resources = LocalResources.current
+    val contentWidthFraction =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 0.78f
+            WearScreenSize.MEDIUM -> 0.76f
+            WearScreenSize.SMALL -> 0.74f
+        }
+    val arrowContainerSize =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 68.dp
+            WearScreenSize.MEDIUM -> 64.dp
+            WearScreenSize.SMALL -> 60.dp
+        }
+    val arrowIconSize =
+        when (screenSize) {
+            WearScreenSize.LARGE -> 40.dp
+            WearScreenSize.MEDIUM -> 38.dp
+            WearScreenSize.SMALL -> 36.dp
+        }
+    val showRouteProgressDetails = !state.offRoute || guideBackToRouteActive
+    val combinedManeuverText =
+        if (!state.offRoute && !guideBackToRouteActive) {
+            guidanceInstructionDistanceText(state, isMetric, resources = resources)?.let { distance ->
+                resources.getString(
+                    R.string.navigation_instruction_with_distance,
+                    distance,
+                    guidanceInstructionPrimaryText(state, resources = resources),
+                )
+            }
+        } else {
+            null
+        }
+    val showGuideBackShortcut = state.active && state.offRoute && !guideBackToRouteActive && !showGuideBackPrompt
+    var showGuideBackShortcutConfirm by remember(state.trackTitle) { mutableStateOf(false) }
+    LaunchedEffect(state.offRoute, guideBackToRouteActive, showGuideBackPrompt) {
+        if (!state.offRoute || guideBackToRouteActive || showGuideBackPrompt) {
+            showGuideBackShortcutConfirm = false
+        }
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongPress,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        GuidanceVoiceToggle(
+            enabled = voiceGuidanceEnabled,
+            onClick = {
+                DebugTelemetry.log("TurnByTurn", "event=voice_toggle enabled=${!voiceGuidanceEnabled}")
+                onVoiceGuidanceChange(!voiceGuidanceEnabled)
+            },
+            modifier =
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 16.dp),
+        )
+
+        if (showGuideBackShortcut) {
+            GuidanceGuideBackShortcut(
+                onClick = {
+                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_click")
+                    showGuideBackShortcutConfirm = true
+                },
+                modifier =
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 16.dp),
+            )
+        }
+
+        cappedFontScale(maxFontScale = 1.15f) {
+            Column(
+                modifier =
+                    Modifier
+                        .offset(y = 7.dp)
+                        .fillMaxWidth(contentWidthFraction),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(arrowContainerSize)
+                            .background(
+                                if (state.offRoute) OFF_ROUTE_AMBER else MaterialTheme.colorScheme.primary,
+                                CircleShape,
+                            ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GuidanceManeuverIcon(
+                        state = state,
+                        compassHeadingDeg = compassHeadingDeg,
+                        guideBackToRouteActive = guideBackToRouteActive,
+                        modifier = Modifier.size(arrowIconSize),
+                        tint = if (state.offRoute) Color.Black else MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                Spacer(modifier = Modifier.size(6.dp))
+                Text(
+                    text =
+                        combinedManeuverText
+                            ?: guidancePrimaryText(state, guideBackToRouteActive, resources = resources),
+                    color = if (state.offRoute) OFF_ROUTE_AMBER else Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 21.sp,
+                    lineHeight = 22.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (combinedManeuverText == null) {
+                    Text(
+                        text = guidanceSecondaryText(state, isMetric, guideBackToRouteActive, resources = resources),
+                        color = Color.White.copy(alpha = 0.82f),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        lineHeight = 15.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (showRouteProgressDetails) {
+                    guidanceTerrainPopupPresentation(state, isMetric, resources = resources)?.let { terrain ->
+                        Spacer(modifier = Modifier.size(2.dp))
+                        Text(
+                            text = terrain.expandedText,
+                            color = guidanceTerrainColor(terrain.direction),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            lineHeight = 15.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (showRouteProgressDetails) {
+                    guidanceFollowingText(state, isMetric, resources = resources)?.let { followingText ->
+                        Spacer(modifier = Modifier.size(2.dp))
+                        Text(
+                            text = followingText,
+                            color = Color.White.copy(alpha = 0.72f),
+                            fontSize = 11.sp,
+                            lineHeight = 12.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (showGuideBackShortcutConfirm) {
+            GuidanceDecisionPromptCard(
+                title = stringResource(R.string.navigate_route_back),
+                detail =
+                    state.distanceToRouteMeters?.let {
+                        stringResource(
+                            R.string.navigate_from_gpx,
+                            formatLiveDistanceLabel(it, isMetric, resources = resources),
+                        )
+                    } ?: stringResource(R.string.navigate_create_route_to_gpx),
+                acceptText = stringResource(R.string.navigate_guide),
+                dismissText = stringResource(R.string.common_cancel),
+                onAccept = {
+                    showGuideBackShortcutConfirm = false
+                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_confirm")
+                    onGuideBackToRoute()
+                },
+                onDismiss = {
+                    showGuideBackShortcutConfirm = false
+                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_cancel")
+                },
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 36.dp),
+            )
+        }
+    }
+}
+
+internal data class GuidanceRemainingArcLayout(
+    val distanceAnchor: Float = 105f,
+    val durationAnchor: Float = 75f,
+    val distanceAnchorType: AnchorType = AnchorType.Center,
+    val durationAnchorType: AnchorType = AnchorType.Center,
+    val labelModifier: CurvedModifier = CurvedModifier.padding(ArcPaddingValues(outer = 8.dp)),
+)
+
+@Composable
+@Suppress("FunctionName")
+internal fun GuidanceRemainingArc(
+    remainingMeters: Double?,
+    estimatedRemainingSeconds: Long?,
+    isMetric: Boolean,
+    layout: GuidanceRemainingArcLayout = GuidanceRemainingArcLayout(),
+) {
+    val resources = LocalResources.current
+    val distance = remainingMeters?.let { formatLiveDistanceLabel(it, isMetric, resources = resources) } ?: return
+    val duration = estimatedRemainingSeconds?.let { formatGuidanceDuration(it, resources = resources) }
+    cappedFontScale(maxFontScale = 1.15f) {
+        CurvedLayout(
+            modifier = Modifier.fillMaxSize(),
+            anchor = layout.distanceAnchor,
+            anchorType = layout.distanceAnchorType,
+            angularDirection = CurvedDirection.Angular.Reversed,
+        ) {
+            basicCurvedText(
+                text = distance,
+                style =
+                    CurvedTextStyle(
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                modifier = layout.labelModifier,
+            )
+        }
+        duration?.let {
+            CurvedLayout(
+                modifier = Modifier.fillMaxSize(),
+                anchor = layout.durationAnchor,
+                anchorType = layout.durationAnchorType,
+                angularDirection = CurvedDirection.Angular.Reversed,
+            ) {
+                basicCurvedText(
+                    text = it,
+                    style =
+                        CurvedTextStyle(
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                    modifier = layout.labelModifier,
+                )
+            }
+        }
+    }
+}
+
+internal data class GuidanceMapRemainingDisplayState(
+    val enabled: Boolean,
+    val guidanceActive: Boolean,
+    val paused: Boolean,
+    val offRoute: Boolean,
+    val guideBackToRouteActive: Boolean,
+    val suppressed: Boolean,
+)
+
+@Composable
+@Suppress("FunctionName")
+internal fun BoxScope.GuidanceMapRemainingOverlay(
+    state: TurnByTurnGuidanceState,
+    displayState: GuidanceMapRemainingDisplayState,
+    isMetric: Boolean,
+    edgePadding: Dp,
+) {
+    if (
+        !shouldShowGuidanceMapRemainingDetails(displayState) ||
+        state.distanceRemainingMeters == null
+    ) {
+        return
+    }
+    val rightToLeft = LocalLayoutDirection.current == LayoutDirection.Rtl
+    GuidanceRemainingArc(
+        remainingMeters = state.distanceRemainingMeters,
+        estimatedRemainingSeconds = state.estimatedRemainingSeconds,
+        isMetric = isMetric,
+        layout =
+            GuidanceRemainingArcLayout(
+                distanceAnchor = 110f,
+                durationAnchor = 70f,
+                distanceAnchorType = if (rightToLeft) AnchorType.Start else AnchorType.End,
+                durationAnchorType = if (rightToLeft) AnchorType.End else AnchorType.Start,
+                labelModifier =
+                    CurvedModifier
+                        .padding(ArcPaddingValues(outer = edgePadding))
+                        .background(Color.Black.copy(alpha = 0.94f), cap = StrokeCap.Round)
+                        .padding(radial = 1.dp, angular = 1.dp),
+            ),
+    )
+}
+
+internal fun shouldShowGuidanceMapRemainingDetails(displayState: GuidanceMapRemainingDisplayState): Boolean =
+    displayState.enabled &&
+        (displayState.guidanceActive || displayState.paused) &&
+        (!displayState.offRoute || displayState.guideBackToRouteActive) &&
+        !displayState.suppressed
+
+@Composable
+@Suppress("FunctionName", "LongParameterList")
+internal fun GuidanceRouteProgressChrome(
+    state: TurnByTurnGuidanceState,
+    isMetric: Boolean,
+    showDetails: Boolean,
+    elevationProgressRingEnabled: Boolean,
+    routeProgressRingSegments: List<RouteProgressRingSegment>,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        RouteProgressRing(
+            progress = state.routeProgressFraction,
+            offRoute = state.offRoute,
+            elevationProgressRingEnabled = elevationProgressRingEnabled,
+            routeProgressRingSegments = routeProgressRingSegments,
+            modifier = Modifier.fillMaxSize().zIndex(0f),
+        )
+        if (showDetails) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(1f)) {
+                GuidanceRemainingArc(
+                    remainingMeters = state.distanceRemainingMeters,
+                    estimatedRemainingSeconds = state.estimatedRemainingSeconds,
+                    isMetric = isMetric,
+                )
+            }
+        }
+    }
+}
+
+internal fun guidanceTerrainColor(direction: GuidanceTerrainDirection): Color =
+    when (direction) {
+        GuidanceTerrainDirection.UPHILL -> Color(0xFFD9A5FF)
+        GuidanceTerrainDirection.DOWNHILL -> Color(0xFF8BC8FF)
+        GuidanceTerrainDirection.FLAT -> Color.White.copy(alpha = 0.76f)
+    }
+
+internal fun fullScreenPopupTransitionOwnsTimeChip(
+    currentlyVisible: Boolean,
+    targetVisible: Boolean,
+): Boolean = currentlyVisible || targetVisible
+
+// Keep the existing guard order and presentation thresholds while localizing the result.
+@Suppress("ReturnCount")
+internal fun guidanceFollowingText(
+    state: TurnByTurnGuidanceState,
+    isMetric: Boolean,
+    resources: Resources,
+): String? {
+    if (guidanceShowsCurrentStraight(state)) {
+        return state.nextInstruction?.let {
+            resources.getString(
+                R.string.navigation_then_2,
+                (
+                    it.message
+                        ?: resources.getString(it.messageRes)
+                ).lowercase(),
+            )
+        }
+    }
+    val following = state.followingInstruction ?: return null
+    val followingDistance = state.distanceToFollowingInstructionMeters ?: return null
+    val currentDistance = state.distanceToInstructionMeters ?: return null
+    val gapMeters = followingDistance - currentDistance
+    if (gapMeters !in 0.0..FOLLOWING_TURN_MAX_GAP_METERS) return null
+    return resources.getString(
+        R.string.navigation_then_in,
+        (
+            following.message
+                ?: resources.getString(following.messageRes)
+        ).lowercase(),
+        formatLiveDistanceLabel(gapMeters, isMetric, resources = resources),
+    )
+}
+
+private fun formatGuidanceDuration(
+    seconds: Long,
+    resources: Resources,
+): String {
+    val totalMinutes = (seconds.coerceAtLeast(0L) + 30L) / 60L
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return when {
+        hours > 0L && minutes > 0L -> resources.getString(R.string.navigation_h_m, hours, minutes)
+        hours > 0L -> resources.getString(R.string.navigation_h, hours)
+        else -> resources.getString(R.string.navigation_m, minutes.coerceAtLeast(1L))
+    }
+}
+
+@Composable
+private fun GuidanceGuideBackShortcut(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .size(48.dp)
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Route,
+            contentDescription = stringResource(R.string.navigate_route_back_to_gpx),
+            tint = OFF_ROUTE_AMBER,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun GuidanceVoiceToggle(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .size(48.dp)
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (enabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+            contentDescription =
+                if (enabled) {
+                    stringResource(
+                        R.string.navigate_turn_voice_off,
+                    )
+                } else {
+                    stringResource(R.string.navigate_turn_voice_on)
+                },
+            tint = if (enabled) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.62f),
+            modifier = Modifier.size(17.dp),
+        )
+    }
+}
+
+@Composable
+private fun GuidanceActionPromptCard(
+    paused: Boolean,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .background(Color.Black.copy(alpha = 0.92f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 2.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        cappedFontScale(maxFontScale = 1.2f) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                GuidanceMiniIconButton(
+                    icon = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.navigate_dismiss_guidance_controls),
+                    onClick = onCancel,
+                    containerColor = Color.White.copy(alpha = 0.14f),
+                    contentColor = Color.White,
+                )
+                GuidanceMiniIconButton(
+                    icon = if (paused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription =
+                        if (paused) {
+                            stringResource(
+                                R.string.navigate_resume_guidance,
+                            )
+                        } else {
+                            stringResource(R.string.navigate_pause_guidance)
+                        },
+                    onClick = if (paused) onResume else onPause,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+                GuidanceMiniStopButton(onClick = onStop)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuidanceMiniIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    containerColor: Color,
+    contentColor: Color,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(48.dp)
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(30.dp)
+                    .background(containerColor, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = contentColor,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GuidanceMiniStopButton(onClick: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .size(48.dp)
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(30.dp)
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.94f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Stop,
+                contentDescription = stringResource(R.string.navigate_stop_guidance),
+                tint = MaterialTheme.colorScheme.onError,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun GuidanceDecisionPromptCard(
+    title: String,
+    detail: String,
+    acceptText: String,
+    dismissText: String,
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit,
+    tertiaryText: String? = null,
+    onTertiary: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    GuidancePromptCard(
+        title = title,
+        detail = detail,
+        modifier = modifier,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            GuideBackPromptButton(
+                text = acceptText,
+                selected = true,
+                onClick = onAccept,
+            )
+            GuideBackPromptButton(
+                text = dismissText,
+                selected = false,
+                onClick = onDismiss,
+            )
+            if (tertiaryText != null && onTertiary != null) {
+                GuideBackPromptButton(
+                    text = tertiaryText,
+                    selected = false,
+                    onClick = onTertiary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuidancePromptCard(
+    title: String,
+    detail: String,
+    modifier: Modifier = Modifier,
+    buttons: @Composable () -> Unit,
+) {
+    Box(
+        modifier =
+            modifier
+                .widthIn(max = 180.dp)
+                .background(Color.Black.copy(alpha = 0.94f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        cappedFontScale(maxFontScale = 1.2f) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = title,
+                    color = Color(0xFFFFB74D),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    lineHeight = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = detail,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 10.sp,
+                    lineHeight = 11.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                buttons()
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideBackPromptButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = text,
+        modifier =
+            Modifier
+                .widthIn(min = 48.dp)
+                .heightIn(min = 40.dp)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f),
+                    RoundedCornerShape(6.dp),
+                ).clickable(onClick = onClick)
+                .padding(horizontal = 7.dp, vertical = 5.dp),
+        color = if (selected) MaterialTheme.colorScheme.onPrimary else Color.White,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 10.sp,
+        lineHeight = 10.sp,
+    )
+}
+
+@Composable
+@Suppress("FunctionName", "LongMethod")
+private fun RouteProgressRing(
+    progress: Float?,
+    offRoute: Boolean,
+    elevationProgressRingEnabled: Boolean,
+    routeProgressRingSegments: List<RouteProgressRingSegment>,
+    modifier: Modifier = Modifier,
+) {
+    val clampedProgress = progress?.coerceIn(0f, 1f) ?: return
+    Canvas(modifier = modifier) {
+        val strokeWidth = 3.dp.toPx()
+        val inset = strokeWidth / 2f + 3.dp.toPx()
+        val side = min(size.width, size.height) - inset * 2f
+        if (side <= 0f) return@Canvas
+        val topLeft =
+            Offset(
+                x = (size.width - side) / 2f,
+                y = (size.height - side) / 2f,
+            )
+        val arcSize = Size(side, side)
+        drawArc(
+            color = Color.White.copy(alpha = 0.12f),
+            startAngle = PROGRESS_ARC_START_DEGREES,
+            sweepAngle = PROGRESS_ARC_SWEEP_DEGREES,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth),
+        )
+        if (offRoute || !elevationProgressRingEnabled || routeProgressRingSegments.isEmpty()) {
+            if (clampedProgress > 0f) {
+                drawArc(
+                    color = if (offRoute) OFF_ROUTE_AMBER else Color(ROUTE_PROGRESS_RING_FALLBACK_GREEN),
+                    startAngle = PROGRESS_ARC_START_DEGREES,
+                    sweepAngle = PROGRESS_ARC_SWEEP_DEGREES * clampedProgress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
+            }
+        } else {
+            if (clampedProgress > 0f) {
+                drawArc(
+                    color = Color(ROUTE_PROGRESS_RING_FALLBACK_GREEN),
+                    startAngle = PROGRESS_ARC_START_DEGREES,
+                    sweepAngle = PROGRESS_ARC_SWEEP_DEGREES * clampedProgress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
+            }
+            clipUpcomingRouteProgressRingSegments(
+                segments = routeProgressRingSegments,
+                progress = clampedProgress,
+            ).forEach { segment ->
+                drawArc(
+                    color = Color(segment.color),
+                    startAngle =
+                        PROGRESS_ARC_START_DEGREES +
+                            PROGRESS_ARC_SWEEP_DEGREES * segment.startFraction,
+                    sweepAngle =
+                        PROGRESS_ARC_SWEEP_DEGREES *
+                            (segment.endFraction - segment.startFraction),
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
+            }
+        }
+        val progressAngleRadians =
+            Math.toRadians(
+                (PROGRESS_ARC_START_DEGREES + PROGRESS_ARC_SWEEP_DEGREES * clampedProgress).toDouble(),
+            )
+        drawCircle(
+            color = Color(NAVIGATION_MARKER_BLUE_ARGB),
+            radius = 3.dp.toPx(),
+            center =
+                Offset(
+                    x = topLeft.x + arcSize.width / 2f + cos(progressAngleRadians).toFloat() * arcSize.width / 2f,
+                    y = topLeft.y + arcSize.height / 2f + sin(progressAngleRadians).toFloat() * arcSize.height / 2f,
+                ),
+        )
+    }
+}
+
+private fun guidancePrimaryText(
+    state: TurnByTurnGuidanceState,
+    guideBackToRouteActive: Boolean = false,
+    resources: Resources,
+): String =
+    if (guideBackToRouteActive) {
+        resources.getString(R.string.navigation_to_route)
+    } else if (state.offRoute) {
+        resources.getString(R.string.navigate_off_route)
+    } else {
+        when (state.mode) {
+            GuidanceMode.WAITING_FOR_LOCATION -> resources.getString(R.string.navigation_waiting_gps)
+            GuidanceMode.TO_START -> resources.getString(R.string.navigation_to_start)
+            GuidanceMode.FOLLOW_ROUTE -> guidanceInstructionPrimaryText(state, resources = resources)
+            GuidanceMode.FINISHED -> resources.getString(R.string.navigation_finished)
+        }
+    }
+
+// Keep the existing presentation branches and fallbacks while resolving localized labels.
+@Suppress("CyclomaticComplexMethod")
+private fun guidanceSecondaryText(
+    state: TurnByTurnGuidanceState,
+    isMetric: Boolean,
+    guideBackToRouteActive: Boolean = false,
+    resources: Resources,
+): String =
+    if (guideBackToRouteActive) {
+        state.distanceToRouteMeters?.let { formatLiveDistanceLabel(it, isMetric, resources = resources) }
+            ?: resources.getString(R.string.navigation_find_route)
+    } else if (state.offRoute) {
+        state.distanceToRouteMeters?.let {
+            resources.getString(
+                R.string.navigate_from_gpx,
+                formatLiveDistanceLabel(it, isMetric, resources = resources),
+            )
+        }
+            ?: resources.getString(R.string.navigation_find_route)
+    } else {
+        when (state.mode) {
+            GuidanceMode.WAITING_FOR_LOCATION -> state.trackTitle ?: resources.getString(R.string.gpx_gpx_guidance)
+            GuidanceMode.TO_START ->
+                state.distanceToStartMeters?.let { formatLiveDistanceLabel(it, isMetric, resources = resources) }
+                    ?: resources.getString(R.string.navigation_find_the_start)
+            GuidanceMode.FOLLOW_ROUTE ->
+                guidanceInstructionDistanceText(state, isMetric, resources = resources)
+                    ?: resources.getString(R.string.navigate_on_route)
+            GuidanceMode.FINISHED -> state.trackTitle ?: resources.getString(R.string.navigate_route_complete)
+        }
+    }
+
+private fun guidanceCompactText(
+    state: TurnByTurnGuidanceState,
+    isMetric: Boolean,
+    guideBackToRouteActive: Boolean = false,
+    resources: Resources,
+): String =
+    if (guideBackToRouteActive) {
+        state.distanceToRouteMeters?.let {
+            resources.getString(R.string.navigation_route, formatLiveDistanceLabel(it, isMetric, resources = resources))
+        }
+            ?: resources.getString(R.string.navigation_to_route)
+    } else if (state.offRoute) {
+        state.distanceToRouteMeters?.let {
+            resources.getString(R.string.navigation_off, formatLiveDistanceLabel(it, isMetric, resources = resources))
+        }
+            ?: resources.getString(R.string.navigate_off_route)
+    } else {
+        when (state.mode) {
+            GuidanceMode.WAITING_FOR_LOCATION -> resources.getString(R.string.navigation_waiting_gps)
+            GuidanceMode.TO_START ->
+                state.distanceToStartMeters?.let {
+                    resources.getString(
+                        R.string.navigation_start,
+                        formatLiveDistanceLabel(it, isMetric, resources = resources),
+                    )
+                }
+                    ?: resources.getString(R.string.navigation_to_start)
+            GuidanceMode.FOLLOW_ROUTE -> guidanceCompactInstructionText(state, isMetric, resources = resources)
+            GuidanceMode.FINISHED -> resources.getString(R.string.navigation_finished)
+        }
+    }
+
+private const val FOLLOWING_TURN_MAX_GAP_METERS = 300.0
+private const val PROGRESS_ARC_START_DEGREES = -66f
+private const val PROGRESS_ARC_SWEEP_DEGREES = 312f
+private val OFF_ROUTE_AMBER = Color(0xFFFFC107)

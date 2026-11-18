@@ -1,0 +1,21 @@
+package codes.madera.crossfog.watch.presentation.features.settings
+
+import android.content.res.Resources
+import codes.madera.crossfog.watch.R
+import java.util.Locale
+
+internal object GpxElevationFilterUi {
+    val SMOOTHING_LABEL = R.string.settings_smoothing_distance
+    val NOISE_THRESHOLD_LABEL = R.string.settings_noise_threshold
+    val TREND_THRESHOLD_LABEL = R.string.settings_trend_threshold
+
+    fun formatSmoothingDistance(
+        valueMeters: Float,
+        resources: Resources,
+    ): String = String.format(Locale.getDefault(), resources.getString(R.string.settings_0f_m), valueMeters)
+
+    fun formatThreshold(
+        valueMeters: Float,
+        resources: Resources,
+    ): String = String.format(Locale.getDefault(), resources.getString(R.string.settings_1f_m), valueMeters)
+}
