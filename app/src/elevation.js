@@ -52,11 +52,13 @@
     const decoded = new Map(); // key -> Promise<image|null>, oldest first
     const warned = new Set();
 
-    // null alone cannot tell offline from a blocked host or a broken decoder; one line per distinct
-    // reason says which. It logs the error's own message, never the tile or point; browsers' fetch
-    // errors do not carry the URL, so if that ever changes, filter it here
-    function warnOnce(e) {
-      const reason = (e && e.name) + ": " + (e && e.message);
+    // null alone cannot tell offline from a blocked host or a broken decoder; one line per distinct stage and
+    // error class says which. A message can hold the tile URL or its number, so it is never logged, and a name
+    // that is no plain identifier is not either; any other thrown non-object (a string, a number) is named by its type
+    function warnOnce(stage, e) {
+      const kind = e !== null && typeof e === "object" && typeof e.name === "string" && /^[A-Za-z][A-Za-z0-9]{0,39}$/.test(e.name)
+        ? e.name : e !== null && typeof e !== "object" ? typeof e : "unknown";
+      const reason = stage + " failed: " + kind;
       if (warned.has(reason)) return;
       warned.add(reason);
       console.warn("elevation tile not loaded, " + reason);
@@ -73,15 +75,11 @@
           try { await store.delete(key); } catch (e2) { /* nothing more to do */ }
         }
       }
-      try {
-        bytes = await fetchTile(z, x, y);
-        const image = await decodeTile(bytes);
-        try { await store.put(key, bytes); } catch (e) { /* a full or broken store only costs a refetch */ }
-        return image;
-      } catch (e) {
-        warnOnce(e);
-        return null;
-      }
+      try { bytes = await fetchTile(z, x, y); } catch (e) { warnOnce("fetch", e); return null; }
+      let image;
+      try { image = await decodeTile(bytes); } catch (e) { warnOnce("decode", e); return null; }
+      try { await store.put(key, bytes); } catch (e) { /* a full or broken store only costs a refetch */ }
+      return image;
     }
 
     function tile(z, x, y) {
