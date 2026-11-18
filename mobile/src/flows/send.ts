@@ -5,7 +5,7 @@ import type { LinkStatus, WatchLink } from "../link/types.js";
 import { warnClass } from "./warn.js";
 
 export interface SendDeps {
-  link: Pick<WatchLink, "queueRoute" | "status" | "on">;
+  link: Pick<WatchLink, "queueRoute" | "status" | "discardUnreadableRoutes" | "on">;
   routes: Pick<RouteStore, "save" | "markSent">;
   send(msg: NativeToWeb): void;
 }
@@ -27,8 +27,14 @@ function routeStatus(routeId: string, state: RouteState, why?: string): NativeTo
   return { v: 1, type: "routeStatus", routeId, state, ...(why === undefined ? {} : { why }) };
 }
 
-function linkStatus({ paired, reachable }: LinkStatus): NativeToWeb {
-  return { v: 1, type: "linkStatus", paired, reachable };
+function linkStatus({ paired, reachable }: LinkStatus, unsentRoutes = 0): NativeToWeb {
+  return {
+    v: 1,
+    type: "linkStatus",
+    paired,
+    reachable,
+    ...(unsentRoutes > 0 ? { unsentRoutes } : {}),
+  };
 }
 
 export function createSendFlow(deps: SendDeps): SendFlow {
@@ -63,7 +69,15 @@ export function createSendFlow(deps: SendDeps): SendFlow {
         warn("could not read the link status", e);
         return;
       }
-      send(linkStatus(status));
+      // After the status is read, so a status that cannot be read leaves the routes for the next page
+      // load instead of removing them with nobody told. A failure here only costs the line.
+      let unsent = 0;
+      try {
+        unsent = await link.discardUnreadableRoutes();
+      } catch (e) {
+        warn("could not remove the routes that cannot be opened", e);
+      }
+      send(linkStatus(status, unsent));
     },
 
     start() {

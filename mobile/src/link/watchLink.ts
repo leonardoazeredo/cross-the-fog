@@ -67,6 +67,13 @@ export function createNativeWatchLink(): WatchLink {
         .parse(await native.unreadableActivities());
       return staged + malformed;
     },
+    async discardUnreadableRoutes() {
+      return z
+        .number()
+        .int()
+        .min(0)
+        .parse(await native.discardUnreadableRoutes());
+    },
     async readActivity(id) {
       const text = await native.readActivity(id);
       let offer: unknown;

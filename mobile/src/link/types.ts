@@ -41,6 +41,12 @@ export interface WatchLink {
   readActivity(id: string): Promise<ActivityOffer>;
   /** Only after the activity is committed to the phone's activity store. A well-formed id that is not staged is a no-op; a malformed id rejects. */
   release(id: string): Promise<void>;
+  /**
+   * Removes the queued routes that can never be opened (sealed before a lost staging alias) and returns
+   * how many it removed: the user sends them again. With an unusable staging entry nothing is known to
+   * be lost, so it keeps every route and returns 0.
+   */
+  discardUnreadableRoutes(): Promise<number>;
   /** Returns the function that removes the listener. */
   on<E extends keyof WatchLinkEvents>(
     event: E,

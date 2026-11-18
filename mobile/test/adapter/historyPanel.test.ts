@@ -43,7 +43,7 @@ interface Panel {
 interface SendControl {
   update(): void;
   routeStatus(msg: { routeId: string; state: string }): void;
-  linkStatus(msg: { paired: boolean; reachable: boolean }): void;
+  linkStatus(msg: { paired: boolean; reachable: boolean; unsentRoutes?: number }): void;
 }
 
 const A = "11111111-1111-4111-8111-111111111111";
@@ -453,6 +453,21 @@ describe("Send to watch", () => {
     expect(chip()).toBe("Waiting for watch");
 
     send.linkStatus({ paired: true, reachable: false });
+    expect(chip()).toBe("Waiting for watch");
+  });
+
+  it("says a route could not be sent when the phone dropped some, below a route's own status", () => {
+    send.linkStatus({ paired: false, reachable: false, unsentRoutes: 1 });
+    expect(chip()).toBe("A route could not be sent. Send it again.");
+    send.linkStatus({ paired: false, reachable: false, unsentRoutes: 2 });
+    expect(chip()).toBe("3 routes could not be sent. Send them again.");
+
+    route.setFixedRoute(PINS(), COORDS, STATS);
+    send.update();
+    click(sendBtn());
+    expect(chip()).toBe("Not paired");
+    const id = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route.id;
+    send.routeStatus({ routeId: id, state: "waiting" });
     expect(chip()).toBe("Waiting for watch");
   });
 

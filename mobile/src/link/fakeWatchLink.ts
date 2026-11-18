@@ -16,6 +16,8 @@ export interface FakeWatchLink extends WatchLink {
    * listed; `id` only lets `release` drop it.
    */
   stageUnreadable(id: string): void;
+  /** A queued route the native side could not open; `discardUnreadableRoutes` removes and counts it. */
+  stageUnreadableRoute(id: string): void;
   setStatus(status: LinkStatus): void;
   /** The watch saved a queued route. */
   confirmRoute(routeId: string): void;
@@ -30,6 +32,7 @@ type Listeners = { [E in keyof WatchLinkEvents]: Set<(payload: WatchLinkEvents[E
 export function createFakeWatchLink(): FakeWatchLink {
   const staged = new Map<string, ActivityOffer>();
   const unreadable = new Set<string>();
+  const unreadableRoutes = new Set<string>();
   const routes = new Map<string, RouteRecord>();
   const releasedIds: string[] = [];
   let currentStatus: LinkStatus = { paired: false, reachable: false };
@@ -71,6 +74,11 @@ export function createFakeWatchLink(): FakeWatchLink {
     async unreadableActivities() {
       return unreadable.size;
     },
+    async discardUnreadableRoutes() {
+      const removed = unreadableRoutes.size;
+      unreadableRoutes.clear();
+      return removed;
+    },
     async readActivity(id) {
       const offer = staged.get(id);
       if (!offer) throw new Error("activity is not staged");
@@ -97,6 +105,9 @@ export function createFakeWatchLink(): FakeWatchLink {
     },
     stageUnreadable(id) {
       unreadable.add(id);
+    },
+    stageUnreadableRoute(id) {
+      unreadableRoutes.add(id);
     },
     setStatus(status) {
       currentStatus = { ...status };

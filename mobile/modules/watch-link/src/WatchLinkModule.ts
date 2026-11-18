@@ -14,6 +14,7 @@ declare class WatchLinkModule extends NativeModule<WatchLinkNativeEvents> {
   status(): Promise<unknown>;
   pendingActivities(): Promise<unknown>;
   unreadableActivities(): Promise<unknown>;
+  discardUnreadableRoutes(): Promise<unknown>;
   readActivity(id: string): Promise<string>;
   release(id: string): Promise<void>;
   queueRoute(routeJson: string): Promise<void>;

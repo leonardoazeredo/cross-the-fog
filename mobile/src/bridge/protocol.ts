@@ -201,6 +201,8 @@ const nativeToWebSchema = z.union([
     type: z.literal("linkStatus"),
     paired: z.boolean(),
     reachable: z.boolean(),
+    // Queued routes the phone had to drop because they could never be opened; absent when none.
+    unsentRoutes: z.number().int().positive().optional(),
   }),
   z.object({ v: z.literal(1), type: z.literal("needSettings") }),
   z.object({ v: z.literal(1), type: z.literal("applySettings"), json: settingsJson }),

@@ -116,6 +116,60 @@ describe("send", () => {
     expect(sent).toEqual([{ v: 1, type: "linkStatus", paired: true, reachable: false }]);
   });
 
+  it("adds the count of routes that could not be opened to the status, once", async () => {
+    const { link, sent, flow } = setup();
+    await link.pair("payload");
+    link.stageUnreadableRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0001");
+    link.stageUnreadableRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0002");
+    sent.length = 0;
+    await flow.sendStatus();
+    expect(sent).toEqual([
+      { v: 1, type: "linkStatus", paired: true, reachable: false, unsentRoutes: 2 },
+    ]);
+    valid(sent);
+    sent.length = 0;
+    await flow.sendStatus();
+    expect(sent).toEqual([{ v: 1, type: "linkStatus", paired: true, reachable: false }]);
+  });
+
+  it("still sends the status, and logs the class only, when the routes cannot be removed", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { link, sent } = setup(false);
+    const flow = createSendFlow({
+      link: {
+        ...link,
+        discardUnreadableRoutes: async () => {
+          throw new RangeError("outbox/0b6b7a6e.bin");
+        },
+      },
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+    });
+    await expect(flow.sendStatus()).resolves.toBeUndefined();
+    expect(sent).toEqual([{ v: 1, type: "linkStatus", paired: false, reachable: false }]);
+    expect(JSON.stringify(warn.mock.calls)).toContain("RangeError");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("outbox");
+    warn.mockRestore();
+  });
+
+  it("leaves the unreadable routes alone when the status cannot be read, so the count is not lost", async () => {
+    const { link, sent } = setup(false);
+    link.stageUnreadableRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0001");
+    const flow = createSendFlow({
+      link: {
+        ...link,
+        status: async () => {
+          throw new Error("module unavailable");
+        },
+      },
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+    });
+    await flow.sendStatus();
+    expect(sent).toEqual([]);
+    expect(await link.discardUnreadableRoutes()).toBe(1);
+  });
+
   it("still tells the page the watch has the route when marking it sent fails", async () => {
     const { link, sent } = setup(false);
     const flow = createSendFlow({

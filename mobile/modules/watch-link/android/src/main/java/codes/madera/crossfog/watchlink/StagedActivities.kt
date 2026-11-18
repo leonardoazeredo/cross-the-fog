@@ -57,5 +57,5 @@ internal fun readStaged(ids: List<String>, read: (String) -> ByteArray?): Staged
   return StagedActivities(readable, unreadable)
 }
 
-private fun isUnusableKey(e: GeneralSecurityException) =
+internal fun isUnusableKey(e: GeneralSecurityException) =
   e is UnrecoverableKeyException || e is KeyPermanentlyInvalidatedException

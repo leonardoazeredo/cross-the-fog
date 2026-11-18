@@ -107,6 +107,30 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     fire();
     assert.equal(answered.chip.textContent, "Waiting for watch", "an answered send is never timed out");
 
+    // routes the phone had to drop: the line shows when no route state does, outranks "Not paired" and is
+    // outranked by the status of a route that was sent; sending again clears it
+    const lost = control(() => {});
+    lost.ctl.linkStatus({ paired: false, reachable: false });
+    assert.equal(lost.chip.textContent, "Not paired");
+    lost.ctl.linkStatus({ paired: false, reachable: false, unsentRoutes: 1 });
+    assert.equal(lost.chip.textContent, "A route could not be sent. Send it again.");
+    lost.ctl.linkStatus({ paired: true, reachable: false });
+    assert.equal(lost.chip.textContent, "A route could not be sent. Send it again.", "a later status without the count keeps the line");
+    lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: 2 });
+    assert.equal(lost.chip.textContent, "3 routes could not be sent. Send them again.", "counts add up until the user sends again");
+    lost.tap();
+    assert.equal(lost.chip.textContent, "", "sending again clears the line");
+    lost.ctl.routeStatus({ routeId: "r1", state: "waiting" });
+    assert.equal(lost.chip.textContent, "Waiting for watch");
+    lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: 1 });
+    assert.equal(lost.chip.textContent, "Waiting for watch", "a route's own status outranks the line");
+    lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: 0 });
+    lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: -4 });
+    lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: "2" });
+    lost.route.revision++;
+    lost.ctl.update();
+    assert.equal(lost.chip.textContent, "A route could not be sent. Send it again.", "an edit blanks the route's status and the line shows again, once; zero, negative and text counts add nothing");
+
     // the button follows hasRoute without building a record; an edit (a new revision) blanks the chip
     const edited = control(() => {});
     edited.ctl.update();

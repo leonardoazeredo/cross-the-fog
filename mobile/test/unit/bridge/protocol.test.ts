@@ -198,6 +198,7 @@ const nativeSamples = [
     why: "watch unreachable",
   },
   { v: 1 as const, type: "linkStatus" as const, paired: true, reachable: false },
+  { v: 1 as const, type: "linkStatus" as const, paired: false, reachable: false, unsentRoutes: 2 },
   { v: 1 as const, type: "trackUnavailable" as const, activityId, reason: "notFound" as const },
   { v: 1 as const, type: "trackUnavailable" as const, activityId, reason: "readFailed" as const },
   { v: 1 as const, type: "unreadableActivities" as const, count: 0 },
@@ -486,6 +487,10 @@ describe("protocol", () => {
       { v: 1, type: "routeStatus", routeId: "r1", state: "waiting" },
     ],
     ["a linkStatus without reachable", { v: 1, type: "linkStatus", paired: true }],
+    ...[0, -1, 1.5, "2"].map((n): [string, unknown] => [
+      `a linkStatus with an unsentRoutes of ${JSON.stringify(n)}`,
+      { v: 1, type: "linkStatus", paired: true, reachable: true, unsentRoutes: n },
+    ]),
     [
       "a linkStatus with a string flag",
       { v: 1, type: "linkStatus", paired: "yes", reachable: true },

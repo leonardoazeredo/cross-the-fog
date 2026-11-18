@@ -85,6 +85,15 @@ describe("fake watch link", () => {
     expect(seen).toHaveBeenCalledExactlyOnceWith({ paired: true, reachable: true });
   });
 
+  it("discards the routes staged as unreadable once, and returns how many", async () => {
+    const link = createFakeWatchLink();
+    expect(await link.discardUnreadableRoutes()).toBe(0);
+    link.stageUnreadableRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0001");
+    link.stageUnreadableRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0002");
+    expect(await link.discardUnreadableRoutes()).toBe(2);
+    expect(await link.discardUnreadableRoutes()).toBe(0);
+  });
+
   it("pair marks the link paired but not reachable", async () => {
     const link = createFakeWatchLink();
     await link.pair("qr");
