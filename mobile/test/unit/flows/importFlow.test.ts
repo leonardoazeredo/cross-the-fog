@@ -317,3 +317,154 @@ describe("import flow failures", () => {
     onlyNamesLogged();
   });
 });
+
+// A share's replace question (and the store read before it) can stay open while a pick starts; these hold the
+// share at each await so the pick can start in between.
+function racing(opts: { current: "saved" | "none" }) {
+  const begun: string[] = [];
+  const released: string[] = [];
+  const asked: string[] = [];
+  const answers: Array<(yes: boolean) => void> = [];
+  const reads: Array<() => void> = [];
+  let pickDone: (f: SourceFile | null) => void = () => undefined;
+  const flow = createImportFlow({
+    store: {
+      recover: async () => ({ discardedPending: false }),
+      current: () =>
+        new Promise((r) => {
+          reads.push(() => r(opts.current === "saved" ? META : null));
+        }),
+      pending: async () => META,
+      beginImport: async (file) => {
+        begun.push(file.name);
+        return META;
+      },
+      promotePending: async () => undefined,
+      discardPending: async () => undefined,
+      clear: async () => undefined,
+    },
+    pickFile: () => new Promise((r) => (pickDone = r)),
+    confirmReplace: (name) =>
+      new Promise<boolean>((r) => {
+        asked.push(name);
+        answers.push(r);
+      }),
+    notify: () => undefined,
+    releaseSource: async (uri) => {
+      released.push(uri);
+    },
+    setBusy: () => undefined,
+    queueNotice: () => undefined,
+    remount: async () => undefined,
+  });
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const share = (name: string) => flow.incoming({ uri: `file:///cache/${name}`, name });
+  /** Starts a pick, hands it a.zip and waits until its copy is staged. */
+  const pickA = async () => {
+    const picking = flow.pick();
+    pickDone({ uri: "file:///cache/a.zip", name: "a.zip" });
+    await picking;
+  };
+  /** Lets the share's store read finish, so it waits on its replace question. */
+  const readSaved = async () => {
+    reads.shift()?.();
+    await tick();
+  };
+  return { flow, begun, released, asked, answers, reads, share, pickA, readSaved, tick };
+}
+
+describe("a share that waits while a pick starts", () => {
+  it("queues the share when the user confirms, then asks again after the pick ends", async () => {
+    const t = racing({ current: "saved" });
+    const sharing = t.share("b.zip");
+    await t.readSaved();
+    expect(t.asked).toEqual(["b.zip"]);
+
+    await t.pickA();
+    expect(t.begun).toEqual(["a.zip"]);
+    t.answers[0]?.(true);
+    await sharing;
+
+    expect(t.begun).toEqual(["a.zip"]); // the share did not begin beside the pick
+    expect(t.flow.active()).toBe(true);
+
+    const ended = t.flow.loaded(LOADED_OK);
+    await t.tick();
+    t.reads.shift()?.(); // the queued share reads the saved fog again
+    await t.tick();
+    expect(t.asked).toEqual(["b.zip", "b.zip"]); // and asks again
+    t.answers[1]?.(true);
+    await ended;
+
+    expect(t.begun).toEqual(["a.zip", "b.zip"]);
+  });
+
+  it("queues nothing when the user cancels", async () => {
+    const t = racing({ current: "saved" });
+    const sharing = t.share("b.zip");
+    await t.readSaved();
+    await t.pickA();
+
+    t.answers[0]?.(false);
+    await sharing;
+    await t.flow.loaded(LOADED_OK);
+    await t.tick();
+
+    expect(t.asked).toEqual(["b.zip"]);
+    expect(t.begun).toEqual(["a.zip"]);
+    // a.zip is released once the pick staged it; b.zip is released because it will never be imported
+    expect(t.released).toEqual(["file:///cache/a.zip", "file:///cache/b.zip"]);
+  });
+
+  it("queues the share when the pick starts during the store read, with no question to confirm", async () => {
+    const t = racing({ current: "none" });
+    const sharing = t.share("b.zip");
+    await t.pickA();
+
+    t.reads.shift()?.();
+    await sharing;
+    expect(t.begun).toEqual(["a.zip"]);
+    expect(t.asked).toEqual([]);
+
+    const ended = t.flow.loaded(LOADED_OK);
+    await t.tick();
+    t.reads.shift()?.();
+    await ended;
+
+    expect(t.begun).toEqual(["a.zip", "b.zip"]);
+  });
+
+  it("keeps only the newest of two queued shares and releases the older one's file", async () => {
+    const t = racing({ current: "saved" });
+    const first = t.share("b.zip");
+    await t.readSaved();
+    await t.pickA();
+    t.answers[0]?.(true);
+    await first; // b.zip is queued behind the pick
+
+    await t.share("c.zip"); // arrives while b.zip is queued: the pick is still running
+
+    expect(t.released).toEqual(["file:///cache/a.zip", "file:///cache/b.zip"]);
+    const ended = t.flow.loaded(LOADED_OK);
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    expect(t.asked).toEqual(["b.zip", "c.zip"]);
+    t.answers[1]?.(true);
+    await ended;
+
+    expect(t.begun).toEqual(["a.zip", "c.zip"]);
+  });
+
+  it("imports the share at once when no pick starts meanwhile", async () => {
+    const t = racing({ current: "saved" });
+    const sharing = t.share("b.zip");
+    await t.readSaved();
+    t.answers[0]?.(true);
+    await sharing;
+
+    expect(t.begun).toEqual(["b.zip"]);
+    expect(t.asked).toEqual(["b.zip"]);
+    expect(t.flow.active()).toBe(true);
+  });
+});

@@ -101,6 +101,13 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
+  // Only the newest queued share is kept, as before; the one it replaces will never run, so its cached copy goes now.
+  async function queueShare(file: SourceFile): Promise<void> {
+    const replaced = pendingShare;
+    pendingShare = file;
+    if (replaced) await release(replaced.uri);
+  }
+
   async function handleIncoming(file: SourceFile): Promise<void> {
     try {
       await incoming(file);
@@ -120,7 +127,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       return;
     }
     if (importActive) {
-      pendingShare = file;
+      await queueShare(file);
       return;
     }
     const current = await store.current();
@@ -130,6 +137,12 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
         await release(file.uri);
         return;
       }
+    }
+    // A pick or another share can have started while the store read and the question were open: two imports must
+    // never run at once, so this one waits its turn (`endImport` takes it and asks again).
+    if (importActive) {
+      await queueShare(file);
+      return;
     }
     importActive = true;
     const ok = await doImport(file, "share");
