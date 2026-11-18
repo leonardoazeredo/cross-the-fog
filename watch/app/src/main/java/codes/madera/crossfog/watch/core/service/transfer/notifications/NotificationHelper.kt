@@ -9,35 +9,7 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import codes.madera.crossfog.watch.R
-import com.glancemap.shared.transfer.TransferDataLayerContract
 import kotlin.math.abs
-
-internal const val FGS_DATA_SYNC_QUOTA_EXHAUSTED = TransferDataLayerContract.FGS_DATA_SYNC_QUOTA_EXHAUSTED
-internal const val FGS_START_NOT_ALLOWED = TransferDataLayerContract.FGS_START_NOT_ALLOWED
-internal const val FGS_DATA_SYNC_TIMEOUT = TransferDataLayerContract.FGS_DATA_SYNC_TIMEOUT
-
-private const val FOREGROUND_SERVICE_START_NOT_ALLOWED_EXCEPTION =
-    "android.app.ForegroundServiceStartNotAllowedException"
-
-internal fun foregroundStartFailureDetail(
-    exceptionClassName: String,
-    sdkInt: Int,
-    exceptionMessage: String? = null,
-): String =
-    // Android 15 uses this exception for dataSync quota exhaustion, but Android also
-    // uses it for ordinary background-start restrictions; require both quota markers.
-    when {
-        sdkInt >= Build.VERSION_CODES.S &&
-            exceptionClassName == FOREGROUND_SERVICE_START_NOT_ALLOWED_EXCEPTION &&
-            exceptionMessage?.contains("time limit already exhausted", ignoreCase = true) == true &&
-            exceptionMessage.contains("dataSync", ignoreCase = true) ->
-            FGS_DATA_SYNC_QUOTA_EXHAUSTED
-
-        sdkInt >= Build.VERSION_CODES.S && exceptionClassName == FOREGROUND_SERVICE_START_NOT_ALLOWED_EXCEPTION ->
-            FGS_START_NOT_ALLOWED
-
-        else -> "FGS_START_FAILED:${exceptionClassName.substringAfterLast('.')}"
-    }
 
 class NotificationHelper(
     private val service: Service,
@@ -137,26 +109,6 @@ class NotificationHelper(
         notificationId?.let(notificationManager::cancel)
     }
 
-    /** Normal (swipeable) completion notification */
-    fun showCompletion(
-        notificationId: Int,
-        fileName: String,
-        status: String = service.resources.getString(R.string.gpx_saved),
-    ) {
-        createNotificationChannel()
-        notificationManager.notify(notificationId, buildCompletionNotification(fileName, status).build())
-    }
-
-    /** Normal (swipeable) error notification */
-    fun showError(
-        notificationId: Int,
-        fileName: String,
-        status: String,
-    ) {
-        createNotificationChannel()
-        notificationManager.notify(notificationId, buildErrorNotification(fileName, status).build())
-    }
-
     private fun buildForegroundNotification(
         fileName: String,
         status: String,
@@ -179,34 +131,4 @@ class NotificationHelper(
             builder.setProgress(100, progress.coerceIn(0, 100), false)
         }
     }
-
-    private fun buildCompletionNotification(
-        fileName: String,
-        status: String,
-    ): NotificationCompat.Builder =
-        NotificationCompat
-            .Builder(service, CHANNEL_ID)
-            .setContentTitle(fileName)
-            .setContentText(status)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(false) // <-- swipeable
-            .setAutoCancel(true) // <-- disappears when tapped (still swipeable)
-            .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
-            // optional: auto-remove after 10s (you can delete this line if you want it to stay)
-            .setTimeoutAfter(10_000L)
-
-    private fun buildErrorNotification(
-        fileName: String,
-        status: String,
-    ): NotificationCompat.Builder =
-        NotificationCompat
-            .Builder(service, CHANNEL_ID)
-            .setContentTitle(fileName)
-            .setContentText(status)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(false) // <-- swipeable
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(false)
-            .setCategory(NotificationCompat.CATEGORY_ERROR)
 }

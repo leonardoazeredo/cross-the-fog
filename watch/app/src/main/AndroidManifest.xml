@@ -72,7 +72,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
-    <!-- Required for HTTP file transfer to phone on LAN/private IP -->
     <application
         android:name=".GlanceMapWearApp"
         android:allowBackup="false"
@@ -108,11 +107,6 @@
         <service
             android:name=".presentation.features.recording.health.RecordingHealthForegroundService"
             android:foregroundServiceType="health"
-            android:exported="false" />
-
-        <service
-            android:name=".core.service.WatchTransferForegroundService"
-            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <service

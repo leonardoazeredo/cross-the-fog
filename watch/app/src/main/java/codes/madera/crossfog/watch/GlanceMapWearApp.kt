@@ -5,8 +5,6 @@ import android.content.res.Configuration
 import codes.madera.crossfog.watch.core.localization.AppLanguageSettings
 import codes.madera.crossfog.watch.core.service.diagnostics.CrashDiagnosticsStore
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
-import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferPrewarmHoldManager
-import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferSessionState
 import codes.madera.crossfog.watch.core.service.transfer.storage.StalePartialTransferCleaner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,11 +17,6 @@ class GlanceMapWearApp : Application() {
         CoroutineScope(
             SupervisorJob() + Dispatchers.IO,
         )
-
-    internal val transferSessionState: TransferSessionState = TransferSessionState()
-    internal val transferPrewarmHoldManager: TransferPrewarmHoldManager by lazy {
-        TransferPrewarmHoldManager(this)
-    }
 
     lateinit var container: AppContainer
         private set
