@@ -523,7 +523,8 @@
     const clauses = (hw) => boxes.map((r) =>
       `way[highway~"^(${hw})$"]${acc}(${bb(r)});way[highway=service]${acc}[service!~"^(driveway|parking_aisle)$"](${bb(r)});`).join("");
     const hw = RUN_HW;
-    // the box is scanned once into .all, which the geometry and the closing count both read
+    // the box is scanned once into .all, which the geometry and the closing count both read: scanning the
+    // box again for each output ran Overpass out of time on a town-sized box
     // the count that closes the answer: splitAnswer takes a response without it for one that was cut
     return `[out:json][timeout:25];(${clauses(hw)})->.all;.all out skel geom;.all out count;`;
   };

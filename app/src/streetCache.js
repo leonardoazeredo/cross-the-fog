@@ -25,9 +25,24 @@
     const { store, network, now } = opts;
     const maxAgeMs = opts.maxAgeMs == null ? 90 * DAY_MS : opts.maxAgeMs;
     let warned = false; // a full or broken store fails every call: one line says so
+    // A hung IndexedDB costs up to the store's own timeout on every call, so after this many calls in a
+    // row that met a store failure the store is left alone for the session (not swapped for a memory one:
+    // StreetIndex already keeps the session's tiles). A call counts once however many of its operations
+    // failed. The backend counts like any other: a memory fallback does not fail, so nothing needs a case.
+    const SKIP_AFTER = 3;
+    let failedCalls = 0, skipStore = false;
     const storeFailed = (state, what, e) => {
-      state.storeDown = true;
+      state.storeDown = state.failed = true;
       if (!warned) { warned = true; console.warn("[streets] cache " + what + " failed", e && e.name); }
+    };
+    // the call's verdict on the store: a call that never touched it says nothing
+    const settle = (state) => {
+      if (!state.touched) return;
+      if (!state.failed) { failedCalls = 0; return; }
+      if (++failedCalls >= SKIP_AFTER && !skipStore) {
+        skipStore = true;
+        console.warn("[streets] cache store skipped for this session after " + failedCalls + " failed calls (" + store.backend + ")");
+      }
     };
 
     const sound = (a) => a.ways.every((w) => w && typeof w === "object") && typeof a.groups === "object" && Object.values(a.groups).every((g) => g == null || typeof g[Symbol.iterator] === "function");
@@ -36,6 +51,7 @@
     // empty for the rest of the call, so one dead database costs one failure, not one per tile.
     async function lookup(tile, state) {
       if (state.storeDown) return null;
+      state.touched = true;
       let entry;
       try { entry = await store.get(keyOf(tile)); }
       catch (e) { storeFailed(state, "read", e); return null; }
@@ -56,7 +72,12 @@
     // The run's opts (its clock, busy wait and stale) go to the network source, so a busy wait keeps to
     // the run's deadline and stop, and a replaced run's posts still waiting for a slot are not sent.
     async function fetchStreets(tiles, onTile, opts) {
-      const state = { storeDown: false };
+      const state = { storeDown: skipStore, touched: false, failed: false, puts: [] };
+      // the writes are awaited on every exit, a stop from the caller's onTile included, so a failing one is counted
+      try { return await run(tiles, onTile, opts, state); } finally { await Promise.all(state.puts); settle(state); }
+    }
+
+    async function run(tiles, onTile, opts, state) {
       const out = new Map();
       const missing = [];
       const expired = new Map(); // "x:y" -> an out-of-date answer, the fallback if the network is down
@@ -77,10 +98,13 @@
       }
       if (!missing.length) return out;
 
-      const puts = [];
+      const puts = state.puts;
       const keep = (t, answer) => {
         if (!answer || out.has(idOf(t))) return;
-        if (!state.storeDown) puts.push(store.put(keyOf(t), { answer, fetchedAt: now() }).catch((e) => storeFailed(state, "write", e)));
+        if (!state.storeDown) {
+          state.touched = true;
+          puts.push(store.put(keyOf(t), { answer, fetchedAt: now() }).catch((e) => storeFailed(state, "write", e)));
+        }
         deliver(t, answer);
       };
       // a throw from the run's busy wait is the caller's stop too, like one from onTile
