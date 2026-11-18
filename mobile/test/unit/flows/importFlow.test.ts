@@ -148,7 +148,7 @@ describe("import flow failures", () => {
 
   it("falls back to a toast when the previous fog cannot be reloaded after a failed promote", async () => {
     let remounts = 0;
-    const { flow, notified, queued } = setup({ promotePending: fail }, () =>
+    const { flow, busy, notified, queued } = setup({ promotePending: fail }, () =>
       remounts++ === 0 ? Promise.resolve() : fail(),
     );
     await flow.pick();
@@ -157,9 +157,47 @@ describe("import flow failures", () => {
       flow.loaded({ v: 1, type: "loaded", fingerprint: META.sha256, ok: true, tiles: 1 }),
     ).resolves.toBeUndefined();
 
+    expect(flow.active()).toBe(false);
+    expect(busy.at(-1)).toBe(false);
     expect(notified).toEqual([COPY.importFailed]);
     expect(queued).toEqual([]);
     onlyNamesLogged();
+  });
+
+  it("drops a verdict's copy instead of keeping it when no import is running", async () => {
+    const calls: string[] = [];
+    const { flow } = setup({
+      promotePending: async () => void calls.push("promote"),
+      discardPending: async () => void calls.push("discard"),
+    });
+
+    await flow.loaded(LOADED_OK);
+
+    expect(calls).toEqual(["discard"]);
+    expect(flow.active()).toBe(false);
+  });
+
+  it("drops the unkept copy and brings the previous fog back before a queued share begins", async () => {
+    const calls: string[] = [];
+    let remounts = 0;
+    const { flow } = setup(
+      {
+        promotePending: fail,
+        current: async () => META,
+        discardPending: async () => void calls.push("discard"),
+        beginImport: async () => {
+          calls.push("begin");
+          return META;
+        },
+      },
+      async () => void calls.push(`remount${remounts++}`),
+    );
+    await flow.pick();
+    await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
+
+    await flow.loaded(LOADED_OK);
+
+    expect(calls).toEqual(["begin", "remount0", "discard", "remount1", "begin", "remount2"]);
   });
 
   it("ends the import when the bad copy cannot be discarded", async () => {

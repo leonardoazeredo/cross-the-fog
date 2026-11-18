@@ -74,7 +74,8 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       await endImport();
       return;
     }
-    await endImport();
+    // The previous fog comes back before a queued share is taken, or the page keeps showing the dropped copy for as
+    // long as that share's question is open and the share's own remount is followed by a second one.
     try {
       await deps.remount();
       deps.queueNotice(COPY.importFailed);
@@ -82,6 +83,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       warnClass("import", "could not reload after an import it could not keep", e);
       deps.notify(COPY.importFailed);
     }
+    await endImport();
   }
 
   // The cached source is a copy of the user's location history; a failed release leaves only that copy behind,
@@ -188,6 +190,16 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     incoming: handleIncoming,
 
     async loaded(msg) {
+      if (!importActive) {
+        // A pending copy served with no import running is one that could not be dropped after the user was told it
+        // failed; a verdict on it must not keep it.
+        try {
+          await store.discardPending();
+        } catch (e) {
+          warnClass("import", "could not drop a leftover import", e);
+        }
+        return;
+      }
       try {
         if (msg.ok) await store.promotePending();
         else await store.discardPending();

@@ -1047,3 +1047,38 @@ it("a page that dies while its pending copy can neither be read nor dropped says
   expect(noNotice(h)).toEqual([{ v: 1, type: "notice", text: COPY.importFailed }]);
   expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
 });
+
+it("a share queued behind an import whose promote failed is staged after the unkept copy is dropped", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  await h.c.onIncoming({ uri: cSrc, name: "c.zip" });
+  failCreatingPointers(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+  await h.c.onWebMessage(ready);
+
+  expect((await h.store.pending())?.sha256).toBe(sha(C));
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({
+    role: "pending",
+    fingerprint: sha(C),
+  });
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+});
+
+it("a verdict on a copy that could not be dropped does not keep it", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(h.store, "pending").mockRejectedValueOnce(new Error("path detail"));
+  const realRemove = h.fs.remove.bind(h.fs);
+  failRemovingPending(h);
+
+  await h.c.onProcessGone();
+  h.sent.length = 0;
+  await h.c.onWebMessage(ready);
+  expect(h.sent.find((m) => m.type === "reload")).toMatchObject({ role: "pending" });
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.current())?.sha256).toBe(sha(A));
+  h.fs.remove = realRemove;
+});
