@@ -113,6 +113,17 @@ class SaveAsTest {
   }
 
   @Test
+  fun aCopyThatFailsMidwayDeletesTheDocument() {
+    val source = File(dir, "s.bin").apply { writeBytes(data(10)) }
+    val target = pickerDocument("t.bin")
+    // The source goes away after its length is read and before it is opened, as a cache cleanup could do it.
+    val saver = SaveAs(context.contentResolver, context.cacheDir, lengthOf = { f -> f.length().also { f.delete() } })
+
+    assertThrows(IOException::class.java) { saver.copyToUri(source.path, Uri.fromFile(target)) }
+    assertFalse(target.exists())
+  }
+
+  @Test
   fun aCopyThatMatchesTheSourceLengthKeepsTheDocument() {
     val source = File(dir, "s.bin").apply { writeBytes(data(2_000_000)) }
     val target = pickerDocument("t.bin")

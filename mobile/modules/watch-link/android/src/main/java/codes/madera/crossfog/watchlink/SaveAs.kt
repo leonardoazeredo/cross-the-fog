@@ -89,7 +89,8 @@ class SaveAs(
         val file = File(uri.path ?: return)
         if (!file.delete() && file.exists()) throw IOException("the document is still there")
       } else {
-        DocumentsContract.deleteDocument(resolver, uri)
+        // Older Android versions and providers answer false instead of throwing.
+        if (!DocumentsContract.deleteDocument(resolver, uri)) throw IOException("the document is still there")
       }
     }
 

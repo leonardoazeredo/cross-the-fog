@@ -64,17 +64,17 @@ export async function saveFileAs(
   name: string,
   mime: string,
 ): Promise<{ name: string } | null> {
+  // A backup is never empty, so a size that is not a positive number means it could not be read. It is read
+  // before the picker creates the document, so that failure leaves nothing in the user's folder.
+  const size = new File(toUri(path)).size;
+  if (!(size > 0)) throw new Error("the saved copy is incomplete");
   const uri = await createDocument(name, mime);
   if (uri === null) return null;
   // The native copy tries to delete the document when it fails or writes a byte count other than the source's
   // length (a delete that itself fails leaves it), so a throw from it normally leaves nothing in the folder.
   // A count that disagrees with the size read here is reported rather than shown as saved, and that document
   // is not deleted.
-  // A backup is never empty, so a size that is not a positive number means it could not be read.
-  const size = new File(toUri(path)).size;
-  if (!(size > 0) || (await copyToUri(path, uri)) !== size) {
-    throw new Error("the saved copy is incomplete");
-  }
+  if ((await copyToUri(path, uri)) !== size) throw new Error("the saved copy is incomplete");
   // The file is written by now; failing to learn its name must not report the backup as failed.
   const shown = await displayNameOf(uri).catch(() => null);
   return { name: shown ?? name };
