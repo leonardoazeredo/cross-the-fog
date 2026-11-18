@@ -491,5 +491,96 @@ const T = (x, y) => ({ x, y });
     const street = listOf("streets.js", "STREET_REASONS"), outage = listOf("streetCache.js", "OUTAGE_REASONS");
     assert.deepEqual(outage.slice().sort(), street.filter((r) => r !== "superseded").concat("streets-partial").sort());
   }
+  { // three calls in a row with a failing store, then the store is not asked again; the network still answers
+    const { network, calls } = fakeNetwork();
+    const store = TileStore.memory({ maxEntries: 10 });
+    store.backend = "indexeddb";
+    let gets = 0, puts = 0;
+    store.get = async () => { gets++; throw new Error("hung"); };
+    store.put = async () => { puts++; };
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...a) => warned.push(a);
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      for (let i = 1; i <= 3; i++) await c.fetchStreets([T(i, 1)]);
+      assert.equal(gets, 3);
+      const seen = [];
+      const got = await c.fetchStreets([T(4, 1), T(5, 1)], (t) => seen.push(t.x + ":" + t.y));
+      assert.equal(gets, 3, "no store read once the store is skipped");
+      assert.equal(puts, 0, "no store write either");
+      assert.deepEqual(seen, ["4:1", "5:1"], "network answers still reach onTile");
+      assert.deepEqual([...got.keys()], ["4:1", "5:1"], "and the returned Map");
+      assert.equal(calls.length, 4);
+      await c.fetchStreets([T(6, 1)]);
+      assert.equal(gets, 3);
+    } finally { console.warn = warn; }
+    const skips = warned.filter((w) => /skipped/.test(w[0]));
+    assert.equal(skips.length, 1, "one line says so");
+    assert.deepEqual(skips[0], ["[streets] cache store skipped for this session after 3 failed calls (indexeddb)"]);
+  }
+  { // a call that gets through the store in between resets the count
+    const { network } = fakeNetwork();
+    const store = TileStore.memory({ maxEntries: 10 });
+    const realGet = store.get.bind(store);
+    let down = true, gets = 0;
+    store.get = async (k) => { gets++; if (down) throw new Error("hung"); return realGet(k); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      await c.fetchStreets([T(1, 1)]);
+      await c.fetchStreets([T(2, 1)]);
+      down = false;
+      await c.fetchStreets([T(3, 1)]);
+      down = true;
+      await c.fetchStreets([T(4, 1)]);
+      await c.fetchStreets([T(5, 1)]);
+      const before = gets;
+      await c.fetchStreets([T(6, 1)]);
+      assert.equal(gets, before + 1, "two failures after the success: the store is still asked");
+      await c.fetchStreets([T(7, 1)]);
+      assert.equal(gets, before + 1, "the third in a row skips it");
+    } finally { console.warn = warn; }
+  }
+  { // a put that fails counts as a failed call too, and a call with several failing puts counts once
+    const { network } = fakeNetwork();
+    const store = TileStore.memory({ maxEntries: 10 });
+    let puts = 0;
+    store.put = async () => { puts++; throw new Error("hung"); };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const c = StreetCache.create({ store, network, now: () => 0 });
+      await c.fetchStreets([T(1, 1), T(2, 1)]);
+      await c.fetchStreets([T(3, 1)]);
+      const before = puts;
+      await c.fetchStreets([T(4, 1)]);
+      assert.equal(puts, before + 1, "two calls so far with a failed put (not three): still written");
+      await c.fetchStreets([T(5, 1)]);
+      assert.equal(puts, before + 1, "after the third failed call, no more writes");
+    } finally { console.warn = warn; }
+  }
+  { // once the store is skipped there is nothing to read: an outage rethrows, expired copies are not served
+    let t = 0;
+    const store = TileStore.memory({ maxEntries: 10 });
+    const { network } = fakeNetwork();
+    await StreetCache.create({ store, network, now: () => t, maxAgeMs: DAY }).fetchStreets([T(9, 9)]);
+    t = 2 * DAY; // the stored copy of 9:9 is now expired
+    const realGet = store.get.bind(store);
+    let down = true;
+    store.get = async (k) => { if (down) throw new Error("hung"); return realGet(k); };
+    const outage = Object.assign(new Error("busy"), { reason: "busy" });
+    const failing = async () => { throw outage; };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const c = StreetCache.create({ store, network: failing, now: () => t, maxAgeMs: DAY });
+      for (let i = 1; i <= 3; i++) await c.fetchStreets([T(i, 1)]).then(() => assert.fail("no answer"), (e) => assert.equal(e, outage));
+      down = false; // the store would answer now, but it is skipped for the session
+      const got = await c.fetchStreets([T(9, 9)]).then(() => null, (e) => e);
+      assert.equal(got, outage, "the outage error rethrows as it does today");
+    } finally { console.warn = warn; }
+  }
   console.log("street-cache.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });
