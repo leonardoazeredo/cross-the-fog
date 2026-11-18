@@ -63,17 +63,46 @@ function openDb(idb: IDBFactory): Promise<IDBDatabase> {
 
 // Every call resolves to `fallback` on a throw, an error or an abort (a full disk aborts at commit and
 // fires onabort, not onerror), so a broken store never stalls the history sync that awaits it.
+// The failure is logged once, by error name only: a message can carry the key or a file name.
 function run<T>(
   fallback: T,
-  body: (done: (value: T) => void, fail: () => void) => void,
+  body: (done: (value: T) => void, fail: (err?: unknown) => void) => void,
 ): Promise<T> {
   return new Promise((resolve) => {
-    try {
-      body(resolve, () => resolve(fallback));
-    } catch {
+    let settled = false;
+    const fail = (err?: unknown) => {
+      if (settled) return;
+      settled = true;
+      const name = (err as { name?: unknown } | null)?.name;
+      console.warn(`crossfog: fog cache failed (${typeof name === "string" ? name : "unknown"})`);
       resolve(fallback);
+    };
+    try {
+      body((value) => {
+        settled = true;
+        resolve(value);
+      }, fail);
+    } catch (err) {
+      fail(err);
     }
   });
+}
+
+// A request's error bubbles to the transaction's onerror first, while tx.error is still null (it is set
+// only when the transaction then aborts), so the name comes from the event's own request.
+function requestError(e: Event | undefined): unknown {
+  return (e?.target as { error?: unknown } | null | undefined)?.error;
+}
+
+// A throw inside a request's callback never reaches run()'s try/catch, so the callback reports it itself.
+function guarded(fail: (err?: unknown) => void, fn: () => void): () => void {
+  return () => {
+    try {
+      fn();
+    } catch (err) {
+      fail(err);
+    }
+  };
 }
 
 const noop: FogCache = {
@@ -102,8 +131,9 @@ export async function openFogCache(
   return {
     get(fingerprint) {
       return run<Uint8Array | null>(null, (done, fail) => {
-        const req = db.transaction(STORE, "readonly").objectStore(STORE).get(fingerprint);
-        req.onsuccess = () => {
+        const tx = db.transaction(STORE, "readonly");
+        const req = tx.objectStore(STORE).get(fingerprint);
+        req.onsuccess = guarded(fail, () => {
           const raw = req.result as Uint8Array | undefined;
           if (raw == null) {
             done(null);
@@ -116,8 +146,9 @@ export async function openFogCache(
           const copy = new Uint8Array(raw.length);
           copy.set(raw);
           done(copy);
-        };
-        req.onerror = fail;
+        });
+        req.onerror = () => fail(req.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
@@ -130,8 +161,8 @@ export async function openFogCache(
           store.put(bytes, fingerprint);
         };
         tx.oncomplete = () => done();
-        tx.onerror = fail;
-        tx.onabort = fail;
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
@@ -140,15 +171,16 @@ export async function openFogCache(
         const tx = db.transaction(STORE, "readwrite");
         tx.objectStore(STORE).clear();
         tx.oncomplete = () => done();
-        tx.onerror = fail;
-        tx.onabort = fail;
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
     getReveal(activityId) {
       return run<CachedReveal | null>(null, (done, fail) => {
-        const req = db.transaction(REVEALS, "readonly").objectStore(REVEALS).get(activityId);
-        req.onsuccess = () => {
+        const tx = db.transaction(REVEALS, "readonly");
+        const req = tx.objectStore(REVEALS).get(activityId);
+        req.onsuccess = guarded(fail, () => {
           const raw = req.result as Partial<CachedReveal> | undefined;
           const { rulesVersion, rulesHash, endedAt, distanceM, cells } = raw ?? {};
           const whole =
@@ -162,8 +194,9 @@ export async function openFogCache(
               ? { rulesVersion, rulesHash, endedAt, distanceM, cells: cells as ArrayBuffer }
               : null,
           );
-        };
-        req.onerror = fail;
+        });
+        req.onerror = () => fail(req.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
@@ -174,8 +207,8 @@ export async function openFogCache(
         // other data, and the caller may reuse the array.
         tx.objectStore(REVEALS).put({ ...stamp, cells: cells.slice().buffer }, activityId);
         tx.oncomplete = () => done();
-        tx.onerror = fail;
-        tx.onabort = fail;
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
@@ -184,16 +217,18 @@ export async function openFogCache(
         const tx = db.transaction(REVEALS, "readwrite");
         tx.objectStore(REVEALS).delete(activityId);
         tx.oncomplete = () => done();
-        tx.onerror = fail;
-        tx.onabort = fail;
+        tx.onerror = (e) => fail(requestError(e) ?? tx.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
 
     revealIds() {
       return run<string[]>([], (done, fail) => {
-        const req = db.transaction(REVEALS, "readonly").objectStore(REVEALS).getAllKeys();
-        req.onsuccess = () => done((req.result as IDBValidKey[]).map(String));
-        req.onerror = fail;
+        const tx = db.transaction(REVEALS, "readonly");
+        const req = tx.objectStore(REVEALS).getAllKeys();
+        req.onsuccess = guarded(fail, () => done((req.result as IDBValidKey[]).map(String)));
+        req.onerror = () => fail(req.error);
+        tx.onabort = () => fail(tx.error);
       });
     },
   };
