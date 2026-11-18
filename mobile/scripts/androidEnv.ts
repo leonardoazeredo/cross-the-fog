@@ -11,7 +11,7 @@ export function needsPrebuild(settingsGradle: string | null): boolean {
 /** Where the generated settings.gradle points `:link`, relative to `android/`; the plugin writes the same path. */
 export const LINK_DIR_FROM_ANDROID = "../../link";
 
-/** Gradle would fail an include whose directory is missing only at configuration, and the message names no fix. */
+/** The error printed when the shared module's directory is not where the generated settings.gradle includes it from. */
 export function linkMissingMessage(linkDir: string): string {
   return `android-test: the shared module is not at ${linkDir} (the generated android/settings.gradle includes it from there). Run from a full checkout, or delete mobile/android so prebuild rewrites the include.`;
 }
