@@ -58,7 +58,7 @@ describe("send revisions", () => {
         routeId: r.id,
         state: "failed",
         why: COPY.routeNotSent,
-        revision: await revisionOf(r.gpx),
+        revision: r.revision,
       },
     ]);
     sent.length = 0;
@@ -112,7 +112,97 @@ describe("send revisions", () => {
     link.confirmRoute(route().id, await revisionOf("<gpx>gone</gpx>"));
     await vi_flush();
     expect(await routes.get(route().id)).toBeNull();
-    expect(sent).toHaveLength(1);
+    expect(sent).toEqual([
+      {
+        v: 1,
+        type: "routeStatus",
+        routeId: route().id,
+        state: "onWatch",
+        revision: await revisionOf("<gpx>gone</gpx>"),
+      },
+    ]);
+  });
+
+  // The confirmation reads the stored route, waits for the hash, then marks it; a send that stores v2 in
+  // that gap must not be marked sent by v1's confirmation.
+  it("does not let a v1 confirmation that is still hashing mark the v2 a send stores meanwhile", async () => {
+    const link = createFakeWatchLink();
+    const routes = createMemoryRouteStore({ now: () => new Date("2026-03-01T09:30:00Z") });
+    const sent: NativeToWeb[] = [];
+    let hold: (() => void) | null = null;
+    let hashes = 0;
+    const gated = async (gpx: string) => {
+      // Only the second hash is held: the confirmation's, after the first send's own.
+      if (++hashes === 2) await new Promise<void>((release) => (hold = release));
+      return revisionOf(gpx);
+    };
+    const flow = createSendFlow({ link, routes, send: (m) => sent.push(m), revisionOf: gated });
+    flow.start();
+    const v1 = route({ gpx: "<gpx>v1</gpx>" });
+    const v2 = route({ gpx: "<gpx>v2</gpx>" });
+    await flow.sendRoute(v1);
+    link.confirmRoute(v1.id, await revisionOf(v1.gpx));
+    await vi_flush();
+    expect(hold).not.toBeNull();
+
+    const second = flow.sendRoute(v2);
+    await vi_flush();
+    (hold as unknown as () => void)();
+    await second;
+    await vi_flush();
+
+    expect((await routes.get(v2.id))?.sentAt).toBeUndefined();
+    expect((await routes.get(v2.id))?.gpx).toBe(v2.gpx);
+  });
+
+  it("answers a failure with no revision when the hash cannot be computed, and rejects nothing", async () => {
+    const link = createFakeWatchLink();
+    const sent: NativeToWeb[] = [];
+    const flow = createSendFlow({
+      link,
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+      revisionOf: async () => {
+        throw new Error("digest unavailable");
+      },
+    });
+    const r = route();
+    await expect(flow.sendRoute(r)).resolves.toBeUndefined();
+    expect(link.queued()).toEqual([]);
+    expect(sent).toEqual([
+      { v: 1, type: "routeStatus", routeId: r.id, state: "failed", why: COPY.routeNotSent },
+    ]);
+  });
+
+  it("still tells the page the route is on the watch, without marking it, when the hash cannot be computed", async () => {
+    const link = createFakeWatchLink();
+    const routes = createMemoryRouteStore();
+    const sent: NativeToWeb[] = [];
+    let healthy = true;
+    const flow = createSendFlow({
+      link,
+      routes,
+      send: (m) => sent.push(m),
+      revisionOf: async (gpx) => {
+        if (!healthy) throw new Error("digest unavailable");
+        return revisionOf(gpx);
+      },
+    });
+    flow.start();
+    const r = route();
+    await flow.sendRoute(r);
+    sent.length = 0;
+    healthy = false;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    link.confirmRoute(r.id, "a".repeat(64));
+    await vi_flush();
+    expect((await routes.get(r.id))?.sentAt).toBeUndefined();
+    expect(sent).toEqual([
+      { v: 1, type: "routeStatus", routeId: r.id, state: "onWatch", revision: "a".repeat(64) },
+    ]);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("digest unavailable");
+    warn.mockRestore();
   });
 });
 

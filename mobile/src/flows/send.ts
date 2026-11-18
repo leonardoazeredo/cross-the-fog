@@ -61,6 +61,15 @@ export function createSendFlow(deps: SendDeps): SendFlow {
     }
   }
 
+  // One at a time: a confirmation reads the stored route, waits for its hash and marks it, and a send that
+  // stores an edited route in that gap would be marked sent by the earlier revision's confirmation.
+  let tail: Promise<unknown> = Promise.resolve();
+  function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = tail.then(fn, fn);
+    tail = run.catch(() => undefined);
+    return run;
+  }
+
   async function isStored(routeId: string, revision: string): Promise<boolean> {
     const stored = await routes.get(routeId);
     return stored !== null && (await deps.revisionOf(stored.gpx)) === revision;
@@ -75,11 +84,19 @@ export function createSendFlow(deps: SendDeps): SendFlow {
         if (route.revision !== undefined && route.revision !== revision) {
           throw new Error("route revision is not the hash of its GPX");
         }
-        await routes.save(route);
-        await link.queueRoute(route);
+        await exclusive(async () => {
+          await routes.save(route);
+          await link.queueRoute(route);
+        });
       } catch (e) {
         warn("could not queue a route", e);
-        send(routeStatus(route.id, "failed", { why: COPY.routeNotSent, revision }));
+        // The page's own revision when it sent one, so a refusal for a wrong hash is a status it can match.
+        send(
+          routeStatus(route.id, "failed", {
+            why: COPY.routeNotSent,
+            revision: route.revision ?? revision,
+          }),
+        );
         return;
       }
       send(routeStatus(route.id, "waiting", { revision }));
@@ -111,9 +128,11 @@ export function createSendFlow(deps: SendDeps): SendFlow {
           // A revision that is not the stored route's is a late answer for an earlier send of the same id, so
           // it does not mark the edited route sent; one with no revision is taken for the route as it is.
           try {
-            if (revision === undefined || (await isStored(routeId, revision))) {
-              await routes.markSent(routeId);
-            }
+            await exclusive(async () => {
+              if (revision === undefined || (await isStored(routeId, revision))) {
+                await routes.markSent(routeId);
+              }
+            });
           } catch (e) {
             warn("could not mark a route sent", e);
           }

@@ -31,4 +31,10 @@ for (const c of vectors.cases) {
 }
 assert.ok(checked >= 2, "the vectors hold route offers to check against");
 
+// The page needs the script: without its tag every Send tap fails, and no other test loads index.html.
+const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+const at = (name) => html.indexOf(`<script src="src/${name}"></script>`);
+assert.ok(at("sha256.js") > 0, "index.html loads sha256.js");
+assert.ok(at("sha256.js") < at("history.js"), "sha256.js loads before history.js");
+
 console.log("sha256.test.js ok");

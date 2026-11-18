@@ -157,6 +157,29 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx v='2'/>" });
     assert.equal(sendTwice.chip.textContent, "On the watch", "the answer for v2 does");
 
+    // The phone refuses a send whose revision is not the hash of its GPX with a failure that carries the page's
+    // own revision, so the refusal shows at once instead of after the reply timeout.
+    const refused = control(() => {});
+    refused.tap();
+    refused.ctl.routeStatus({ routeId: "r1", state: "failed", revision: refused.sentRecords[0].revision });
+    assert.equal(refused.chip.textContent, "Could not send");
+
+    // A hash that cannot be computed reads as a failed send, logs only the class and never throws from the tap.
+    const brokenCtl = (() => {
+      let onClick = null;
+      const btn = { disabled: true, addEventListener: (_, fn) => { onClick = fn; } }, chip = { textContent: "" };
+      createSendControl({
+        button: btn, chip, getRecord: () => ({ id: "r1", gpx: "<gpx/>" }), hasRoute: () => true, revision: () => 1, canSend: () => true,
+        contentHash: () => { throw new TypeError("no digest"); }, send: () => { throw new Error("send must not run"); }
+      });
+      return { chip, tap: () => onClick() };
+    })();
+    errors.length = 0;
+    brokenCtl.chip.textContent = "On the watch";
+    brokenCtl.tap();
+    assert.equal(brokenCtl.chip.textContent, "Could not send");
+    assert.ok(errors.some((e) => /TypeError/.test(e)) && !errors.some((e) => /no digest/.test(e)), "the class is logged, not the message");
+
     // A status with no revision (a phone or watch build from before revisions) is matched by route id alone,
     // as it was; a revision that is present must match, whatever its shape.
     const legacy = control(() => {});

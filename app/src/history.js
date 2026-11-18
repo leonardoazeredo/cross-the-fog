@@ -295,13 +295,14 @@
     btn.addEventListener("click", () => {
       const rec = record();
       if (!rec || !opts.canSend()) return;
-      const hash = opts.contentHash(rec.gpx);
-      sent = { id: rec.id, revision: opts.revision(), hash };
       state = null;
       unsent = 0;
       if (replyTimer) global.clearTimeout(replyTimer);
       replyTimer = null;
+      let hash = null;
       try {
+        hash = opts.contentHash(rec.gpx);
+        sent = { id: rec.id, revision: opts.revision(), hash };
         opts.send({ ...rec, revision: hash });
         // No answer at all means the phone never took the route; a "waiting" answer is not timed out, as the watch may connect much later.
         replyTimer = global.setTimeout(() => {
@@ -310,6 +311,8 @@
         }, REPLY_TIMEOUT_MS);
       } catch (e) {
         console.error("crossfog: could not hand the route to the phone", e instanceof Error ? e.name : typeof e);
+        // A hash that failed leaves `sent` unset above, so the failure still has a route to be shown for.
+        if (!sent) sent = { id: rec.id, revision: opts.revision(), hash };
         state = "failed";
       }
       paint();
