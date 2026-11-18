@@ -31,6 +31,11 @@ export interface ImportFlow {
   loaded(msg: Extract<WebToNative, { type: "loaded" }>): Promise<void>;
   /** The page died: an import in progress (picking, or waiting for the verdict) is abandoned, and a share queued behind it is dropped. */
   processGone(): Promise<void>;
+  /**
+   * A store read failed while the page was being served: an import waiting for the page's verdict is ended
+   * and the user told; one still picking or being taken is left alone, and with none running nothing is said.
+   */
+  fail(): Promise<void>;
 }
 
 export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
@@ -38,9 +43,12 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
 
   let importActive = false;
   let pendingShare: SourceFile | null = null;
+  // The copy is staged and the page has it; only from here can the controller's store reads fail the import.
+  let awaitingVerdict = false;
 
   function clearImportActive(): void {
     importActive = false;
+    awaitingVerdict = false;
     deps.setBusy(false);
   }
 
@@ -75,6 +83,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       return false;
     }
     await release(file.uri);
+    awaitingVerdict = true;
     try {
       await deps.remount();
       return true;
@@ -176,6 +185,12 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
         warnClass("import", "could not reload after a bad import", e);
         deps.notify(COPY.notABackup);
       }
+    },
+
+    async fail() {
+      if (!awaitingVerdict) return;
+      deps.notify(COPY.importFailed);
+      await endImport();
     },
 
     async processGone() {
