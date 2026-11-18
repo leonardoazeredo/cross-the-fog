@@ -263,7 +263,7 @@ export function WebShell(): React.JSX.Element {
 
   const onWebMessage = createWebMessageHandler({
     send,
-    abandonExport: (id) => void exportFlow.abandon(id),
+    abandonExport: (id) => exportFlow.abandon(id),
     onMessage: controller.onWebMessage,
   });
 
