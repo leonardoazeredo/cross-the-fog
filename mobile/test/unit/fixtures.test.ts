@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { expect, it } from "vitest";
 import {
   largeBackup,
@@ -42,4 +43,15 @@ it("builds a large backup of about the requested size", () => {
 it("the committed e2e fixtures match the generator", () => {
   expect(new Uint8Array(readFileSync("assets/e2e/standard.zip"))).toEqual(standardBackup());
   expect(new Uint8Array(readFileSync("assets/e2e/not-a-backup.zip"))).toEqual(notABackup());
+});
+
+// history-release.yaml restores this backup and expects "2 tiles loaded ✓", which only the tile names of the
+// current standard.zip give (a file counts as a tile under its exact Fog of World name).
+it("the history backup fixture holds the current standard.zip as its import", () => {
+  const db = new DatabaseSync("test/fixtures/history-walk-backup.db", { readOnly: true });
+  const row = db.prepare("SELECT bytes FROM blobs WHERE kind = 'import'").get() as {
+    bytes: Uint8Array;
+  };
+  db.close();
+  expect(new Uint8Array(row.bytes)).toEqual(standardBackup());
 });
