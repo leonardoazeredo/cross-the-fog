@@ -66,9 +66,10 @@ export async function saveFileAs(
 ): Promise<{ name: string } | null> {
   const uri = await createDocument(name, mime);
   if (uri === null) return null;
-  // The native copy deletes the document when it fails or writes a byte count other than the source's length,
-  // so a throw from it leaves nothing in the folder. A count that disagrees with the size read here is
-  // reported rather than shown as saved, and that document is not deleted.
+  // The native copy tries to delete the document when it fails or writes a byte count other than the source's
+  // length (a delete that itself fails leaves it), so a throw from it normally leaves nothing in the folder.
+  // A count that disagrees with the size read here is reported rather than shown as saved, and that document
+  // is not deleted.
   // A backup is never empty, so a size that is not a positive number means it could not be read.
   const size = new File(toUri(path)).size;
   if (!(size > 0) || (await copyToUri(path, uri)) !== size) {
