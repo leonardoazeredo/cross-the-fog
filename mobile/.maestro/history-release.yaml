@@ -67,8 +67,7 @@ appId: codes.madera.crossfog
       text: "(0\\.0*[1-9]|[1-9])[0-9.]*%"
     timeout: 15000
 # Show on map drops the sheet, and a tap on Delete while it is down (or still sliding) matches the clipped
-# button but arms nothing: seen on about 1 run in 4 on the Release build, with the sheet still down at
-# Confirm delete. The History tab only ever opens the sheet and keeps the detail, so repeating it is
+# button but arms nothing, so Confirm delete never shows. The History tab only ever opens the sheet and keeps the detail, so repeating it is
 # harmless; repeat the taps until the list is empty. The first tap on Delete only arms it (Confirm delete
 # is the second tap, not a native dialog) and the page disarms it after 5 s, so Confirm follows at once.
 - repeat:
