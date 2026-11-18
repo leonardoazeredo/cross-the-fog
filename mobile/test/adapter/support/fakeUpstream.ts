@@ -34,6 +34,9 @@ export function installFakeUpstream(win: Window, doc: Document): void {
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "unzip.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "parser.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "reveal.js"), "utf-8"));
+  (winAny.eval as (code: string) => void)(
+    readFileSync(resolve(APP_SRC, "importMessages.js"), "utf-8"),
+  );
 
   const FogParser = winAny.FogParser as {
     FogMap: new () => { addTile(name: string, data: Uint8Array): boolean };
@@ -42,11 +45,22 @@ export function installFakeUpstream(win: Window, doc: Document): void {
     unzip(buf: ArrayBuffer): Array<{ name: string; data: Uint8Array }>;
   };
 
+  const ImportMessages = winAny.ImportMessages as {
+    tally(): { added: number; corrupt: number };
+    decode(t: unknown, name: string, bytes: Uint8Array, env: unknown): void;
+  };
+  const parseTileId = (FogParser as unknown as { parseTileId(name: string): number | null })
+    .parseTileId;
+
   const fogMap = new FogParser.FogMap();
+  // main.js publishes the damaged-tile count of the latest import here; the loader hook reads it
+  const importStats = { corrupt: 0 };
+  winAny.CrossfogPage = { lastImport: importStats };
 
   doc.getElementById("zip")?.addEventListener("change", async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
+    importStats.corrupt = 0;
     const buf = await file.arrayBuffer();
     let entries: Array<{ name: string; data: Uint8Array }>;
     try {
@@ -54,11 +68,15 @@ export function installFakeUpstream(win: Window, doc: Document): void {
     } catch {
       return;
     }
+    const tally = ImportMessages.tally();
     for (const ent of entries) {
       const base = ent.name.split(/[\\/]/).pop() ?? "";
-      try {
-        fogMap.addTile(base, fflate.unzlibSync(ent.data));
-      } catch {}
+      ImportMessages.decode(tally, base, ent.data, {
+        fogMap,
+        inflate: fflate.unzlibSync,
+        parseTileId,
+      });
     }
+    importStats.corrupt = tally.corrupt;
   });
 }

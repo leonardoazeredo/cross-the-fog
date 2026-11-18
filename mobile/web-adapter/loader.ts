@@ -1,6 +1,8 @@
+// corrupt: tile files were present but none could be decoded. On success, corrupt counts the tile files that were
+// damaged beside the ones that decoded; it stays on this side of the bridge, since the page already tells the person.
 export type LoadOutcome =
-  | { ok: true; tiles: number }
-  | { ok: false; reason: "unzip" | "noTiles" | "memory" | "unknown" };
+  | { ok: true; tiles: number; corrupt?: number }
+  | { ok: false; reason: "unzip" | "noTiles" | "corrupt" | "memory" | "unknown" };
 
 export interface OutcomeHooks {
   // arm(): arms the hook for one load cycle and returns a promise that
@@ -15,6 +17,16 @@ export const assignFilesWithDataTransfer: AssignFiles = (input, file) => {
   dt.items.add(file);
   input.files = dt.files;
 };
+
+// The page counts the tile files it could not decode (a damaged deflate stream never reaches addTile, so the addTile
+// patch cannot see it) and keeps the count of its latest import on CrossfogPage.lastImport. A page that does not
+// publish it counts as no damage.
+function damagedTiles(win: Window): number {
+  const page = (win as unknown as { CrossfogPage?: { lastImport?: { corrupt?: unknown } } })
+    .CrossfogPage;
+  const n = page?.lastImport?.corrupt;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
 
 // installOutcomeHooks monkey-patches the app's FogZip.unzip and
 // FogParser.FogMap.prototype.addTile globals so the adapter can observe load
@@ -70,7 +82,9 @@ export function installOutcomeHooks(win: Window, timeoutMs = 30_000): OutcomeHoo
     }
     setTimeout(() => {
       const n = added - start;
-      doSettle(n > 0 ? { ok: true, tiles: n } : { ok: false, reason: "noTiles" });
+      const corrupt = damagedTiles(win);
+      if (n > 0) doSettle(corrupt > 0 ? { ok: true, tiles: n, corrupt } : { ok: true, tiles: n });
+      else doSettle({ ok: false, reason: corrupt > 0 ? "corrupt" : "noTiles" });
     }, 0);
     return entries;
   };

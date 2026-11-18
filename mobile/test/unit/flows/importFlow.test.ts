@@ -101,6 +101,16 @@ describe("import flow verdicts", () => {
     expect(queued).toEqual([COPY.notABackup]);
     expect(remounts()).toBe(before + 1);
   });
+
+  it("words a copy whose tiles were all damaged as damaged, not as not a backup", async () => {
+    const { flow, queued } = setup({});
+    await flow.pick();
+
+    await flow.loaded({ ...LOADED_BAD, reason: "corrupt" });
+
+    expect(queued).toEqual([COPY.damagedBackup]);
+    expect(COPY.damagedBackup).not.toBe(COPY.notABackup);
+  });
 });
 
 describe("import flow failures", () => {

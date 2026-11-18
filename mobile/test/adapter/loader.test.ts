@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AssignFiles, OutcomeHooks } from "../../web-adapter/loader.js";
 import { installOutcomeHooks, loadCopy } from "../../web-adapter/loader.js";
-import { notABackup, standardBackup } from "../fixtures/make-backup.js";
+import { backupWithDamagedTiles, notABackup, standardBackup } from "../fixtures/make-backup.js";
 import { installFakeUpstream } from "./support/fakeUpstream.js";
 import { loadUpstreamDom } from "./support/upstreamDom.js";
 
@@ -32,6 +32,29 @@ it("RF4: reports ok and the tile count for the standard backup", async () =>
 
 it("reports noTiles for a zip without tiles", async () =>
   expect(await load(notABackup())).toEqual({ ok: false, reason: "noTiles" }));
+
+it("a good backup carries no corrupt count", async () => {
+  const outcome = await load(standardBackup());
+  expect(outcome).toEqual({ ok: true, tiles: 2 });
+  expect(outcome).not.toHaveProperty("corrupt");
+});
+
+it("counts damaged tile files beside the tiles that decoded", async () =>
+  expect(await load(backupWithDamagedTiles(3))).toEqual({ ok: true, tiles: 2, corrupt: 3 }));
+
+it("reports corrupt, not noTiles, when tile files are there and none decodes", async () =>
+  expect(await load(backupWithDamagedTiles(2, false))).toEqual({ ok: false, reason: "corrupt" }));
+
+it("still reports noTiles when nothing that looks like a tile is there", async () => {
+  await load(backupWithDamagedTiles(2, false)); // leaves a count on the page from the load before
+  hooks = installOutcomeHooks(window);
+  expect(await load(notABackup())).toEqual({ ok: false, reason: "noTiles" });
+});
+
+it("treats a page that publishes no count as no damage", async () => {
+  (window as unknown as Record<string, unknown>).CrossfogPage = undefined;
+  expect(await load(notABackup())).toEqual({ ok: false, reason: "noTiles" });
+});
 
 it("reports unzip for bytes that aren't a zip", async () =>
   expect(await load(new Uint8Array([1, 2, 3]))).toEqual({ ok: false, reason: "unzip" }));

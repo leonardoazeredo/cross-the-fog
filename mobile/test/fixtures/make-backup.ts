@@ -221,6 +221,23 @@ export function standardBackup(): Uint8Array {
   return makeBackup(STANDARD_TILES, STANDARD_EXTRAS);
 }
 
+// A tile file Fog of World could have written, cut short: the right name, a valid deflate stream, a body shorter than
+// the tile header, so the parser throws on it.
+function cutTile(): Uint8Array {
+  return zlibSync(new Uint8Array(10), { level: 0 });
+}
+
+// The standard backup's good tiles plus `corrupt` damaged tile files beside them (none of the good ones when
+// `good` is false): a deflate stream cut off for half of them, a body cut short for the rest.
+export function backupWithDamagedTiles(corrupt: number, good = true): Uint8Array {
+  const extras: Record<string, Uint8Array> = { ...STANDARD_EXTRAS };
+  for (let i = 0; i < corrupt; i++) {
+    const name = `Sync/${tileFilename(300 + i, 300)}`;
+    extras[name] = i % 2 === 0 ? cutTile() : new TextEncoder().encode("not a deflate stream");
+  }
+  return makeBackup(good ? STANDARD_TILES : [], extras);
+}
+
 export function notABackup(): Uint8Array {
   const enc = new TextEncoder();
   const data = enc.encode("not a backup");

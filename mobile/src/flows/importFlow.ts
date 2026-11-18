@@ -178,12 +178,14 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       }
       await endImport();
       if (msg.ok) return;
+      // tiles that were there but unreadable are not "not a backup": the person would look for another file
+      const why = msg.reason === "corrupt" ? COPY.damagedBackup : COPY.notABackup;
       try {
         await deps.remount();
-        deps.queueNotice(COPY.notABackup);
+        deps.queueNotice(why);
       } catch (e) {
         warnClass("import", "could not reload after a bad import", e);
-        deps.notify(COPY.notABackup);
+        deps.notify(why);
       }
     },
 

@@ -118,7 +118,7 @@ const webToNativeSchema = z.union([
     type: z.literal("loaded"),
     fingerprint,
     ok: z.literal(false),
-    reason: z.enum(["unzip", "noTiles", "memory", "checksum", "unknown"]),
+    reason: z.enum(["unzip", "noTiles", "corrupt", "memory", "checksum", "unknown"]),
   }),
   z.object({ v: z.literal(1), type: z.literal("clearSavedFog") }),
   z.object({ v: z.literal(1), type: z.literal("retryReload") }),

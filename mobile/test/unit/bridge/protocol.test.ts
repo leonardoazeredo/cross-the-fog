@@ -84,6 +84,13 @@ const webSamples = [
     type: "loaded" as const,
     fingerprint: fp,
     ok: false as const,
+    reason: "corrupt" as const,
+  },
+  {
+    v: 1 as const,
+    type: "loaded" as const,
+    fingerprint: fp,
+    ok: false as const,
     reason: "memory" as const,
   },
   {

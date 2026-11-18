@@ -189,7 +189,11 @@
   // ---- data loading -----------------------------------------------------------
   const loadStatus = $("loadStatus");
   const setLoad = (m) => { loadStatus.textContent = m; };
-  const inflateToTile = (name, buf) => fogMap.addTile(name, pako.inflate(new Uint8Array(buf)));
+  const decodeEnv = { fogMap, inflate: (bytes) => pako.inflate(bytes), parseTileId: FogParser.parseTileId };
+  // how many tile files of the latest import could not be decoded: the phone adapter reads it once the import is done
+  const importStats = { corrupt: 0 };
+  // classes and the count only: a tile's name, or the parser's message, would say which ground the person has been to
+  const warnDamaged = (t) => { if (t.corrupt) console.warn("[import] tiles could not be read (damaged files):", t.corrupt, [...t.classes].join(",")); };
   function finishLoad() {
     const b = fogMap.latLngBounds();
     if (b) map.fitBounds(b, { padding: [20, 20] });
@@ -198,39 +202,41 @@
   }
   async function loadFromInput(fileList) {
     const files = Array.from(fileList); if (!files.length) return;
-    let ok = 0, readErr = 0, i = 0;
+    const t = ImportMessages.tally();
+    let readErr = 0, i = 0;
+    importStats.corrupt = 0;
     for (const f of files) {
       let buf;
       try { buf = await f.arrayBuffer(); }
       catch (e) { readErr++; continue; } // e.g. a cloud placeholder that isn't downloaded to the device
-      try { if (inflateToTile(f.name, buf)) ok++; } catch (e) {}
+      ImportMessages.decode(t, f.name, new Uint8Array(buf), decodeEnv);
       if (++i % 50 === 0) setLoad(`Decoding… ${i}/${files.length}`);
     }
-    if (ok > 0) {
-      finishLoad();
-      if (readErr > 0) setLoad(`${fogMap.tileCount} tiles loaded ✓, but ${readErr} file${readErr > 1 ? "s" : ""} couldn't be read (files kept only in the cloud aren't downloaded, so try the .zip instead).`);
-    } else if (readErr > 0) {
-      setLoad("Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to the phone. Download your backup and load the .zip instead.");
-    } else {
-      setLoad("No fog tiles found. Did you pick the Sync folder?");
-    }
+    importStats.corrupt = t.corrupt;
+    warnDamaged(t);
+    if (t.added > 0) finishLoad();
+    setLoad(ImportMessages.status({ source: "folder", tiles: fogMap.tileCount, added: t.added, corrupt: t.corrupt, readErr }));
   }
   $("folder").addEventListener("change", (e) => loadFromInput(e.target.files));
 
   async function loadFromZip(file) {
     if (!file) return;
     setLoad("Reading .zip…");
+    importStats.corrupt = 0; // before the unzip, so a failed one leaves no count of an earlier load behind
     let entries;
     try { entries = FogZip.unzip(await file.arrayBuffer()); }
     catch (e) { setLoad("Couldn't open that .zip. Is it a Fog of World backup?"); return; }
-    let ok = 0, i = 0;
+    const t = ImportMessages.tally();
+    let i = 0;
     for (const ent of entries) {
       const base = ent.name.split(/[\\/]/).pop(); // tile filenames live under Sync/ inside the zip (tolerate \ or /)
-      try { if (fogMap.addTile(base, pako.inflate(ent.data))) ok++; } catch (e) {}
+      ImportMessages.decode(t, base, ent.data, decodeEnv);
       if (++i % 200 === 0) setLoad(`Decoding… ${i}/${entries.length}`);
     }
-    if (ok > 0) finishLoad();
-    else setLoad("No fog tiles found in that .zip. Make sure it contains your Sync folder.");
+    importStats.corrupt = t.corrupt;
+    warnDamaged(t);
+    if (t.added > 0) finishLoad();
+    setLoad(ImportMessages.status({ source: "zip", tiles: fogMap.tileCount, added: t.added, corrupt: t.corrupt, readErr: 0 }));
   }
   $("zip").addEventListener("change", (e) => loadFromZip(e.target.files[0]));
 
@@ -679,7 +685,7 @@
   // `history` is the History tab the adapter feeds; `routeStatus` and `linkStatus` carry the phone's answers to the Send button,
   // `exportStatus` its answers to the Fog of World export.
   window.CrossfogPage = {
-    fogMap, fogChanged, reveal: window.Reveal, history,
+    fogMap, fogChanged, reveal: window.Reveal, history, lastImport: importStats,
     routeStatus: sendControl.routeStatus, linkStatus: sendControl.linkStatus,
     exportStatus: fowExport.onStatus
   };
