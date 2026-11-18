@@ -1,0 +1,150 @@
+package com.glancemap.glancemapwearos.data.repository
+
+import android.content.Context
+import com.glancemap.glancemapwearos.R
+import com.glancemap.glancemapwearos.data.repository.internal.AtomicStreamWriter
+import com.glancemap.glancemapwearos.data.repository.maps.theme.MapThemePreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.InputStream
+
+class MapRepositoryImpl(
+    private val context: Context,
+) {
+    private val mapDir by lazy { context.getDir("maps", Context.MODE_PRIVATE) }
+
+    suspend fun listMapFiles(): List<File> =
+        withContext(Dispatchers.IO) {
+            if (!mapDir.exists()) return@withContext emptyList()
+
+            mapDir
+                .listFiles { _, name -> name.endsWith(".map", ignoreCase = true) }
+                ?.sortedBy { it.name }
+                ?: emptyList()
+        }
+
+    suspend fun fileExists(fileName: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val safeName = File(fileName).name
+            File(mapDir, safeName).exists()
+        }
+
+    @Suppress("LongParameterList")
+    suspend fun saveMapFileAtomic(
+        fileName: String,
+        inputStream: InputStream,
+        onProgress: (bytesCopied: Long) -> Unit,
+        expectedSize: Long? = null,
+        resumeOffset: Long = 0L,
+        computeSha256: Boolean = true,
+        diagnosticContext: String? = null,
+        expectedSha256: String? = null,
+        keepPartialOnCancel: Boolean = true,
+        keepPartialOnFailure: Boolean = true,
+    ): String? =
+        withContext(Dispatchers.IO) {
+            val exp = expectedSize?.takeIf { it >= 0L }
+
+            val options =
+                AtomicStreamWriter.Options(
+                    bufferSize = 2 * 1024 * 1024, // ✅ maps: larger write chunks reduce overhead
+                    progressStepBytes = 8L * 1024 * 1024, // ✅ maps: fewer callbacks
+                    fsync = true,
+                    failIfExists = false,
+                    expectedSize = exp,
+                    requireExactSize = (exp != null),
+                    expectedSha256 = expectedSha256,
+                    resumeOffset = resumeOffset.coerceAtLeast(0L),
+                    keepPartialOnCancel = keepPartialOnCancel,
+                    keepPartialOnFailure = keepPartialOnFailure,
+                    computeSha256 = computeSha256,
+                    diagnosticContext = diagnosticContext,
+                )
+
+            val result =
+                AtomicStreamWriter.writeAtomic(
+                    dir = mapDir,
+                    fileName = fileName,
+                    inputStream = inputStream,
+                    onProgress = onProgress,
+                    options = options,
+                )
+
+            result.sha256
+        }
+
+    suspend fun deleteMapFile(path: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val file = File(path)
+            val isInsideDir = file.canonicalFile.parentFile?.canonicalPath == mapDir.canonicalPath
+            val ok = if (file.exists() && isInsideDir) file.delete() else false
+
+            if (ok) mapThemePreferences().deleteMap(path)
+
+            // delete hidden part too
+            File(mapDir, ".${file.name}.part").delete()
+
+            ok
+        }
+
+    suspend fun renameMapFile(
+        path: String,
+        newName: String,
+    ): File =
+        withContext(Dispatchers.IO) {
+            val sourceFile = File(path)
+            require(sourceFile.exists()) { context.getString(R.string.map_the_map_could_not_be_found) }
+
+            val isInsideDir = sourceFile.canonicalFile.parentFile?.canonicalPath == mapDir.canonicalPath
+            require(isInsideDir) { context.getString(R.string.map_the_map_is_outside_the_app_storage) }
+
+            val normalizedTitle =
+                newName
+                    .trim()
+                    .replace(Regex("\\s+"), " ")
+            require(normalizedTitle.isNotBlank()) { context.getString(R.string.map_enter_a_map_name_first) }
+
+            val targetFileName = buildRenamedMapFileName(normalizedTitle)
+            val targetMatchesSource = targetFileName.equals(sourceFile.name, ignoreCase = true)
+            if (!targetMatchesSource && fileExists(targetFileName)) {
+                error(context.getString(R.string.map_a_map_with_that_name_already_exists))
+            }
+
+            val targetFile = File(mapDir, targetFileName)
+            if (!targetMatchesSource) {
+                if (!sourceFile.renameTo(targetFile)) {
+                    sourceFile.copyTo(targetFile, overwrite = true)
+                    require(
+                        sourceFile.delete(),
+                    ) { context.getString(R.string.map_the_original_map_could_not_be_removed_after_renaming) }
+                }
+
+                val sourcePartial = File(mapDir, ".${sourceFile.name}.part")
+                if (sourcePartial.exists()) {
+                    val targetPartial = File(mapDir, ".${targetFile.name}.part")
+                    if (!sourcePartial.renameTo(targetPartial)) {
+                        sourcePartial.copyTo(targetPartial, overwrite = true)
+                        sourcePartial.delete()
+                    }
+                }
+            }
+
+            mapThemePreferences().renameMap(sourceFile.absolutePath, targetFile.absolutePath)
+            targetFile
+        }
+
+    private fun mapThemePreferences() =
+        MapThemePreferences(
+            context.getSharedPreferences(
+                MapThemePreferences.PREFERENCES_NAME,
+                Context.MODE_PRIVATE,
+            ),
+        )
+
+    private fun buildRenamedMapFileName(name: String): String {
+        val sanitized = File(name).name.removeSuffix(".map").trim()
+        require(sanitized.isNotBlank()) { "Enter a map name first." }
+        return "$sanitized.map"
+    }
+}

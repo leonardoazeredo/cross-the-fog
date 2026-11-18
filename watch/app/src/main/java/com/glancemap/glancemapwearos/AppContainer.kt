@@ -1,0 +1,217 @@
+package com.glancemap.glancemapwearos
+
+import android.app.Application
+import android.content.Context
+import android.util.Log
+import com.glancemap.glancemapwearos.core.maps.theme.validateExternalRenderTheme
+import com.glancemap.glancemapwearos.core.routing.BRouterRoutePlanner
+import com.glancemap.glancemapwearos.core.routing.RoutePlanner
+import com.glancemap.glancemapwearos.data.repository.*
+import com.glancemap.glancemapwearos.data.repository.maps.theme.ExternalThemeStore
+import com.glancemap.glancemapwearos.data.repository.maps.theme.ThemeRepository
+import com.glancemap.glancemapwearos.data.repository.maps.theme.ThemeRepositoryImpl
+import com.glancemap.glancemapwearos.domain.sensors.CompassViewModel
+import com.glancemap.glancemapwearos.presentation.SyncManager
+import com.glancemap.glancemapwearos.presentation.features.download.DownloadViewModel
+import com.glancemap.glancemapwearos.presentation.features.download.OamBundleDownloader
+import com.glancemap.glancemapwearos.presentation.features.download.OamDownloadNetworkMonitor
+import com.glancemap.glancemapwearos.presentation.features.download.OamDownloadNotificationController
+import com.glancemap.glancemapwearos.presentation.features.download.OamDownloadServiceClient
+import com.glancemap.glancemapwearos.presentation.features.gpx.GpxRouteServices
+import com.glancemap.glancemapwearos.presentation.features.gpx.GpxViewModel
+import com.glancemap.glancemapwearos.presentation.features.maps.MapViewModel
+import com.glancemap.glancemapwearos.presentation.features.maps.theme.ThemeViewModel
+import com.glancemap.glancemapwearos.presentation.features.navigate.LocationViewModel
+import com.glancemap.glancemapwearos.presentation.features.poi.PoiViewModel
+import com.glancemap.glancemapwearos.presentation.features.recording.RecordingElevationProvider
+import com.glancemap.glancemapwearos.presentation.features.recording.RecordingRuntimeDependencies
+import com.glancemap.glancemapwearos.presentation.features.recording.TraceRecordingDraftStore
+import com.glancemap.glancemapwearos.presentation.features.recording.TraceRecordingViewModel
+import com.glancemap.glancemapwearos.presentation.features.recording.health.RecordingHealthRuntime
+import com.glancemap.glancemapwearos.presentation.features.recording.sensors.AndroidRecordingExperimentLock
+import com.glancemap.glancemapwearos.presentation.features.recording.sensors.RecordingWakeLockExperiment
+import com.glancemap.glancemapwearos.presentation.features.settings.SettingsViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.io.File
+
+class AppContainer(
+    private val applicationContext: Context,
+    private val coroutineScope: CoroutineScope,
+) {
+    internal val recordingHealthRuntime = RecordingHealthRuntime(applicationContext)
+    internal val recordingWakeLockExperiment =
+        RecordingWakeLockExperiment(
+            enabled = BuildConfig.RECORDING_WAKE_LOCK_EXPERIMENT,
+            createLock = { AndroidRecordingExperimentLock(applicationContext) },
+            diagnostic = { event ->
+                com.glancemap.glancemapwearos.core.service.diagnostics.DebugTelemetry
+                    .log("TraceRecordingSensors", event)
+            },
+        )
+    val syncManager: SyncManager by lazy { SyncManager(scope = coroutineScope) }
+
+    val settingsRepository: SettingsRepository by lazy {
+        SettingsRepositoryImpl.getInstance(applicationContext)
+    }
+
+    val gpxRepository: GpxRepositoryImpl by lazy {
+        GpxRepositoryImpl(applicationContext)
+    }
+
+    val gpxExportRepository: GpxExportRepository by lazy {
+        GpxExportRepositoryImpl(applicationContext)
+    }
+
+    val mapRepository: MapRepositoryImpl by lazy {
+        MapRepositoryImpl(applicationContext)
+    }
+
+    val poiRepository: PoiRepository by lazy {
+        PoiRepositoryImpl(applicationContext)
+    }
+
+    val userPoiRepository: UserPoiRepository by lazy {
+        UserPoiRepository(applicationContext)
+    }
+
+    val externalThemeStore: ExternalThemeStore by lazy {
+        ExternalThemeStore(
+            root = File(applicationContext.filesDir, "mapsforge-themes"),
+            validateTheme = { validateExternalRenderTheme(applicationContext, it) },
+            diagnostic = { event, id -> Log.i("CustomThemes", "event=$event id=$id") },
+        )
+    }
+
+    val themeRepository: ThemeRepository by lazy {
+        ThemeRepositoryImpl(applicationContext, settingsRepository.selectedMapPath, externalThemeStore)
+    }
+
+    val compassViewModel: CompassViewModel by lazy {
+        CompassViewModel(applicationContext as Application)
+    }
+
+    private val routePlanner: RoutePlanner by lazy {
+        BRouterRoutePlanner(applicationContext)
+    }
+
+    val gpxViewModel: GpxViewModel by lazy {
+        GpxViewModel(
+            resources = applicationContext.resources,
+            gpxRepository = gpxRepository,
+            gpxExportRepository = gpxExportRepository,
+            syncManager = syncManager,
+            settingsRepository = settingsRepository,
+            poiRepository = poiRepository,
+            routeServices =
+                GpxRouteServices(
+                    planner = routePlanner,
+                    elevationProvider = RecordingElevationProvider(applicationContext),
+                ),
+        )
+    }
+
+    val mapViewModel: MapViewModel by lazy {
+        // ✅ FIX: MapViewModel expects context first
+        MapViewModel(
+            context = applicationContext,
+            settingsRepository = settingsRepository,
+            mapRepository = mapRepository,
+            syncManager = syncManager,
+            themeRepository = themeRepository,
+        )
+    }
+
+    val poiViewModel: PoiViewModel by lazy {
+        PoiViewModel(
+            resources = applicationContext.resources,
+            poiRepository = poiRepository,
+            userPoiRepository = userPoiRepository,
+            settingsRepository = settingsRepository,
+            syncManager = syncManager,
+        )
+    }
+
+    val downloadViewModel: DownloadViewModel by lazy {
+        DownloadViewModel(
+            resources = applicationContext.resources,
+            downloader =
+                OamBundleDownloader(
+                    context = applicationContext,
+                    mapRepository = mapRepository,
+                    poiRepository = poiRepository,
+                ),
+            notificationController = OamDownloadNotificationController(applicationContext),
+            networkMonitor = OamDownloadNetworkMonitor(applicationContext),
+            settingsRepository = settingsRepository,
+            downloadServiceClient = OamDownloadServiceClient(applicationContext),
+        )
+    }
+
+    val themeViewModel: ThemeViewModel by lazy {
+        ThemeViewModel(
+            themeRepository = themeRepository,
+            context = applicationContext,
+            settingsRepository = settingsRepository,
+        )
+    }
+
+    val settingsViewModel: SettingsViewModel by lazy {
+        SettingsViewModel(settingsRepository)
+    }
+
+    val locationViewModel: LocationViewModel by lazy {
+        LocationViewModel(
+            application = applicationContext as Application,
+            settingsRepository = settingsRepository,
+        )
+    }
+
+    val traceRecordingViewModel: TraceRecordingViewModel by lazy {
+        val viewModel =
+            TraceRecordingViewModel(
+                resources = applicationContext.resources,
+                gpxRepository = gpxRepository,
+                settingsRepository = settingsRepository,
+                syncManager = syncManager,
+                elevationProvider = RecordingElevationProvider(applicationContext),
+                draftStore = TraceRecordingDraftStore(applicationContext),
+                runtimeDependencies =
+                    RecordingRuntimeDependencies(
+                        applicationContext = applicationContext,
+                        requestImmediateLocation = { source ->
+                            locationViewModel.requestImmediateLocation(source = source)
+                        },
+                    ),
+            )
+        startRecordingLocationBridge(viewModel)
+        viewModel
+    }
+
+    private fun startRecordingLocationBridge(traceRecordingViewModel: TraceRecordingViewModel) {
+        recordingHealthRuntime.bind(traceRecordingViewModel, settingsRepository, coroutineScope)
+        coroutineScope.launch(Dispatchers.Main.immediate) {
+            traceRecordingViewModel.recordingPresentationState.collect { state ->
+                recordingWakeLockExperiment.update(active = state.active && !state.saving, paused = state.paused)
+            }
+        }
+        coroutineScope.launch(Dispatchers.Main.immediate) {
+            locationViewModel.recordingLocations.collect { location ->
+                traceRecordingViewModel.onLocation(location)?.join()
+            }
+        }
+        coroutineScope.launch(Dispatchers.Main.immediate) {
+            locationViewModel.gpsSignalSnapshot.collectLatest { snapshot ->
+                traceRecordingViewModel.onGpsSignalSnapshot(snapshot)
+            }
+        }
+        coroutineScope.launch(Dispatchers.Main.immediate) {
+            locationViewModel.effectiveGpsIntervalMs.collect { intervalMs ->
+                traceRecordingViewModel.onEffectiveRecordingSamplingIntervalChanged(intervalMs)
+            }
+        }
+    }
+}
