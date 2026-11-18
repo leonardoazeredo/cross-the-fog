@@ -929,7 +929,7 @@ it("still runs the flows' ready, and sends no verdict, when the store read fails
 });
 
 // A promote that failed or a pending copy that cannot be read must not leave a copy the user was told had failed:
-// these run over the real FogStore, failing single file operations underneath it.
+// these run over the real FogStore, failing single file operations underneath it, or its `pending()` read where a test says so.
 const savedThenImportingB = async (): Promise<Harness> => {
   const h = createHarness();
   await saveToStore(h.store, aSrc, "a.zip");

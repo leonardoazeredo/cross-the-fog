@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sizes = new Map<string, number>();
+let created = 0;
 let written: number;
 
 vi.mock("expo-file-system", () => ({
@@ -24,7 +25,10 @@ vi.mock("expo-document-picker", () => ({
   }),
 }));
 vi.mock("../../../src/platform/watchLinkModule.js", () => ({
-  createDocument: async () => "content://docs/b.db",
+  createDocument: async () => {
+    created++;
+    return "content://docs/b.db";
+  },
   copyToUri: async () => written,
   displayNameOf: async () => "b.db",
 }));
@@ -32,6 +36,7 @@ vi.mock("../../../src/platform/watchLinkModule.js", () => ({
 const { pickRestoreFile, saveFileAs } = await import("../../../src/platform/backupPlatform.js");
 
 beforeEach(() => {
+  created = 0;
   sizes.clear();
   sizes.set("file:///cache/backup/b.db", 8192);
 });
@@ -62,6 +67,14 @@ describe("saveFileAs", () => {
     await expect(saveFileAs("/cache/backup/b.db", "b.db", "x")).rejects.toThrow(
       "the saved copy is incomplete",
     );
+  });
+
+  it("does not open the picker for a file whose size cannot be read", async () => {
+    sizes.clear();
+    await expect(saveFileAs("/cache/backup/b.db", "b.db", "x")).rejects.toThrow(
+      "the saved copy is incomplete",
+    );
+    expect(created).toBe(0);
   });
 });
 
