@@ -95,6 +95,15 @@ class WatchLinkModule : Module() {
       unreadable
     }
 
+    // Removes the outbox routes that can never be opened (sealed before a lost staging alias) and
+    // returns how many it removed, so the page can tell the user to send them again.
+    AsyncFunction("discardUnreadableRoutes") {
+      // Fixed text: nothing of a route reaches the log.
+      val removed = discardUnreadableRoutes({ outbox }) { Log.w(TAG, it) }
+      if (removed > 0) Log.w(TAG, "outbox routes that could not be opened were removed: $removed")
+      removed
+    }
+
     AsyncFunction("readActivity") { id: String ->
       val bytes = coded { staging.read(id) }
         ?: throw CodedException(NOT_FOUND, "no staged activity with that id", null)

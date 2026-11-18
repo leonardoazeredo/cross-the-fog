@@ -263,6 +263,7 @@
     let sent = null; // { id, revision } of the record last sent
     let state = null; // waiting | onWatch | failed, for `sent`
     let paired = null;
+    let unsent = 0; // routes the phone had to drop, until the user sends again
     let replyTimer = null;
 
     // A record that cannot be built (no crypto, a bad route) leaves the button off; it must not break the route UI that called update().
@@ -277,7 +278,12 @@
     function currentIs() { return sent != null && hasRoute() && opts.revision() === sent.revision; }
     function paint() {
       btn.disabled = !(opts.canSend() && hasRoute());
-      chip.textContent = state ? STATUS_TEXT[state] : paired === false ? "Not paired" : "";
+      // A route's own status outranks the line about routes lost earlier, which outranks "Not paired":
+      // the user has to send those routes again whether or not the watch is paired.
+      chip.textContent = state ? STATUS_TEXT[state] : unsent > 0 ? unsentText(unsent) : paired === false ? "Not paired" : "";
+    }
+    function unsentText(n) {
+      return n === 1 ? "A route could not be sent. Send it again." : n + " routes could not be sent. Send them again.";
     }
 
     btn.addEventListener("click", () => {
@@ -285,6 +291,7 @@
       if (!rec || !opts.canSend()) return;
       sent = { id: rec.id, revision: opts.revision() };
       state = null;
+      unsent = 0;
       if (replyTimer) global.clearTimeout(replyTimer);
       replyTimer = null;
       try {
@@ -314,6 +321,8 @@
       },
       linkStatus(msg) {
         paired = msg.paired;
+        // Only a whole count above zero: a later status without one keeps what the user has not acted on.
+        if (Number.isInteger(msg.unsentRoutes) && msg.unsentRoutes > 0) unsent += msg.unsentRoutes;
         paint();
       },
     };

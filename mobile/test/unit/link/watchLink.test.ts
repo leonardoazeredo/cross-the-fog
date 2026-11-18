@@ -5,6 +5,7 @@ const native = {
   linkStatus: vi.fn(),
   pendingActivities: vi.fn(),
   unreadableActivities: vi.fn(),
+  discardUnreadableRoutes: vi.fn(),
   readActivity: vi.fn(),
   releaseActivity: vi.fn(),
   queueRoute: vi.fn(),
@@ -73,6 +74,17 @@ describe("native watch link", () => {
     for (const bad of [-1, 1.5, "2"]) {
       native.unreadableActivities.mockResolvedValue(bad);
       await expect(createNativeWatchLink().unreadableActivities()).rejects.toThrow();
+    }
+  });
+
+  it("returns how many unreadable routes the native side removed and rejects anything but a whole number", async () => {
+    native.discardUnreadableRoutes.mockResolvedValue(2);
+    await expect(createNativeWatchLink().discardUnreadableRoutes()).resolves.toBe(2);
+    native.discardUnreadableRoutes.mockResolvedValue(0);
+    await expect(createNativeWatchLink().discardUnreadableRoutes()).resolves.toBe(0);
+    for (const bad of [-1, 1.5, "2", null]) {
+      native.discardUnreadableRoutes.mockResolvedValue(bad);
+      await expect(createNativeWatchLink().discardUnreadableRoutes()).rejects.toThrow();
     }
   });
 

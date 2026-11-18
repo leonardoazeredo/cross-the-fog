@@ -124,6 +124,10 @@ export function unreadableActivities(): Promise<unknown> {
   return WatchLink.unreadableActivities();
 }
 
+export function discardUnreadableRoutes(): Promise<unknown> {
+  return WatchLink.discardUnreadableRoutes();
+}
+
 export function readActivity(id: string): Promise<string> {
   return WatchLink.readActivity(id);
 }
