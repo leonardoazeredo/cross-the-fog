@@ -3,13 +3,14 @@ import { join } from "node:path";
 export type AndroidTestMode = "jvm" | "device";
 
 export interface AndroidPlan {
-  gradleTask: string;
+  /** Passed to one Gradle run, in this order. */
+  gradleTasks: string[];
   needsDevice: boolean;
 }
 
 export const PLANS: Record<AndroidTestMode, AndroidPlan> = {
-  jvm: { gradleTask: ":platform:testDebugUnitTest", needsDevice: false },
-  device: { gradleTask: ":platform:connectedDebugAndroidTest", needsDevice: true },
+  jvm: { gradleTasks: [":platform:testDebugUnitTest", ":link:test"], needsDevice: false },
+  device: { gradleTasks: [":platform:connectedDebugAndroidTest"], needsDevice: true },
 };
 
 /** The serials in the `device` state in `adb devices` output; an `offline` or `unauthorized` row is not a device to test on. */

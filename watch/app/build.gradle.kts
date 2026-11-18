@@ -245,4 +245,5 @@ dependencies {
     implementation(libs.okhttp)
 
     implementation(project(":transfercontract"))
+    implementation(project(":link"))
 }

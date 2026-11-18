@@ -59,23 +59,28 @@ if (plan.needsDevice) {
 // android/ is generated and git-ignored, so a fresh checkout or worktree has none; a gate that skipped
 // without it would pass while testing nothing.
 if (!existsSync(join(androidDir, "gradlew"))) {
-  say("mobile/android is missing; generating it (expo prebuild, about 5 s, no install)");
+  say("mobile/android is missing; generating the page (about 2 s)");
   if (run("pnpm", ["generate"], mobile, env) !== 0) process.exit(1);
-  if (
-    run(
-      "pnpm",
-      ["exec", "expo", "prebuild", "--platform", "android", "--no-install"],
-      mobile,
-      env,
-    ) !== 0
-  ) {
-    process.exit(1);
-  }
+}
+
+// Prebuild runs every time, not only when android/ is missing: the config plugins (the shared link/
+// project in settings.gradle among them) are applied to an existing android/ too, so an old generated
+// one never makes the Gradle run fail with a project it does not know. About 1 to 2 s, no install.
+say("expo prebuild (about 2 s, no install)");
+if (
+  run(
+    "pnpm",
+    ["exec", "expo", "prebuild", "--platform", "android", "--no-install"],
+    mobile,
+    env,
+  ) !== 0
+) {
+  process.exit(1);
 }
 
 say(
-  `gradle ${plan.gradleTask} (about 20 to 60 s; a first run on a new machine downloads Gradle's dependencies)`,
+  `gradle ${plan.gradleTasks.join(" ")} (about 20 to 60 s; a first run on a new machine downloads Gradle's dependencies)`,
 );
-const status = run("./gradlew", [plan.gradleTask], androidDir, env);
+const status = run("./gradlew", plan.gradleTasks, androidDir, env);
 say(status === 0 ? "passed" : `failed (gradle exit ${status})`);
 process.exit(status);

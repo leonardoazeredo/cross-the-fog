@@ -19,6 +19,7 @@ android {
 }
 
 dependencies {
+  implementation project(':link')
   testImplementation 'junit:junit:4.13.2'
   // The Android SDK's org.json is a stub on the JVM; this is the real one.
   testImplementation 'org.json:json:20240303'
