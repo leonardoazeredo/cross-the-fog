@@ -410,6 +410,85 @@ describe("a track whose activity changed while it was on its way", () => {
   });
 });
 
+describe("a track asked for twice (the fog and the History panel)", () => {
+  const changed = () => ({ items: [summary(WALKER, { endedAt: "2026-01-02T11:00:00Z" })] });
+
+  it("reveals it once and caches it, and the panel gets both copies", async () => {
+    const { sync, lists, needTrack, fogChanged, cache, history, fogMap } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    sendTrack(sync, WALKER, walk(0, 300));
+    sendTrack(sync, WALKER, walk(0, 300));
+    await sync.settled();
+    expect(needTrack).toHaveBeenCalledTimes(1);
+    expect(visitedAt(fogMap, 50)).toBe(true);
+    expect(fogChanged).toHaveBeenCalledTimes(1);
+    expect(await cache.getReveal(WALKER)).not.toBeNull();
+    expect(history.setTrack).toHaveBeenCalledTimes(2);
+  });
+
+  it("reveals neither old copy when a list changed the activity, and takes the re-ask's answer", async () => {
+    const { sync, lists, needTrack, fogMap, cache } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    sync.onActivities(changed());
+    sendTrack(sync, WALKER, walk(0, 300));
+    sendTrack(sync, WALKER, walk(0, 300));
+    await sync.settled();
+    expect(visitedAt(fogMap, 50)).toBe(false);
+    expect(await cache.getReveal(WALKER)).toBeNull();
+    expect(needTrack).toHaveBeenCalledTimes(2);
+
+    sendTrack(sync, WALKER, walk(1000, 1300));
+    await sync.settled();
+    expect(visitedAt(fogMap, 1050)).toBe(true);
+    expect(visitedAt(fogMap, 50)).toBe(false);
+    expect((await cache.getReveal(WALKER))?.endedAt).toBe("2026-01-02T11:00:00Z");
+  });
+
+  it("asks once more for the answers it dropped as stale, and not again", async () => {
+    const { sync, lists, needTrack } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    sync.onActivities(changed());
+    sendTrack(sync, WALKER, walk(0, 300));
+    sendTrack(sync, WALKER, walk(0, 300));
+    await sync.settled();
+    expect(needTrack).toHaveBeenCalledTimes(2);
+    sendTrack(sync, WALKER, walk(1000, 1300));
+    sync.onActivities(changed());
+    sync.onActivities(changed());
+    await sync.settled();
+    expect(needTrack).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts the count over after a trackUnavailable, so the next ask's answer is taken", async () => {
+    const { sync, lists, needTrack, fogMap } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    sync.onTrackUnavailable({ activityId: WALKER, reason: "readFailed" });
+    lists(WALKER);
+    await sync.settled();
+    expect(needTrack).toHaveBeenCalledTimes(2);
+    sendTrack(sync, WALKER, walk(0, 300));
+    await sync.settled();
+    expect(visitedAt(fogMap, 50)).toBe(true);
+  });
+
+  it("starts the count over when a request nobody answered is forgotten", async () => {
+    const { sync, lists, needTrack, fogMap } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    lists(WALKER);
+    lists(WALKER);
+    await sync.settled();
+    expect(needTrack).toHaveBeenCalledTimes(2);
+    sendTrack(sync, WALKER, walk(0, 300));
+    await sync.settled();
+    expect(visitedAt(fogMap, 50)).toBe(true);
+  });
+});
+
 describe("a replaced track whose new stamp is already cached", () => {
   it("is restored without a request and the old cells leave the overlay", async () => {
     const { sync, lists, needTrack, fogMap, cache, rules } = await setup();

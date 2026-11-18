@@ -101,6 +101,8 @@ export interface HistorySyncDeps {
 export interface HistorySync {
   onActivities(payload: { items: ActivitySummary[] }): void;
   onTrack(chunk: TrackChunk): void;
+  /** The page asked the phone for this track itself (the History panel): another copy is on its way, which the reveal must not take for the answer to its own request. */
+  trackAsked(activityId: string): void;
   /** The phone answered a track request with no track: a readFailed id is asked for again by the next list that holds it; a notFound id has left the phone's list. */
   onTrackUnavailable(payload: { activityId: string; reason: "notFound" | "readFailed" }): void;
   /** Resolves when everything received so far has been applied; for tests. */
@@ -118,6 +120,11 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
   // The stamp is taken when a track is asked for: a list that changes the activity meanwhile must not stamp the old track as current.
   const requested = new Map<string, RevealStamp>();
   const partial = new Map<string, PartialTrack>();
+  // Asks sent and not yet answered, per id. Chunks carry no request id, so when the panel and the fog both
+  // asked, or a list changed the activity and the track was asked for again, the copies cannot be told apart:
+  // only the answer that ends the count is taken, so an old copy is never revealed under a newer stamp. The
+  // phone answers in the order it was asked. A late old copy may cost one more ask; none is taken for the wrong stamp.
+  const open = new Map<string, number>();
   // The panel's own copy of the chunks, joined as they arrive: it must not wait for the queue (on a first start without a cache the list and other activities' reveals are queued ahead of the track job, so it would wait for all of them).
   const panelPartial = new Map<string, PartialTrack>();
   let listed = new Set<string>();
@@ -173,6 +180,14 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
   function forgetRequest(id: string): void {
     requested.delete(id);
     partial.delete(id);
+    // Given up on, not answered: counting an ask that may never be answered would drop every later answer.
+    open.delete(id);
+  }
+
+  function ask(id: string, stamp: RevealStamp): void {
+    requested.set(id, stamp);
+    open.set(id, (open.get(id) ?? 0) + 1);
+    pageApi.needTrack(id);
   }
 
   // Runs outside the queue, so the opened card gets its track as soon as the last chunk is in.
@@ -228,7 +243,10 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
       if (!wanted.has(id)) drop(id);
     }
     for (const id of [...requested.keys()]) {
-      if (!wanted.has(id)) requested.delete(id);
+      if (!wanted.has(id)) {
+        requested.delete(id);
+        open.delete(id);
+      }
     }
     // the panel asks for tracks too, so a half-received one may belong to an id the fog never requested
     for (const id of [...partial.keys()]) {
@@ -246,8 +264,7 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
       if (item == null) continue;
       const cells = await cachedCells(item);
       if (cells == null) {
-        requested.set(id, stampFor(rules, item));
-        pageApi.needTrack(id);
+        ask(id, stampFor(rules, item));
         continue;
       }
       revealed.set(id, { cells, stamp: stampFor(rules, item) });
@@ -285,6 +302,15 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
     const track: TrackPoint[] = [];
     for (let i = 0; i < total; i++) track.push(...(got.chunks.get(i) ?? []));
 
+    // Another copy is still on its way: this one may be older than the ask the stamp below belongs to.
+    // `requested` stays, so a request that is then never answered is still forgotten and asked again.
+    const stillOpen = (open.get(activityId) ?? 0) - 1;
+    if (stillOpen > 0) {
+      open.set(activityId, stillOpen);
+      return;
+    }
+    open.delete(activityId);
+
     const stamp = requested.get(activityId);
     if (stamp == null) return;
     requested.delete(activityId);
@@ -293,8 +319,7 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
     // revealed nor cached, and the new one is asked for.
     const item = current.get(activityId);
     if (item != null && !sameStamp(stamp, stampFor(rules, item))) {
-      requested.set(activityId, stampFor(rules, item));
-      pageApi.needTrack(activityId);
+      ask(activityId, stampFor(rules, item));
       return;
     }
 
@@ -326,6 +351,9 @@ export function createHistorySync(deps: HistorySyncDeps): HistorySync {
         console.error("[history] panel track join failed", e instanceof Error ? e.name : typeof e);
       }
       enqueue("track", () => applyTrack(chunk));
+    },
+    trackAsked: (activityId) => {
+      open.set(activityId, (open.get(activityId) ?? 0) + 1);
     },
     // Not asked here: an immediate retry of a failing read would loop, and a notFound id leaves the next list anyway.
     // The panel's copy goes now, as it was joined now: a queued forget would also wipe the chunks of a newer answer.

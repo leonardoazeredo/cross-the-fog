@@ -54,6 +54,34 @@ describe("web-adapter/index boot", () => {
     expect(page.history.trackUnavailable).toHaveBeenCalledWith(ACTIVITY, "notFound");
   });
 
+  // The panel's own ask goes through window.crossfog, not through the history sync's pageApi: without the
+  // adapter counting it, the second old copy would be taken for the re-ask's answer.
+  it("counts the panel's track ask, so a second old copy is not taken for the re-ask's answer", async () => {
+    const asks = () => posted.filter((m) => m.type === "needTrack").length;
+    const item = (endedAt: string) => ({
+      id: ACTIVITY,
+      startedAt: "2026-01-01T10:00:00Z",
+      endedAt,
+      stats: { durationS: 60, distanceM: 100 },
+    });
+    const track = {
+      v: 1 as const,
+      type: "track" as const,
+      activityId: ACTIVITY,
+      index: 0,
+      total: 1,
+    };
+    const before = asks();
+    fromNative({ v: 1, type: "activities", items: [item("2026-01-01T11:00:00Z")] });
+    await vi.waitFor(() => expect(asks()).toBe(before + 1));
+    window.crossfog?.needTrack(ACTIVITY);
+    fromNative({ v: 1, type: "activities", items: [item("2026-01-02T11:00:00Z")] });
+    fromNative({ ...track, points: [{ t: 0, lat: 51, lon: 13.7 }] });
+    fromNative({ ...track, points: [{ t: 0, lat: 51, lon: 13.7 }] });
+    await vi.waitFor(() => expect(asks()).toBe(before + 3));
+    expect(page.reveal.reveal).not.toHaveBeenCalled();
+  });
+
   it("forwards exportStatus to the page", () => {
     fromNative({ v: 1, type: "exportStatus", exportId: EXPORT, state: "saved" });
     expect(page.exportStatus).toHaveBeenCalledWith({ exportId: EXPORT, state: "saved" });
