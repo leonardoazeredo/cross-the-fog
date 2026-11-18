@@ -20,7 +20,7 @@ const cut = (name) => ({ name, bytes: zlib.deflateSync(Buffer.alloc(10)) });
 // a file with a tile's name whose bytes are no deflate stream at all
 const junkTile = (name) => ({ name, bytes: Buffer.from("this is not zlib data") });
 const goodTile = (n) => ({ name: n, bytes: goodBytes(n) });
-// tile names the parser reads, other than the two fixtures (ids 1 and 2 in Fog of World's filename alphabet)
+// made-up tile names the parser reads (nameOf(1) is tile id 1), so they never collide with the two fixtures' names
 const nameOf = (id) => "test" + String(id).split("").map((d) => "olhwjsktri"[Number(d)]).join("") + "zz";
 
 const { status } = ImportMessages;
