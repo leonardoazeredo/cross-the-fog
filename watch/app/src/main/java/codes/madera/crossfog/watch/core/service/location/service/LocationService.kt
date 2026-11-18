@@ -226,8 +226,8 @@ class LocationService : Service() {
                 watchGpsLocationGateway.availabilityReason() == WatchGpsAvailabilityReason.AVAILABLE
             },
             // Nothing in the app reports whether a phone is near, so the phone is always unknown. A
-            // failover to the watch GPS therefore lasts until tracking stops: nothing reports a
-            // reconnect that would undo it.
+            // failover to the watch GPS therefore ends only when the watch-GPS or passive-experiment
+            // setting changes or the service stops: no phone reconnect can undo it.
             checkPhoneConnection = {
                 null
             },
