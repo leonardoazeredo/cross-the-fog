@@ -35,7 +35,7 @@ enum class OamBundleChoice(
 
 data class OamDownloadSelection(
     val includeMap: Boolean = true,
-    val includePoi: Boolean = true,
+    val includePoi: Boolean = false,
     val includeRouting: Boolean = true,
     val includeDem: Boolean = true,
     val demSource: DemSource = DemSource.DEFAULT,

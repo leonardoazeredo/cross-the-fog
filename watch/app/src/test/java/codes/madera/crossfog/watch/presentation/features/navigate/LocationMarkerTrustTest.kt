@@ -2,8 +2,6 @@ package codes.madera.crossfog.watch.presentation.features.navigate
 
 import codes.madera.crossfog.watch.core.service.location.model.GpsEnvironmentWarning
 import codes.madera.crossfog.watch.core.service.location.model.resolveLocationTimingProfile
-import codes.madera.crossfog.watch.data.repository.PoiType
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -265,8 +263,6 @@ class LocationMarkerTrustTest {
                     retainedLocationAnchor = null,
                     lastKnownLocation = null,
                     startupMapFallbackState = StartupMapFallbackState.WAITING,
-                    navigateTarget = null,
-                    pendingPoiFocusTarget = null,
                 ),
             )
         assertTrue(pending)
@@ -279,8 +275,6 @@ class LocationMarkerTrustTest {
                     retainedLocationAnchor = anchor(),
                     lastKnownLocation = null,
                     startupMapFallbackState = StartupMapFallbackState.WAITING,
-                    navigateTarget = null,
-                    pendingPoiFocusTarget = null,
                 ),
             ),
         )
@@ -293,8 +287,6 @@ class LocationMarkerTrustTest {
                     retainedLocationAnchor = null,
                     lastKnownLocation = null,
                     startupMapFallbackState = StartupMapFallbackState.CANCELLED,
-                    navigateTarget = null,
-                    pendingPoiFocusTarget = null,
                 ),
             ),
         )
@@ -310,8 +302,6 @@ class LocationMarkerTrustTest {
                 retainedLocationAnchor = null,
                 lastKnownLocation = null,
                 startupMapFallbackState = StartupMapFallbackState.READY,
-                navigateTarget = null,
-                pendingPoiFocusTarget = null,
             )
         assertFalse(
             shouldWaitForOnlineStartupMapFallback(
@@ -340,8 +330,6 @@ class LocationMarkerTrustTest {
                 retainedLocationAnchor = anchor(),
                 lastKnownLocation = null,
                 startupMapFallbackState = StartupMapFallbackState.READY,
-                navigateTarget = null,
-                pendingPoiFocusTarget = null,
             )
 
         assertFalse(shouldStartOnlineStartupMapCentering(input))
@@ -494,8 +482,7 @@ class LocationMarkerTrustTest {
     }
 
     @Test
-    fun offlineAndExplicitPoiFocusDoNotEnterOnlineFallback() {
-        val poiTarget = PoiNavigateTarget(48.0, 11.0, "test", PoiType.GENERIC)
+    fun offlineDoesNotEnterOnlineFallback() {
         assertFalse(
             shouldWaitForOnlineStartupMapFallback(
                 OnlineStartupMapFallbackInput(
@@ -505,22 +492,6 @@ class LocationMarkerTrustTest {
                     retainedLocationAnchor = null,
                     lastKnownLocation = null,
                     startupMapFallbackState = StartupMapFallbackState.WAITING,
-                    navigateTarget = null,
-                    pendingPoiFocusTarget = null,
-                ),
-            ),
-        )
-        assertFalse(
-            shouldWaitForOnlineStartupMapFallback(
-                OnlineStartupMapFallbackInput(
-                    offlineMode = false,
-                    shouldTrackLocation = true,
-                    locationMarkerLatLong = null,
-                    retainedLocationAnchor = null,
-                    lastKnownLocation = null,
-                    startupMapFallbackState = StartupMapFallbackState.WAITING,
-                    navigateTarget = poiTarget,
-                    pendingPoiFocusTarget = null,
                 ),
             ),
         )

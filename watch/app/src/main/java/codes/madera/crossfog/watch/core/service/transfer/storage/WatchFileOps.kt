@@ -33,12 +33,6 @@ internal data class WatchMapWithBounds(
     val bbox: String,
 )
 
-internal data class WatchPoiWithBounds(
-    val fileName: String,
-    val absolutePath: String,
-    val bbox: String,
-)
-
 internal data class WatchRoutingSegmentWithBounds(
     val fileName: String,
     val absolutePath: String,
@@ -59,7 +53,6 @@ internal class WatchFileOps(
     fun isSupportedTransferFileName(fileName: String): Boolean =
         fileName.endsWith(".gpx", ignoreCase = true) ||
             fileName.endsWith(".map", ignoreCase = true) ||
-            fileName.endsWith(".poi", ignoreCase = true) ||
             isRoutingSegmentFileName(fileName) ||
             isDemFileName(fileName) ||
             MapsforgeThemePackage.isTransferName(fileName)
@@ -68,7 +61,6 @@ internal class WatchFileOps(
         when {
             fileName.endsWith(".gpx", ignoreCase = true) -> container.gpxRepository.fileExists(fileName)
             fileName.endsWith(".map", ignoreCase = true) -> container.mapRepository.fileExists(fileName)
-            fileName.endsWith(".poi", ignoreCase = true) -> container.poiRepository.fileExists(fileName)
             isRoutingSegmentFileName(fileName) -> routingSegmentTargetFile(app.applicationContext, fileName).exists()
             isDemFileName(fileName) -> demTargetFileForName(fileName).exists()
             // Packages are always atomically replaceable.
@@ -94,12 +86,6 @@ internal class WatchFileOps(
                     val mapPath = File(app.getDir("maps", Context.MODE_PRIVATE), safeName).absolutePath
                     cleanupDemForMapPath(mapPath)
                     container.mapRepository.deleteMapFile(mapPath)
-                }
-                fileName.endsWith(".poi", ignoreCase = true) -> {
-                    val safeName = sanitizeFileName(fileName)
-                    val poiPath = File(app.getDir("poi", Context.MODE_PRIVATE), safeName).absolutePath
-                    container.poiRepository.deletePoiFile(poiPath)
-                    container.syncManager.requestPoiSync()
                 }
                 isRoutingSegmentFileName(fileName) -> {
                     val target = routingSegmentTargetFile(app.applicationContext, fileName)
@@ -135,23 +121,6 @@ internal class WatchFileOps(
                     fileName = file.name,
                     absolutePath = file.absolutePath,
                     bbox = "${bbox.minLongitude},${bbox.minLatitude},${bbox.maxLongitude},${bbox.maxLatitude}",
-                )
-            }.sortedBy { it.fileName.lowercase(Locale.ROOT) }
-    }
-
-    suspend fun listPoiFilesWithBounds(): List<WatchPoiWithBounds> {
-        return container.poiRepository
-            .listPoiFiles()
-            .mapNotNull { file ->
-                val bounds =
-                    runCatching { container.poiRepository.readCoverageBounds(file.absolutePath) }
-                        .getOrNull()
-                        ?: return@mapNotNull null
-
-                WatchPoiWithBounds(
-                    fileName = file.name,
-                    absolutePath = file.absolutePath,
-                    bbox = "${bounds.minLon},${bounds.minLat},${bounds.maxLon},${bounds.maxLat}",
                 )
             }.sortedBy { it.fileName.lowercase(Locale.ROOT) }
     }
@@ -239,22 +208,6 @@ internal class WatchFileOps(
                     sha256
                 }
 
-                fileName.endsWith(".poi", ignoreCase = true) -> {
-                    val sha256 =
-                        container.poiRepository.savePoiFileAtomic(
-                            fileName = fileName,
-                            inputStream = inputStream,
-                            onProgress = onProgress,
-                            expectedSize = expectedSize,
-                            resumeOffset = resumeOffset,
-                            diagnosticContext = diagnosticContext,
-                            expectedSha256 = expectedSha256,
-                            keepPartialOnCancel = keepPartialOnCancel,
-                            keepPartialOnFailure = keepPartialOnFailure,
-                        )
-                    container.syncManager.requestPoiSync()
-                    sha256
-                }
 
                 isRoutingSegmentFileName(fileName) -> {
                     val target = routingSegmentTargetFile(app.applicationContext, fileName)
@@ -446,7 +399,6 @@ internal class WatchFileOps(
         when {
             safeName.endsWith(".gpx", ignoreCase = true) -> container.syncManager.requestGpxSync()
             safeName.endsWith(".map", ignoreCase = true) -> container.syncManager.requestMapSync()
-            safeName.endsWith(".poi", ignoreCase = true) -> container.syncManager.requestPoiSync()
             isDemFileName(safeName) -> {
                 DemSignatureStore.markDirty(app.applicationContext)
                 container.syncManager.requestMapSync()
@@ -468,12 +420,6 @@ internal class WatchFileOps(
                 val mapPath = File(dir, safeName).absolutePath
                 cleanupDemForMapPath(mapPath)
                 container.mapRepository.deleteMapFile(mapPath)
-            }
-            safeName.endsWith(".poi", ignoreCase = true) -> {
-                val dir = app.getDir("poi", Context.MODE_PRIVATE)
-                val poiPath = File(dir, safeName).absolutePath
-                container.poiRepository.deletePoiFile(poiPath)
-                container.syncManager.requestPoiSync()
             }
             isRoutingSegmentFileName(safeName) -> {
                 val target = routingSegmentTargetFile(app.applicationContext, safeName)
@@ -538,7 +484,6 @@ internal class WatchFileOps(
             ) -> File(container.externalThemeStore.transferDirectory, sanitizeFileName(fileName))
             fileName.endsWith(".gpx", ignoreCase = true) -> File(app.getDir("gpx", Context.MODE_PRIVATE), fileName)
             fileName.endsWith(".map", ignoreCase = true) -> File(app.getDir("maps", Context.MODE_PRIVATE), fileName)
-            fileName.endsWith(".poi", ignoreCase = true) -> File(app.getDir("poi", Context.MODE_PRIVATE), fileName)
             isRoutingSegmentFileName(fileName) -> routingSegmentTargetFile(app.applicationContext, fileName)
             isDemFileName(fileName) -> demTargetFileForName(fileName)
             else -> null
@@ -555,10 +500,6 @@ internal class WatchFileOps(
             }
             fileName.endsWith(".map", ignoreCase = true) -> {
                 val dir = app.getDir("maps", Context.MODE_PRIVATE)
-                File(dir, ".$fileName.part")
-            }
-            fileName.endsWith(".poi", ignoreCase = true) -> {
-                val dir = app.getDir("poi", Context.MODE_PRIVATE)
                 File(dir, ".$fileName.part")
             }
             isRoutingSegmentFileName(fileName) -> routingSegmentPartFile(app.applicationContext, fileName)

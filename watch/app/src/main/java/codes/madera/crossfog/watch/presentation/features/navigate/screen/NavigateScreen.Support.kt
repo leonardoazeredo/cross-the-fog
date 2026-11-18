@@ -245,36 +245,6 @@ internal fun compassMarkerQualityRank(quality: CompassMarkerQuality): Int =
         CompassMarkerQuality.GOOD -> 3
     }
 
-internal fun poiFocusZoomLevel(
-    mapView: MapView,
-    latitude: Double,
-    minZoom: Int,
-    maxZoom: Int,
-): Int {
-    val widthPx = mapView.width
-    if (widthPx <= 0) {
-        return FALLBACK_POI_FOCUS_ZOOM.coerceIn(minZoom, maxZoom)
-    }
-    val safeLatitude = latitude.coerceIn(-85.0, 85.0)
-    val desiredVisibleMeters = POI_FOCUS_TARGET_SCALE_METERS / POI_SCALE_INDICATOR_TARGET_RATIO
-    val desiredMetersPerPixel = desiredVisibleMeters / widthPx.toDouble()
-    if (!desiredMetersPerPixel.isFinite() || desiredMetersPerPixel <= 0.0) {
-        return FALLBACK_POI_FOCUS_ZOOM.coerceIn(minZoom, maxZoom)
-    }
-    val latitudeScale = cos(Math.toRadians(safeLatitude))
-    if (!latitudeScale.isFinite() || latitudeScale <= 0.0) {
-        return FALLBACK_POI_FOCUS_ZOOM.coerceIn(minZoom, maxZoom)
-    }
-    val rawZoom = log2((METERS_PER_PIXEL_EQUATOR_ZOOM_0 * latitudeScale) / desiredMetersPerPixel)
-    val roundedZoom =
-        if (rawZoom.isFinite()) {
-            rawZoom.roundToInt()
-        } else {
-            FALLBACK_POI_FOCUS_ZOOM
-        }
-    return roundedZoom.coerceIn(minZoom, maxZoom)
-}
-
 internal const val COMPASS_QUALITY_STARTUP_GRACE_MS = 2_200L
 internal const val COMPASS_POST_CALIBRATION_GREEN_HOLD_MS = 5_000L
 internal const val COMPASS_POST_CALIBRATION_UNRELIABLE_FLOOR_MS = 12_000L

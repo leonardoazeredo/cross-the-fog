@@ -49,14 +49,6 @@ fun DownloadSettingsScreen(
         }
         item {
             SettingsToggleChip(
-                checked = uiState.selection.includePoi,
-                onCheckedChanged = viewModel::setIncludePoi,
-                label = stringResource(R.string.common_poi),
-                secondaryLabel = stringResource(R.string.download_mapsforge_poi),
-            )
-        }
-        item {
-            SettingsToggleChip(
                 checked = uiState.selection.includeRouting,
                 onCheckedChanged = viewModel::setIncludeRouting,
                 label = stringResource(R.string.download_routing),
@@ -77,14 +69,6 @@ fun DownloadSettingsScreen(
                     onPickSource = openPicker,
                 )
             }
-        }
-        item {
-            SettingsToggleChip(
-                checked = uiState.selection.includeRefugesInfo,
-                onCheckedChanged = viewModel::setIncludeRefugesInfo,
-                label = stringResource(R.string.download_refuges_info),
-                secondaryLabel = stringResource(R.string.download_all_refuge_pois),
-            )
         }
     }
 }

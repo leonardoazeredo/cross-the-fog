@@ -83,8 +83,6 @@ import codes.madera.crossfog.watch.presentation.features.maps.MapLayerMutationCo
 import codes.madera.crossfog.watch.presentation.features.maps.MapZoomChangeAttribution
 import codes.madera.crossfog.watch.presentation.features.maps.RotatableMarker
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnByTurnGuidanceState
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
-import codes.madera.crossfog.watch.presentation.features.poi.PoiOverlayMarker
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingUiState
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingViewModel
 import codes.madera.crossfog.watch.presentation.features.recording.dashboard.LocalFullscreenPopupTimeFormat
@@ -186,7 +184,6 @@ internal fun NavigateContent(
     onShortcutTrayToggle: () -> Unit,
     onShortcutTrayDismiss: () -> Unit,
     onOpenGpxTools: () -> Unit,
-    onStartPoiCreation: () -> Unit,
     gpsIndicatorState: GpsFixIndicatorState,
     gpsEnvironmentWarning: GpsEnvironmentWarning,
     watchGpsDegradedWarning: Boolean,
@@ -219,11 +216,6 @@ internal fun NavigateContent(
     gpxTrackWidth: Float,
     gpxTrackOpacityPercent: Int,
     routeToolSession: RouteToolSession?,
-    crosshairSelectionActive: Boolean,
-    crosshairSelectionTitle: String? = null,
-    crosshairSelectionInstruction: String? = null,
-    crosshairSelectionBusy: Boolean = false,
-    crosshairSelectionBusyMessage: String? = null,
     routeToolCreatePreview: RouteToolCreatePreview?,
     routeToolDraftConnectorPoints: List<LatLong>,
     routeToolCreatePreviewInProgress: Boolean,
@@ -242,15 +234,7 @@ internal fun NavigateContent(
     onCancelRouteToolMode: () -> Unit,
     onDismissReshapePreview: () -> Unit,
     onSaveReshapePreview: () -> Unit,
-    onCrosshairSelectionPickHere: ((LatLong) -> Unit)? = null,
-    onCancelCrosshairSelection: (() -> Unit)? = null,
     onMapLongPress: (LatLong) -> Unit,
-    visiblePoiMarkers: List<PoiOverlayMarker>,
-    poiFocusTarget: PoiNavigateTarget?,
-    onPoiFocusTargetConsumed: () -> Unit,
-    onPoiTapCreateGpx: (PoiOverlayMarker) -> Unit,
-    poiPopupTimeoutSeconds: Int,
-    poiPopupManualCloseOnly: Boolean,
     markerMotionDebugOverlayLabel: String?,
     onCompassIssueNow: (() -> Unit)?,
 ) {
@@ -308,27 +292,16 @@ internal fun NavigateContent(
     val latestNavMode = rememberUpdatedState(navMode)
     val latestOnUserPanStarted = rememberUpdatedState(onUserPanStarted)
     val latestOnMapLongPress = rememberUpdatedState(onMapLongPress)
-    val latestInspectionEnabled =
-        rememberUpdatedState(
-            isGpxInspectionEnabled &&
-                routeToolSession == null &&
-                !crosshairSelectionActive &&
-                !reshapePreviewInspectMode,
-        )
     val latestMapLongPressEnabled =
         rememberUpdatedState(
             (isGpxInspectionEnabled || (poiMapLongPressActionsEnabled && !selectingGpxPointB)) &&
                 routeToolSession == null &&
-                !crosshairSelectionActive &&
                 !reshapePreviewInspectMode,
         )
     val latestRouteToolSession = rememberUpdatedState(routeToolSession)
-    val latestCrosshairSelectionActive = rememberUpdatedState(crosshairSelectionActive)
-    val latestReshapePreviewInspectMode = rememberUpdatedState(reshapePreviewInspectMode)
     val latestMapView = rememberUpdatedState(mapView)
     val latestOnZoomLevelChange = rememberUpdatedState(onZoomLevelChange)
     val latestOnViewportChanged = rememberUpdatedState(onViewportChanged)
-    val latestVisiblePoiMarkers = rememberUpdatedState(visiblePoiMarkers)
     val latestLastKnownLocation = rememberUpdatedState(lastKnownLocation)
     val latestNavigationMarkerAnchorMode = rememberUpdatedState(navigationMarkerAnchorMode)
     val latestMapPinchZoomEnabled = rememberUpdatedState(mapPinchZoomEnabled)
@@ -339,32 +312,9 @@ internal fun NavigateContent(
         remember(mapView, crownZoomEnabled, crownZoomInverted, zoomMin, zoomMax) {
             CrownZoomCoalescer()
         }
-    var poiTapMarker by remember { mutableStateOf<PoiOverlayMarker?>(null) }
-    var poiTapPopup by remember { mutableStateOf<PoiTapPopupContent?>(null) }
-    var poiTapPopupExpanded by remember { mutableStateOf(false) }
-    var poiTapPopupScrollInProgress by remember { mutableStateOf(false) }
     var routeToolOverlayRevision by remember { mutableIntStateOf(0) }
     var pendingDoubleTapPanningCheck by remember { mutableStateOf(false) }
     val panTelemetry = remember(mapView) { NavigatePanTelemetry() }
-    val latestPoiTapPopupScrollInProgress = rememberUpdatedState(poiTapPopupScrollInProgress)
-
-    LaunchedEffect(poiFocusTarget) {
-        val target = poiFocusTarget ?: return@LaunchedEffect
-        val marker =
-            PoiOverlayMarker(
-                key = "focus:${target.lat},${target.lon}:${target.label.orEmpty()}",
-                lat = target.lat,
-                lon = target.lon,
-                label = target.label,
-                type = target.type,
-                details = target.details,
-            )
-        poiTapMarker = marker
-        poiTapPopup = buildPoiTapPopupContent(marker, isMetric = isMetric, resources = resources)
-        poiTapPopupExpanded = false
-        poiTapPopupScrollInProgress = false
-        onPoiFocusTargetConsumed()
-    }
 
     LaunchedEffect(reshapePreviewInspectMode, reshapePreviewPoints, mapView, zoomMin, zoomMax) {
         val currentMapView = mapView ?: return@LaunchedEffect
@@ -534,44 +484,6 @@ internal fun NavigateContent(
                 object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDown(e: MotionEvent): Boolean = true
 
-                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                        if (!latestInspectionEnabled.value) return false
-                        val mv = latestMapView.value ?: return false
-                        val anchor = mv.resolveNavigationMarkerScreenAnchor(latestNavigationMarkerAnchorMode.value)
-                        val (x, y) =
-                            unrotateTouchToMapSpace(
-                                point = ScreenAnchor(e.x.toDouble(), e.y.toDouble()),
-                                mapWidth = mv.width.toDouble(),
-                                mapHeight = mv.height.toDouble(),
-                                mapRotationDeg = mv.mapRotation.degrees.toDouble(),
-                                pivot = anchor,
-                            )
-                        val ll = runCatching { mv.mapViewProjection.fromPixels(x, y) }.getOrNull() ?: return false
-                        if (latestRouteToolSession.value != null) return false
-                        if (latestCrosshairSelectionActive.value) {
-                            return false
-                        }
-                        if (latestReshapePreviewInspectMode.value) {
-                            return false
-                        }
-                        val zoomNow =
-                            mv.model.mapViewPosition.zoomLevel
-                                .toInt()
-                        val tappedPoi =
-                            findTappedPoiMarker(
-                                tap = ll,
-                                zoomLevel = zoomNow,
-                                markers = latestVisiblePoiMarkers.value,
-                            ) ?: return false
-
-                        triggerHaptic()
-                        poiTapMarker = tappedPoi
-                        poiTapPopup = buildPoiTapPopupContent(tappedPoi, isMetric = isMetric, resources = resources)
-                        poiTapPopupExpanded = false
-                        poiTapPopupScrollInProgress = false
-                        return true
-                    }
-
                     override fun onLongPress(e: MotionEvent) {
                         if (!latestMapLongPressEnabled.value) return
                         val mv = latestMapView.value ?: return
@@ -610,7 +522,7 @@ internal fun NavigateContent(
                 },
             )
         }
-    val routeToolModeActive = routeToolSession != null || crosshairSelectionActive || reshapePreviewInspectMode
+    val routeToolModeActive = routeToolSession != null || reshapePreviewInspectMode
     val density = LocalDensity.current
     var visibleMapSizePx by remember { mutableStateOf(IntSize.Zero) }
     var clockChipWidthPx by remember { mutableIntStateOf(0) }
@@ -668,28 +580,6 @@ internal fun NavigateContent(
         }
     }
 
-    LaunchedEffect(poiTapPopup, poiTapPopupExpanded, poiPopupTimeoutSeconds, poiPopupManualCloseOnly) {
-        if (poiTapPopup == null || poiPopupManualCloseOnly) return@LaunchedEffect
-        var remainingMs = poiPopupTimeoutSeconds.coerceAtLeast(1) * 1_000L
-        while (remainingMs > 0L) {
-            val tickMs = minOf(100L, remainingMs)
-            delay(tickMs)
-            if (!latestPoiTapPopupScrollInProgress.value) {
-                remainingMs -= tickMs
-            }
-        }
-        poiTapMarker = null
-        poiTapPopup = null
-        poiTapPopupExpanded = false
-        poiTapPopupScrollInProgress = false
-    }
-
-    val poiTapMessage =
-        when {
-            poiTapPopup == null -> null
-            poiTapPopupExpanded -> poiTapPopup?.expandedText ?: poiTapPopup?.compactText
-            else -> poiTapPopup?.compactText
-        }
     val expandedMapSurfaceHeightPx =
         navigationMarkerMapSurfaceHeightPx(
             visibleHeightPx = visibleMapSizePx.height,
@@ -1101,31 +991,6 @@ internal fun NavigateContent(
                     scaleIndicator = scaleIndicator,
                     showScaleBar = showScaleBar,
                     zoomScaleBarWidth = zoomScaleBarWidth,
-                    poiTapMessage = poiTapMessage,
-                    poiTapCanExpand = poiTapPopup?.canExpand == true,
-                    poiTapCanCreateGpx = poiTapMarker != null,
-                    poiTapExpanded = poiTapPopupExpanded,
-                    onPoiTapExpandToggle = {
-                        poiTapPopupExpanded = !poiTapPopupExpanded
-                    },
-                    onPoiTapCreateGpx = {
-                        poiTapMarker?.let { marker ->
-                            onPoiTapCreateGpx(marker)
-                            poiTapMarker = null
-                            poiTapPopup = null
-                            poiTapPopupExpanded = false
-                            poiTapPopupScrollInProgress = false
-                        }
-                    },
-                    onPoiTapDismiss = {
-                        poiTapMarker = null
-                        poiTapPopup = null
-                        poiTapPopupExpanded = false
-                        poiTapPopupScrollInProgress = false
-                    },
-                    onPoiTapScrollInProgressChanged = { isScrolling ->
-                        poiTapPopupScrollInProgress = isScrolling
-                    },
                     onMenuClick = onMenuClick,
                     sideButtonEdgePadding = sideButtonEdgePadding,
                     sideButtonSize = sideButtonSize,
@@ -1135,7 +1000,6 @@ internal fun NavigateContent(
                     onShortcutTrayToggle = onShortcutTrayToggle,
                     onShortcutTrayDismiss = onShortcutTrayDismiss,
                     onGpxToolsClick = onOpenGpxTools,
-                    onCreatePoiClick = onStartPoiCreation,
                     keepAppOpen = keepAppOpen,
                     onKeepAppOpenToggle = onKeepAppOpenToggle,
                     traceRecordingState = traceRecordingState,
@@ -1289,13 +1153,6 @@ internal fun NavigateContent(
                 reshapePreviewMessage = reshapePreviewMessage,
                 onDismissReshapePreview = onDismissReshapePreview,
                 onSaveReshapePreview = onSaveReshapePreview,
-                crosshairSelectionActive = crosshairSelectionActive,
-                crosshairSelectionBusy = crosshairSelectionBusy,
-                crosshairSelectionBusyMessage = crosshairSelectionBusyMessage,
-                crosshairSelectionTitle = crosshairSelectionTitle,
-                crosshairSelectionInstruction = crosshairSelectionInstruction,
-                onCrosshairSelectionPickHere = onCrosshairSelectionPickHere,
-                onCancelCrosshairSelection = onCancelCrosshairSelection,
                 visibleMapSizePx = visibleMapSizePx,
             )
         } else {

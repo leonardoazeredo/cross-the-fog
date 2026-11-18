@@ -31,9 +31,7 @@ import codes.madera.crossfog.watch.core.service.location.model.effectiveAccuracy
 import codes.madera.crossfog.watch.core.service.location.model.isInteractive
 import codes.madera.crossfog.watch.core.service.location.model.isNonInteractive
 import codes.madera.crossfog.watch.core.service.location.policy.NavigationRuntimeDemandReason
-import codes.madera.crossfog.watch.data.repository.PoiType
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
-import codes.madera.crossfog.watch.data.repository.UserPoiRecord
 import codes.madera.crossfog.watch.domain.sensors.CompassViewModel
 import codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.DemSetupBottomSheet
@@ -46,9 +44,6 @@ import codes.madera.crossfog.watch.presentation.features.navigate.effects.Naviga
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCompassEffects
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateCompassWakeTelemetry
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.rememberNavigateLocationUiState
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
-import codes.madera.crossfog.watch.presentation.features.poi.PoiOverlayMarker
-import codes.madera.crossfog.watch.presentation.features.poi.PoiViewModel
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingViewModel
 import codes.madera.crossfog.watch.presentation.features.routetools.RouteModifyMode
 import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolCreatePreview
@@ -76,7 +71,6 @@ import org.mapsforge.map.android.graphics.AndroidBitmap
 fun NavigateScreen(
     mapViewModel: MapViewModel,
     gpxViewModel: GpxViewModel,
-    poiViewModel: PoiViewModel,
     settingsViewModel: SettingsViewModel,
     locationViewModel: LocationViewModel,
     traceRecordingViewModel: TraceRecordingViewModel,
@@ -208,9 +202,6 @@ fun NavigateScreen(
             } else {
                 navigationMarkerAnchorMode
             }
-        val activePoiOverlaySources by poiViewModel.activeOverlaySources.collectAsState()
-        val navigateTarget by poiViewModel.navigateTarget.collectAsState()
-        val offlinePoiSearchUiState by poiViewModel.offlineSearchUiState.collectAsState()
         val traceRecordingState by traceRecordingViewModel.recordingPresentationState.collectAsState()
         val recordingSampleIntervalSeconds by settingsViewModel.recordingSampleIntervalSeconds.collectAsState()
         val recordingScreenOffSampleIntervalSeconds by settingsViewModel.recordingScreenOffSampleIntervalSeconds
@@ -267,9 +258,6 @@ fun NavigateScreen(
         var routeToolSession by rememberSaveable(stateSaver = routeToolSessionSaver) {
             mutableStateOf<RouteToolSession?>(null)
         }
-        var poiCreationSelectionActive by rememberSaveable { mutableStateOf(false) }
-        var showPoiCreationChoiceDialog by rememberSaveable { mutableStateOf(false) }
-        var showPoiCoordinateEntryDialog by rememberSaveable { mutableStateOf(false) }
         var mapLongPressTarget by remember { mutableStateOf<LatLong?>(null) }
         var mapLongPressRequestId by remember { mutableLongStateOf(0L) }
         var completedRouteToolDraft by remember { mutableStateOf<RouteToolSession?>(null) }
@@ -285,11 +273,6 @@ fun NavigateScreen(
         var routeToolCreatePreviewInProgress by remember { mutableStateOf(false) }
         var routeToolCreatePreviewMessage by remember { mutableStateOf<String?>(null) }
         var routeToolPreflightMessage by remember { mutableStateOf<String?>(null) }
-        var createdPoiCreateInProgress by remember { mutableStateOf(false) }
-        var createdPoiPendingRename by remember { mutableStateOf<UserPoiRecord?>(null) }
-        var showCreatedPoiRenameDialog by remember { mutableStateOf(false) }
-        var createdPoiRenameInProgress by remember { mutableStateOf(false) }
-        var createdPoiRenameError by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
 
         // ---- Should track location? ----
@@ -337,7 +320,7 @@ fun NavigateScreen(
                 serviceEffectiveIntervalMs = serviceEffectiveGpsIntervalMs,
                 configuredIntervalMs = configuredMarkerGpsIntervalMs,
             )
-        val effectiveNavMode = if (offlineMode || navigateTarget != null) NavMode.PANNING else navMode
+        val effectiveNavMode = if (offlineMode) NavMode.PANNING else navMode
         // ---- Heading + Accuracy ----
         val compassUiState =
             rememberNavigateCompassUiState(
@@ -498,27 +481,7 @@ fun NavigateScreen(
             return
         }
 
-        var pendingPoiFocusTarget by remember { mutableStateOf<PoiNavigateTarget?>(null) }
-
         val mapView = mapHolder.mapView
-
-        LaunchedEffect(navigateTarget, mapView, zoomMin, zoomMax) {
-            val target = navigateTarget ?: return@LaunchedEffect
-            navigateViewModel.onUserPanStarted()
-            mapView.setCenter(LatLong(target.lat, target.lon))
-            val focusZoom =
-                poiFocusZoomLevel(
-                    mapView = mapView,
-                    latitude = target.lat,
-                    minZoom = zoomMin,
-                    maxZoom = zoomMax,
-                )
-            MapZoomChangeAttribution.prepare(mapView, "poi_focus")
-            mapView.model.mapViewPosition.setZoomLevel(focusZoom.toByte(), false)
-            navigateViewModel.onZoomChanged(focusZoom)
-            pendingPoiFocusTarget = target
-            poiViewModel.consumeNavigateTarget()
-        }
 
         val locationUiState =
             rememberNavigateLocationUiState(
@@ -593,7 +556,6 @@ fun NavigateScreen(
                     ),
                 )
             }
-        var visiblePoiMarkers by remember { mutableStateOf<List<PoiOverlayMarker>>(emptyList()) }
         val markerMotionDebugOverlayRefreshEnabled =
             shouldRefreshMarkerMotionDebugOverlay(
                 gpsDebugTelemetry = gpsDebugTelemetry,
@@ -631,10 +593,6 @@ fun NavigateScreen(
             recordingTraceFollowsMarker = traceRecordingState.active && !traceRecordingState.paused,
             routeToolCreatePreviewActive = displayedRouteToolCreatePreview != null,
             routeToolDraftPoints = routeToolDraftConnectorPoints,
-            poiViewModel = poiViewModel,
-            activePoiOverlaySources = activePoiOverlaySources,
-            poiMarkerSizePx = poiIconSizePx,
-            poiMarkerStyle = poiMarkerStyle,
             gpxTrackColor = gpxTrackColor,
             gpxTrackColorMode = gpxTrackColorMode,
             gpxTrackWidth = gpxTrackWidth,
@@ -665,7 +623,6 @@ fun NavigateScreen(
             isMetric = isMetric,
             onRenderedHeadingChanged = { renderedCompassHeadingDeg = it },
             onRenderedMapRotationChanged = { renderedMapRotationDeg = it },
-            onPoiMarkersSnapshotChanged = { markers -> visiblePoiMarkers = markers },
         )
         NavigateCompassWakeTelemetry(
             isScreenResumed = isScreenResumed,
@@ -679,15 +636,9 @@ fun NavigateScreen(
         NavigateBackHandler(
             mapFocusMode = mapFocusState.mapFocusMode,
             onExitMapFocus = { exitMapFocus("back") },
-            createdPoiCreateInProgress = createdPoiCreateInProgress,
             completedRouteToolDraftActive = completedRouteToolDraft != null,
             routeToolExecutionInProgress = routeToolExecutionInProgress,
             routeToolSessionActive = routeToolSession != null,
-            showPoiCreationChoiceDialog = showPoiCreationChoiceDialog,
-            showPoiCoordinateEntryDialog = showPoiCoordinateEntryDialog,
-            showCreatedPoiRenameDialog = showCreatedPoiRenameDialog,
-            createdPoiRenameInProgress = createdPoiRenameInProgress,
-            poiCreationSelectionActive = poiCreationSelectionActive,
             showRouteToolsPanel = showRouteToolsPanel,
             shortcutTrayExpanded = shortcutTrayExpanded,
             backButtonExitsNavigation = backButtonExitsNavigation,
@@ -703,24 +654,12 @@ fun NavigateScreen(
                 routeToolCreatePreviewMessage = null
                 routeToolCreatePreviewInProgress = false
             },
-            onDismissPoiCreationChoiceDialog = { showPoiCreationChoiceDialog = false },
-            onDismissPoiCoordinateEntryDialog = { showPoiCoordinateEntryDialog = false },
-            onDismissCreatedPoiRename = {
-                showCreatedPoiRenameDialog = false
-                createdPoiPendingRename = null
-                createdPoiRenameError = null
-                poiCreationSelectionActive = false
-            },
-            onCancelPoiCreation = {
-                poiCreationSelectionActive = false
-            },
             onDismissRouteToolsPanel = {
                 showRouteToolsPanel = false
                 routeToolPreview = null
                 routeToolCreatePreview = null
                 routeToolCreatePreviewMessage = null
                 routeToolCreatePreviewInProgress = false
-                poiViewModel.clearOfflinePoiSearch()
             },
             onDismissShortcutTray = { shortcutTrayExpanded = false },
             onMenuClick = onMenuClick,
@@ -770,8 +709,6 @@ fun NavigateScreen(
                 retainedLocationAnchor = navigateViewModel.currentStateSnapshot.retainedLocationAnchor,
                 startupMapFallbackState = uiState.startupMapFallbackState,
                 onStartupMapFallbackEvent = navigateViewModel::onStartupMapFallbackEvent,
-                navigateTarget = navigateTarget,
-                pendingPoiFocusTarget = pendingPoiFocusTarget,
                 mapView = mapView,
                 mapViewModel = mapViewModel,
                 selectedMapPath = selectedMapPath,
@@ -870,7 +807,6 @@ fun NavigateScreen(
                 scope = scope,
                 mapView = mapView,
                 gpxViewModel = gpxViewModel,
-                poiViewModel = poiViewModel,
                 locationViewModel = locationViewModel,
                 recenterTarget = recenterTarget,
                 gpsSignalSnapshot = gpsSignalSnapshot,
@@ -902,12 +838,6 @@ fun NavigateScreen(
                 setRouteToolPreflightMessage = { routeToolPreflightMessage = it },
                 setShortcutTrayExpanded = { shortcutTrayExpanded = it },
                 setShowRouteToolsPanel = { showRouteToolsPanel = it },
-                setPoiCreationSelectionActive = { poiCreationSelectionActive = it },
-                createdPoiCreateInProgress = createdPoiCreateInProgress,
-                setCreatedPoiCreateInProgress = { createdPoiCreateInProgress = it },
-                setCreatedPoiPendingRename = { createdPoiPendingRename = it },
-                setCreatedPoiRenameError = { createdPoiRenameError = it },
-                setShowCreatedPoiRenameDialog = { showCreatedPoiRenameDialog = it },
             )
 
         NavigateScreenDialogsHost(
@@ -930,87 +860,21 @@ fun NavigateScreen(
                 showNotificationPermissionDialog = false
                 pendingKeepAppOpen = false
             },
-            showPoiCreationChoiceDialog = showPoiCreationChoiceDialog,
-            showPoiCoordinateEntryDialog = showPoiCoordinateEntryDialog,
-            onDismissPoiCreationChoiceDialog = { showPoiCreationChoiceDialog = false },
-            onOpenPoiCoordinateEntryDialog = {
-                showPoiCreationChoiceDialog = false
-                showPoiCoordinateEntryDialog = true
-            },
-            onDismissPoiCoordinateEntryDialog = { showPoiCoordinateEntryDialog = false },
             mapLongPressTarget = mapLongPressTarget,
-            onCreatePoiAtMapLongPress = { target ->
-                mapLongPressTarget = null
-                routeToolActions.savePoiAt(target)
-            },
             onCreateRouteAtMapLongPress = { target ->
                 mapLongPressTarget = null
                 routeToolActions.createRouteToCoordinate(target)
             },
             onDismissMapLongPressActions = { mapLongPressTarget = null },
-            showCreatedPoiRenameDialog = showCreatedPoiRenameDialog,
-            createdPoiPendingRename = createdPoiPendingRename,
-            createdPoiRenameInProgress = createdPoiRenameInProgress,
-            createdPoiRenameError = createdPoiRenameError,
-            onDismissCreatedPoiRename = {
-                if (!createdPoiRenameInProgress) {
-                    createdPoiPendingRename?.let { createdPoi ->
-                        pendingPoiFocusTarget =
-                            PoiNavigateTarget(
-                                lat = createdPoi.lat,
-                                lon = createdPoi.lon,
-                                label = createdPoi.name,
-                                type = PoiType.CUSTOM,
-                                details = createdPoi.details,
-                            )
-                    }
-                    showCreatedPoiRenameDialog = false
-                    createdPoiPendingRename = null
-                    createdPoiRenameError = null
-                    poiCreationSelectionActive = false
-                }
-            },
-            onConfirmCreatedPoiRename = { newName ->
-                val target = createdPoiPendingRename ?: return@NavigateScreenDialogsHost
-                if (createdPoiRenameInProgress) return@NavigateScreenDialogsHost
-                createdPoiRenameInProgress = true
-                createdPoiRenameError = null
-                scope.launch {
-                    runCatching {
-                        poiViewModel.renameMyCreationPoi(target.id, newName)
-                    }.onSuccess {
-                        pendingPoiFocusTarget =
-                            PoiNavigateTarget(
-                                lat = target.lat,
-                                lon = target.lon,
-                                label = newName.trim().ifBlank { target.name },
-                                type = PoiType.CUSTOM,
-                                details = target.details,
-                            )
-                        createdPoiRenameInProgress = false
-                        showCreatedPoiRenameDialog = false
-                        createdPoiPendingRename = null
-                        createdPoiRenameError = null
-                        poiCreationSelectionActive = false
-                    }.onFailure { error ->
-                        createdPoiRenameInProgress = false
-                        createdPoiRenameError = error.localizedMessage?.takeIf { it.isNotBlank() }
-                            ?: resources.getString(R.string.navigate_failed_to_rename_the_poi)
-                    }
-                }
-            },
-            createdPoiCreateInProgress = createdPoiCreateInProgress,
             showRouteToolsPanel = showRouteToolsPanel,
             activeGpxDetailsCount = activeGpxDetails.size,
             coordinateSeed = mapView.model.mapViewPosition.center,
-            poiSearchState = offlinePoiSearchUiState,
             routeToolOptions = routeToolOptions,
             routeToolPreflightMessage = routeToolPreflightMessage,
             onRouteToolOptionsChange = {
                 routeToolPreflightMessage = null
                 routeToolOptions = it.withVisibleLoopDefaults()
             },
-            poiViewModel = poiViewModel,
             routeToolActions = routeToolActions,
             completedRouteToolDraft = completedRouteToolDraft,
             reshapePreviewInspectMode = reshapePreviewInspectMode,
@@ -1049,12 +913,10 @@ fun NavigateScreen(
             onDismissRouteToolsPanel = {
                 showRouteToolsPanel = false
                 routeToolPreflightMessage = null
-                poiViewModel.clearOfflinePoiSearch()
             },
             onOpenGpxToolsSettings = {
                 showRouteToolsPanel = false
                 routeToolPreflightMessage = null
-                poiViewModel.clearOfflinePoiSearch()
                 onOpenGpxToolsSettings()
             },
         )
@@ -1190,10 +1052,6 @@ fun NavigateScreen(
             onShortcutTrayToggle = screenActions.toggleShortcutTray,
             onShortcutTrayDismiss = { shortcutTrayExpanded = false },
             onOpenGpxTools = routeToolActions.openRouteToolsPanel,
-            onStartPoiCreation = {
-                shortcutTrayExpanded = false
-                showPoiCreationChoiceDialog = true
-            },
             gpsIndicatorState = effectiveGpsIndicatorState,
             gpsEnvironmentWarning = gpsEnvironmentWarning,
             watchGpsDegradedWarning = watchGpsDegradedWarning,
@@ -1227,11 +1085,6 @@ fun NavigateScreen(
             gpxTrackWidth = gpxTrackWidth,
             gpxTrackOpacityPercent = gpxTrackOpacityPercent,
             routeToolSession = routeToolSession,
-            crosshairSelectionActive = poiCreationSelectionActive,
-            crosshairSelectionTitle = stringResource(R.string.navigate_poi),
-            crosshairSelectionInstruction = stringResource(R.string.navigate_move_map_then_check),
-            crosshairSelectionBusy = createdPoiCreateInProgress,
-            crosshairSelectionBusyMessage = stringResource(R.string.navigate_saving_poi),
             routeToolCreatePreview = displayedRouteToolCreatePreview,
             routeToolDraftConnectorPoints = routeToolDraftConnectorPoints,
             routeToolCreatePreviewInProgress = routeToolCreatePreviewInProgress,
@@ -1266,8 +1119,6 @@ fun NavigateScreen(
                     routeToolActions.executeModifyDraft(draft, false)
                 }
             },
-            onCrosshairSelectionPickHere = routeToolActions.savePoiAt,
-            onCancelCrosshairSelection = { poiCreationSelectionActive = false },
             onMapLongPress = { latLong ->
                 val requestId = ++mapLongPressRequestId
                 val selectingPointBAtPress = selectingGpxPointB
@@ -1286,12 +1137,6 @@ fun NavigateScreen(
                     }
                 }
             },
-            visiblePoiMarkers = visiblePoiMarkers,
-            poiFocusTarget = pendingPoiFocusTarget,
-            onPoiFocusTargetConsumed = { pendingPoiFocusTarget = null },
-            onPoiTapCreateGpx = routeToolActions.createRouteToPoi,
-            poiPopupTimeoutSeconds = poiPopupTimeoutSeconds,
-            poiPopupManualCloseOnly = poiPopupManualCloseOnly,
             markerMotionDebugOverlayLabel = markerMotionDebugOverlayLabel,
             onCompassIssueNow =
                 if (gpsDebugTelemetry && gpsDebugTelemetryPopupEnabled && !offlineMode) {
@@ -1328,12 +1173,7 @@ fun NavigateScreen(
                 !routeToolExecutionInProgress &&
                 routeToolResult == null &&
                 mapLongPressTarget == null &&
-                !poiCreationSelectionActive &&
-                !selectingGpxPointB &&
-                !showPoiCreationChoiceDialog &&
-                !showPoiCoordinateEntryDialog &&
-                !showCreatedPoiRenameDialog &&
-                !createdPoiCreateInProgress
+                !selectingGpxPointB
         MissingMapPrompt(
             visible =
                 shouldShowMissingMapPrompt(

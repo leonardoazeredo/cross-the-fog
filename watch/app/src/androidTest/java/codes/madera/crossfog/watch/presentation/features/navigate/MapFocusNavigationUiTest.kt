@@ -88,7 +88,6 @@ class MapFocusNavigationUiTest {
                             NavigateScreen(
                                 mapViewModel = container.mapViewModel,
                                 gpxViewModel = container.gpxViewModel,
-                                poiViewModel = container.poiViewModel,
                                 settingsViewModel = container.settingsViewModel,
                                 locationViewModel = container.locationViewModel,
                                 traceRecordingViewModel = container.traceRecordingViewModel,

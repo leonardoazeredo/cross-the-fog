@@ -22,7 +22,6 @@ import codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.MapViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.theme.ThemeViewModel
 import codes.madera.crossfog.watch.presentation.features.navigate.LocationViewModel
-import codes.madera.crossfog.watch.presentation.features.poi.PoiViewModel
 import codes.madera.crossfog.watch.presentation.features.recording.RecordingElevationProvider
 import codes.madera.crossfog.watch.presentation.features.recording.RecordingRuntimeDependencies
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingDraftStore
@@ -70,14 +69,6 @@ class AppContainer(
         MapRepositoryImpl(applicationContext)
     }
 
-    val poiRepository: PoiRepository by lazy {
-        PoiRepositoryImpl(applicationContext)
-    }
-
-    val userPoiRepository: UserPoiRepository by lazy {
-        UserPoiRepository(applicationContext)
-    }
-
     val externalThemeStore: ExternalThemeStore by lazy {
         ExternalThemeStore(
             root = File(applicationContext.filesDir, "mapsforge-themes"),
@@ -105,7 +96,6 @@ class AppContainer(
             gpxExportRepository = gpxExportRepository,
             syncManager = syncManager,
             settingsRepository = settingsRepository,
-            poiRepository = poiRepository,
             routeServices =
                 GpxRouteServices(
                     planner = routePlanner,
@@ -125,16 +115,6 @@ class AppContainer(
         )
     }
 
-    val poiViewModel: PoiViewModel by lazy {
-        PoiViewModel(
-            resources = applicationContext.resources,
-            poiRepository = poiRepository,
-            userPoiRepository = userPoiRepository,
-            settingsRepository = settingsRepository,
-            syncManager = syncManager,
-        )
-    }
-
     val downloadViewModel: DownloadViewModel by lazy {
         DownloadViewModel(
             resources = applicationContext.resources,
@@ -142,7 +122,6 @@ class AppContainer(
                 OamBundleDownloader(
                     context = applicationContext,
                     mapRepository = mapRepository,
-                    poiRepository = poiRepository,
                 ),
             notificationController = OamDownloadNotificationController(applicationContext),
             networkMonitor = OamDownloadNetworkMonitor(applicationContext),

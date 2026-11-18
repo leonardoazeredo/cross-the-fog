@@ -12,7 +12,6 @@ import codes.madera.crossfog.watch.core.service.transfer.notifications.Notificat
 import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferSessionState
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchFileOps
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchMapWithBounds
-import codes.madera.crossfog.watch.core.service.transfer.storage.WatchPoiWithBounds
 import codes.madera.crossfog.watch.core.service.transfer.storage.WatchRoutingSegmentWithBounds
 import com.google.android.gms.wearable.MessageEvent
 import kotlinx.coroutines.Dispatchers
@@ -484,12 +483,6 @@ private suspend fun buildInstalledCoverageReply(
                 Log.w(TAG, "Failed to list maps for request id=$requestId", it)
                 emptyList()
             }
-    val pois =
-        runCatching { fileOps.listPoiFilesWithBounds() }
-            .getOrElse {
-                Log.w(TAG, "Failed to list POI coverage for request id=$requestId", it)
-                emptyList()
-            }
     val routingSegments =
         runCatching { fileOps.listRoutingSegmentsWithBounds() }
             .getOrElse {
@@ -500,7 +493,6 @@ private suspend fun buildInstalledCoverageReply(
     return JSONObject()
         .put("id", requestId)
         .put("maps", mapsToJsonRows(maps))
-        .put("pois", poisToJsonRows(pois))
         .put("routingTiles", routingSegmentsToJsonRows(routingSegments))
 }
 
@@ -509,13 +501,6 @@ private fun mapsToJsonRows(maps: List<WatchMapWithBounds>): JSONArray =
         fileName = WatchMapWithBounds::fileName,
         absolutePath = WatchMapWithBounds::absolutePath,
         bbox = WatchMapWithBounds::bbox,
-    )
-
-private fun poisToJsonRows(pois: List<WatchPoiWithBounds>): JSONArray =
-    pois.toJsonRows(
-        fileName = WatchPoiWithBounds::fileName,
-        absolutePath = WatchPoiWithBounds::absolutePath,
-        bbox = WatchPoiWithBounds::bbox,
     )
 
 private fun routingSegmentsToJsonRows(segments: List<WatchRoutingSegmentWithBounds>): JSONArray =

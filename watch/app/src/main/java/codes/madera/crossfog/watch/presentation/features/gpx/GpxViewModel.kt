@@ -14,7 +14,6 @@ import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.location.policy.LocationFixPolicy
 import codes.madera.crossfog.watch.data.repository.GpxExportRepository
 import codes.madera.crossfog.watch.data.repository.GpxRepositoryImpl
-import codes.madera.crossfog.watch.data.repository.PoiRepository
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.presentation.SyncManager
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GpxGuidanceSession
@@ -112,7 +111,6 @@ class GpxViewModel(
     private val gpxExportRepository: GpxExportRepository,
     private val syncManager: SyncManager,
     private val settingsRepository: SettingsRepository,
-    private val poiRepository: PoiRepository,
     private val routeServices: GpxRouteServices,
 ) : ViewModel() {
     private val _gpxFiles = MutableStateFlow<List<GpxFileState>>(emptyList())
@@ -153,8 +151,6 @@ class GpxViewModel(
     private val _turnByTurnGuidancePaused = MutableStateFlow(false)
     val turnByTurnGuidancePaused: StateFlow<Boolean> = _turnByTurnGuidancePaused.asStateFlow()
 
-    private var lastObservedActiveGpxPaths: Set<String>? = null
-    private var previousGpxWaypointPoiFolderLinkEnabled: Boolean? = null
 
     // ----------------------------
     // Internal inspection session state
@@ -359,20 +355,7 @@ class GpxViewModel(
                 hasObservedInitialActivePaths = true
                 val reloadId = reloadCoordinator.request()
                 reloadCoordinator.await(reloadId)
-                syncLinkedGpxWaypointPoiFolders(activePaths)
                 if (isInitial) initialGpxLoadCompleted.complete(Unit)
-            }.launchIn(viewModelScope)
-
-        settingsRepository.linkGpxWaypointPoiFolders
-            .onEach { enabled ->
-                val wasEnabled = previousGpxWaypointPoiFolderLinkEnabled
-                previousGpxWaypointPoiFolderLinkEnabled = enabled
-                if (enabled && wasEnabled == false) {
-                    gpxRepository
-                        .getActiveGpxFiles()
-                        .first()
-                        .forEach { path -> setLinkedGpxWaypointPoiEnabled(path = path, enabled = true) }
-                }
             }.launchIn(viewModelScope)
 
         syncManager.gpxSyncRequest
@@ -1015,79 +998,6 @@ class GpxViewModel(
         DebugTelemetry.log("GpxViewModel", "event=reset_active_files")
     }
 
-    private suspend fun syncLinkedGpxWaypointPoiFolders(activePaths: Set<String>) {
-        val previousPaths = lastObservedActiveGpxPaths
-        lastObservedActiveGpxPaths = activePaths
-        if (previousPaths == null) {
-            activePaths.forEach { path -> setLinkedGpxWaypointPoiEnabled(path = path, enabled = true) }
-            return
-        }
-        (previousPaths - activePaths).forEach { path ->
-            setLinkedGpxWaypointPoiEnabled(path = path, enabled = false)
-        }
-        (activePaths - previousPaths).forEach { path ->
-            setLinkedGpxWaypointPoiEnabled(path = path, enabled = true)
-        }
-    }
-
-    private suspend fun setLinkedGpxWaypointPoiEnabled(
-        path: String,
-        enabled: Boolean,
-    ) {
-        if (settingsRepository.linkGpxWaypointPoiFolders.first()) {
-            val gpxFileName = File(path).name
-            val linkedPoiFiles = findLinkedGpxWaypointPoiFiles(gpxFileName)
-            if (linkedPoiFiles.isNotEmpty()) {
-                val changed = syncLinkedGpxWaypointPoiFiles(linkedPoiFiles, gpxFileName, enabled)
-                if (changed) {
-                    syncManager.requestPoiSync()
-                    DebugTelemetry.log(
-                        "GpxViewModel",
-                        "event=linked_waypoints_sync file=${gpxFileName.telemetryToken()} " +
-                            "active=$enabled folders=${linkedPoiFiles.size}",
-                    )
-                }
-            }
-        }
-    }
-
-    private suspend fun findLinkedGpxWaypointPoiFiles(gpxFileName: String): List<File> =
-        runCatching { poiRepository.findGpxWaypointPoiFiles(gpxFileName) }
-            .getOrElse { error ->
-                DebugTelemetry.log(
-                    "GpxViewModel",
-                    "event=linked_waypoints_sync_failed file=${gpxFileName.telemetryToken()} " +
-                        "reason=${error.javaClass.simpleName}",
-                )
-                emptyList()
-            }
-
-    private suspend fun syncLinkedGpxWaypointPoiFiles(
-        linkedPoiFiles: List<File>,
-        gpxFileName: String,
-        enabled: Boolean,
-    ): Boolean {
-        var changed = false
-        linkedPoiFiles.forEach { poiFile ->
-            runCatching {
-                val categories = poiRepository.readCategories(poiFile.absolutePath)
-                poiRepository.setFileEnabled(poiFile.absolutePath, enabled)
-                poiRepository.setEnabledCategories(
-                    path = poiFile.absolutePath,
-                    enabledCategoryIds = if (enabled) categories.map { it.id }.toSet() else emptySet(),
-                )
-                changed = true
-            }.onFailure { error ->
-                DebugTelemetry.log(
-                    "GpxViewModel",
-                    "event=linked_waypoints_sync_failed file=${gpxFileName.telemetryToken()} " +
-                        "poi=${poiFile.name.telemetryToken()} reason=${error.javaClass.simpleName}",
-                )
-            }
-        }
-        return changed
-    }
-
     // Resource-call wrapping increases line count; keep the existing flow together.
     @Suppress("LongMethod")
     fun startTurnByTurnGuidance(
@@ -1354,19 +1264,6 @@ class GpxViewModel(
                     }
                 }
             result.getOrNull()?.let { savedFile ->
-                val renamedWaypointFolders =
-                    poiRepository.updateLinkedGpxWaypointFileName(
-                        previousGpxFileName = File(filePath).name,
-                        newGpxFileName = savedFile.name,
-                    )
-                if (renamedWaypointFolders > 0) {
-                    syncManager.requestPoiSync()
-                    val activePaths = gpxRepository.getActiveGpxFiles().first()
-                    setLinkedGpxWaypointPoiEnabled(
-                        path = savedFile.absolutePath,
-                        enabled = savedFile.absolutePath in activePaths,
-                    )
-                }
                 clearAllGpxCaches()
                 if (_turnByTurnGuidanceSession.value?.trackId == filePath) stopTurnByTurnGuidance()
                 if (aPos?.trackId == filePath) dismissInspection()

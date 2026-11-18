@@ -431,7 +431,6 @@ class MapFocusModeUiTest {
                                 onToggleExpanded = { expanded = !expanded },
                                 onKeepAppOpenClick = {},
                                 onGpxToolsClick = {},
-                                onCreatePoiClick = {},
                                 onRecordingClick = {},
                                 onHeadingReferenceMark = {},
                                 onMapFocusClick = {
@@ -463,15 +462,9 @@ class MapFocusModeUiTest {
                 expanded = false
                 focus.exit()
             },
-            createdPoiCreateInProgress = false,
             completedRouteToolDraftActive = false,
             routeToolExecutionInProgress = false,
             routeToolSessionActive = false,
-            showPoiCreationChoiceDialog = false,
-            showPoiCoordinateEntryDialog = false,
-            showCreatedPoiRenameDialog = false,
-            createdPoiRenameInProgress = false,
-            poiCreationSelectionActive = false,
             showRouteToolsPanel = routeToolsOpen,
             shortcutTrayExpanded = expanded,
             backButtonExitsNavigation = compatBack,
@@ -479,10 +472,6 @@ class MapFocusModeUiTest {
             onCloseApp = { closeAppCalls++ },
             onDismissCompletedRouteToolDraft = {},
             onCancelRouteToolSession = {},
-            onDismissPoiCreationChoiceDialog = {},
-            onDismissPoiCoordinateEntryDialog = {},
-            onDismissCreatedPoiRename = {},
-            onCancelPoiCreation = {},
             onDismissRouteToolsPanel = {
                 routeToolsOpen = false
                 routeDismissCalls++

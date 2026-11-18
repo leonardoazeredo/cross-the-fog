@@ -12,10 +12,7 @@ import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.routing.LoopRouteSuggestionException
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.location.model.GpsSignalSnapshot
-import codes.madera.crossfog.watch.data.repository.UserPoiRecord
 import codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel
-import codes.madera.crossfog.watch.presentation.features.poi.PoiOverlayMarker
-import codes.madera.crossfog.watch.presentation.features.poi.PoiViewModel
 import codes.madera.crossfog.watch.presentation.features.routetools.RouteCreateMode
 import codes.madera.crossfog.watch.presentation.features.routetools.RouteSaveBehavior
 import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolCreatePreview
@@ -39,12 +36,8 @@ import org.mapsforge.map.android.view.MapView
 
 internal data class NavigateRouteToolActions(
     val openRouteToolsPanel: () -> Unit,
-    val startPoiCreationSelection: () -> Unit,
-    val savePoiAtCurrentMapCenter: () -> Unit,
-    val savePoiAt: (LatLong) -> Unit,
     val startRouteToolSelection: (RouteToolSession) -> Unit,
     val undoRouteToolPoint: () -> Unit,
-    val createRouteToPoi: (PoiOverlayMarker) -> Unit,
     val createRouteToCoordinate: (LatLong) -> Unit,
     val executeCreateDraft: (RouteToolSession, Boolean) -> Unit,
     val saveCreatePreview: () -> Unit,
@@ -136,7 +129,6 @@ internal fun rememberNavigateRouteToolActions(
     scope: CoroutineScope,
     mapView: MapView,
     gpxViewModel: GpxViewModel,
-    poiViewModel: PoiViewModel,
     locationViewModel: LocationViewModel,
     recenterTarget: LatLong?,
     gpsSignalSnapshot: GpsSignalSnapshot,
@@ -168,12 +160,6 @@ internal fun rememberNavigateRouteToolActions(
     setRouteToolPreflightMessage: (String?) -> Unit,
     setShortcutTrayExpanded: (Boolean) -> Unit,
     setShowRouteToolsPanel: (Boolean) -> Unit,
-    setPoiCreationSelectionActive: (Boolean) -> Unit,
-    createdPoiCreateInProgress: Boolean,
-    setCreatedPoiCreateInProgress: (Boolean) -> Unit,
-    setCreatedPoiPendingRename: (UserPoiRecord?) -> Unit,
-    setCreatedPoiRenameError: (String?) -> Unit,
-    setShowCreatedPoiRenameDialog: (Boolean) -> Unit,
 ): NavigateRouteToolActions {
     val resources = LocalResources.current
     val pendingDirectPoiRoute = remember { mutableStateOf<RouteToolSession?>(null) }
@@ -322,7 +308,6 @@ internal fun rememberNavigateRouteToolActions(
         pendingDirectPoiRoute.value = null
         triggerHaptic()
         setShortcutTrayExpanded(false)
-        setPoiCreationSelectionActive(false)
         setRouteToolOptions(
             latestRouteToolOptions.value
                 .copy(
@@ -335,55 +320,7 @@ internal fun rememberNavigateRouteToolActions(
         clearRouteToolExecutionFeedback()
         clearRouteToolResultState()
         clearRouteToolPreviewState()
-        poiViewModel.clearOfflinePoiSearch()
         setShowRouteToolsPanel(true)
-    }
-
-    fun startPoiCreationSelection() {
-        pendingDirectPoiRoute.value = null
-        triggerHaptic()
-        setShortcutTrayExpanded(false)
-        setShowRouteToolsPanel(false)
-        setRouteToolSession(null)
-        clearRouteToolPreviewState()
-        clearRouteToolExecutionFeedback()
-        clearRouteToolResultState()
-        setCreatedPoiCreateInProgress(false)
-        setCreatedPoiPendingRename(null)
-        setCreatedPoiRenameError(null)
-        setShowCreatedPoiRenameDialog(false)
-        poiViewModel.clearOfflinePoiSearch()
-        gpxViewModel.dismissInspection()
-        setPoiCreationSelectionActive(true)
-    }
-
-    fun savePoiAt(center: LatLong) {
-        if (createdPoiCreateInProgress) return
-        triggerHaptic()
-        setCreatedPoiCreateInProgress(true)
-        scope.launch {
-            runCatching {
-                poiViewModel.createMyCreationPoiAt(
-                    lat = center.latitude,
-                    lon = center.longitude,
-                )
-            }.onSuccess { record ->
-                setCreatedPoiCreateInProgress(false)
-                setCreatedPoiPendingRename(record)
-                setCreatedPoiRenameError(null)
-                setShowCreatedPoiRenameDialog(true)
-            }.onFailure { error ->
-                setCreatedPoiCreateInProgress(false)
-                val message =
-                    error.localizedMessage?.takeIf { it.isNotBlank() }
-                        ?: resources.getString(R.string.navigation_failed_to_save_the_poi)
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun savePoiAtCurrentMapCenter() {
-        savePoiAt(mapView.model.mapViewPosition.center)
     }
 
     fun preflightRouteToolStart(
@@ -521,7 +458,6 @@ internal fun rememberNavigateRouteToolActions(
     fun resetRouteToolSelectionUi() {
         setRouteToolPreflightMessage(null)
         setShowRouteToolsPanel(false)
-        setPoiCreationSelectionActive(false)
         setCompletedRouteToolDraft(null)
         setRouteToolExecutionMessage(null)
         setRouteToolLoopRetryOptions(emptyList())
@@ -656,7 +592,6 @@ internal fun rememberNavigateRouteToolActions(
         setShortcutTrayExpanded(false)
         setShowRouteToolsPanel(false)
         setRouteToolPreflightMessage(null)
-        setPoiCreationSelectionActive(false)
         setCompletedRouteToolDraft(null)
         clearRouteToolExecutionFeedback()
         clearRouteToolResultState()
@@ -704,13 +639,6 @@ internal fun rememberNavigateRouteToolActions(
                 setShowRouteToolsPanel(true)
             }
         }
-    }
-
-    fun createRouteToPoi(marker: PoiOverlayMarker) {
-        createRouteToDestination(
-            destination = LatLong(marker.lat, marker.lon),
-            freshLocationSource = "ui_poi_to_here",
-        )
     }
 
     fun createRouteToCoordinate(destination: LatLong) {
@@ -901,12 +829,8 @@ internal fun rememberNavigateRouteToolActions(
 
     return NavigateRouteToolActions(
         openRouteToolsPanel = ::openRouteToolsPanel,
-        startPoiCreationSelection = ::startPoiCreationSelection,
-        savePoiAtCurrentMapCenter = ::savePoiAtCurrentMapCenter,
-        savePoiAt = ::savePoiAt,
         startRouteToolSelection = { session -> startRouteToolSelection(session) },
         undoRouteToolPoint = ::undoRouteToolPoint,
-        createRouteToPoi = ::createRouteToPoi,
         createRouteToCoordinate = ::createRouteToCoordinate,
         executeCreateDraft = ::executeCreateDraft,
         saveCreatePreview = ::saveCreatePreview,

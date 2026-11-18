@@ -229,15 +229,6 @@ fun MainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     HomeActionButton(
-                        label = stringResource(R.string.common_poi),
-                        icon = Icons.Filled.Place,
-                        width = centerButtonWidth,
-                        height = centerButtonHeight,
-                        iconSize = centerButtonIconSize,
-                        compact = compactScreen,
-                        onClick = { navController.navigate(WatchRoutes.POI) },
-                    )
-                    HomeActionButton(
                         label = stringResource(R.string.common_gpx),
                         icon = Icons.Filled.Timeline,
                         width = centerButtonWidth,

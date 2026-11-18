@@ -22,7 +22,6 @@ import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import codes.madera.crossfog.watch.R
-import codes.madera.crossfog.watch.presentation.features.poi.PoiSearchUiState
 import codes.madera.crossfog.watch.presentation.features.settings.SettingsOptionPickerHost
 import codes.madera.crossfog.watch.presentation.ui.WearActionDialog
 import codes.madera.crossfog.watch.presentation.ui.WearToolPanelDialog
@@ -33,12 +32,9 @@ internal fun RouteToolsActionPanel(
     visible: Boolean,
     canModifyActiveGpx: Boolean,
     coordinateSeed: LatLong?,
-    poiSearchState: PoiSearchUiState,
     options: RouteToolOptions,
     preflightMessage: String?,
     onOptionsChange: (RouteToolOptions) -> Unit,
-    onSearchPoi: (String) -> Unit,
-    onClearPoiSearch: () -> Unit,
     onDismiss: () -> Unit,
     onStartSelection: (RouteToolSession) -> Unit,
     onOpenGpxToolsSettings: () -> Unit,
@@ -47,7 +43,6 @@ internal fun RouteToolsActionPanel(
     if (!visible) return
 
     var showCoordinateEditor by remember(visible) { mutableStateOf(false) }
-    var showPoiSearchDialog by remember(visible) { mutableStateOf(false) }
     var coordinateStep by remember(visible) { mutableStateOf(CoordinateStep.ONE_THOUSANDTH) }
     val shouldUsePreflightPopup =
         preflightMessage == resources.getString(R.string.gpx_routing_packs_missing_for_selected_map) ||
@@ -113,18 +108,7 @@ internal fun RouteToolsActionPanel(
             onOptionsChange = onOptionsChange,
             onStartSelection = startSelection,
             onOpenCoordinateEditor = openCoordinateEditor,
-            onOpenPoiSearchDialog = { showPoiSearchDialog = true },
         )
-
-        if (options.toolKind == RouteToolKind.CREATE &&
-            options.createMode == RouteCreateMode.SEARCH
-        ) {
-            RouteSettingRow(
-                title = stringResource(R.string.gpx_offline_poi),
-                value = poiSearchSummary(poiSearchState, resources = resources),
-                onClick = { showPoiSearchDialog = true },
-            )
-        }
 
         if (options.toolKind == RouteToolKind.CREATE &&
             options.createMode == RouteCreateMode.LOOP_AROUND_HERE
@@ -268,25 +252,6 @@ internal fun RouteToolsActionPanel(
         onDismiss = { showCoordinateEditor = false },
     )
 
-    RoutePoiSearchDialog(
-        visible = showPoiSearchDialog,
-        state = poiSearchState,
-        onDismiss = {
-            showPoiSearchDialog = false
-            onClearPoiSearch()
-        },
-        onSearch = onSearchPoi,
-        onSelectResult = { result ->
-            showPoiSearchDialog = false
-            onClearPoiSearch()
-            startSelection(
-                RouteToolSession(
-                    options = options,
-                    destination = LatLong(result.lat, result.lon),
-                ),
-            )
-        },
-    )
 }
 
 @Composable

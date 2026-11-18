@@ -52,13 +52,6 @@ internal fun BoxScope.NavigateRouteToolOverlayHost(
     reshapePreviewMessage: String?,
     onDismissReshapePreview: () -> Unit,
     onSaveReshapePreview: () -> Unit,
-    crosshairSelectionActive: Boolean,
-    crosshairSelectionBusy: Boolean,
-    crosshairSelectionBusyMessage: String?,
-    crosshairSelectionTitle: String?,
-    crosshairSelectionInstruction: String?,
-    onCrosshairSelectionPickHere: ((LatLong) -> Unit)?,
-    onCancelCrosshairSelection: (() -> Unit)?,
     visibleMapSizePx: IntSize,
 ) {
     if (routeToolSession != null) {
@@ -115,44 +108,6 @@ internal fun BoxScope.NavigateRouteToolOverlayHost(
             message = reshapePreviewMessage,
             onDismiss = onDismissReshapePreview,
             onSave = onSaveReshapePreview,
-        )
-    } else if (
-        crosshairSelectionActive &&
-        onCrosshairSelectionPickHere != null &&
-        onCancelCrosshairSelection != null
-    ) {
-        val poiSelectionSession =
-            remember {
-                RouteToolSession(
-                    options =
-                        RouteToolOptions(
-                            toolKind = RouteToolKind.CREATE,
-                            createMode = RouteCreateMode.CURRENT_TO_HERE,
-                        ),
-                )
-            }
-        RouteCrosshairOverlay(
-            session = poiSelectionSession,
-            screenSize = screenSize,
-            isMetric = isMetric,
-            busy = crosshairSelectionBusy,
-            busyMessage = crosshairSelectionBusyMessage,
-            titleOverride = crosshairSelectionTitle ?: stringResource(R.string.navigate_poi),
-            instructionOverride =
-                crosshairSelectionInstruction ?: stringResource(
-                    R.string.navigate_move_map_then_check,
-                ),
-            popupTopOffset = 4.dp,
-            showCapturedPoints = false,
-            onPickHere = {
-                onCrosshairSelectionPickHere(
-                    resolveVisibleScreenCenterLatLong(
-                        mapView = mapView,
-                        visibleHeightPx = visibleMapSizePx.height,
-                    ) ?: mapView.model.mapViewPosition.center,
-                )
-            },
-            onCancel = onCancelCrosshairSelection,
         )
     }
 }

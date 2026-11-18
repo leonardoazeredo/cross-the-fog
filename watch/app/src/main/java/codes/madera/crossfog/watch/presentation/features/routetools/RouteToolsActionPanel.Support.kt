@@ -60,7 +60,6 @@ import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import codes.madera.crossfog.watch.R
-import codes.madera.crossfog.watch.presentation.features.poi.PoiSearchUiState
 import codes.madera.crossfog.watch.presentation.ui.WearActionButtonRole
 import codes.madera.crossfog.watch.presentation.ui.WearActionDialog
 import codes.madera.crossfog.watch.presentation.ui.WearActionDialogButton
@@ -289,7 +288,6 @@ internal fun RouteActionSelector(
     onOptionsChange: (RouteToolOptions) -> Unit,
     onStartSelection: (RouteToolSession) -> Unit,
     onOpenCoordinateEditor: (RouteToolOptions) -> Unit,
-    onOpenPoiSearchDialog: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -322,10 +320,7 @@ internal fun RouteActionSelector(
                                     onStartSelection(RouteToolSession(options = updatedOptions))
                                 }
 
-                                RouteCreateMode.SEARCH -> {
-                                    onOptionsChange(updatedOptions)
-                                    onOpenPoiSearchDialog()
-                                }
+                                RouteCreateMode.SEARCH -> Unit
 
                                 RouteCreateMode.COORDINATES -> {
                                     onOpenCoordinateEditor(updatedOptions)
@@ -1068,7 +1063,6 @@ internal fun createMenuModes(): List<RouteCreateMode> =
         RouteCreateMode.CURRENT_TO_HERE,
         RouteCreateMode.POINT_A_TO_B,
         RouteCreateMode.MULTI_POINT_CHAIN,
-        RouteCreateMode.SEARCH,
         RouteCreateMode.COORDINATES,
         RouteCreateMode.LOOP_AROUND_HERE,
     )
@@ -1135,23 +1129,6 @@ private fun RouteToolOptions.withCoordinateValue(
         CoordinateEntryField.START_LONGITUDE -> copy(startCoordinateLongitude = value)
         CoordinateEntryField.DESTINATION_LATITUDE -> copy(destinationCoordinateLatitude = value)
         CoordinateEntryField.DESTINATION_LONGITUDE -> copy(destinationCoordinateLongitude = value)
-    }
-
-internal fun poiSearchSummary(
-    state: PoiSearchUiState,
-    resources: Resources,
-): String =
-    when {
-        state.isLoading -> resources.getString(R.string.gpx_searching)
-        !state.errorMessage.isNullOrBlank() -> state.errorMessage
-        state.results.isNotEmpty() ->
-            resources.getQuantityString(
-                R.plurals.download_result_s,
-                state.results.size,
-                state.results.size,
-            )
-        state.query.isNotBlank() -> resources.getString(R.string.gpx_search_again)
-        else -> resources.getString(R.string.gpx_enabled_poi_files)
     }
 
 internal fun formatCoordinateValue(value: Double): String = String.format("%.5f", value)

@@ -109,14 +109,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
     scaleIndicator: ScaleIndicatorUi?,
     showScaleBar: Boolean,
     zoomScaleBarWidth: Dp,
-    poiTapMessage: String?,
-    poiTapCanExpand: Boolean,
-    poiTapCanCreateGpx: Boolean,
-    poiTapExpanded: Boolean,
-    onPoiTapExpandToggle: () -> Unit,
-    onPoiTapCreateGpx: () -> Unit,
-    onPoiTapDismiss: () -> Unit,
-    onPoiTapScrollInProgressChanged: (Boolean) -> Unit,
     onMenuClick: () -> Unit,
     sideButtonEdgePadding: Dp,
     sideButtonSize: Dp,
@@ -126,7 +118,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
     onShortcutTrayToggle: () -> Unit,
     onShortcutTrayDismiss: () -> Unit,
     onGpxToolsClick: () -> Unit,
-    onCreatePoiClick: () -> Unit,
     keepAppOpen: Boolean,
     onKeepAppOpenToggle: () -> Unit,
     traceRecordingViewModel: TraceRecordingViewModel,
@@ -206,7 +197,7 @@ internal fun BoxScope.NavigateOverlaysLayer(
     var showRouteCompleteRecordingPrompt by remember(traceRecordingState.startedAtMillis) {
         mutableStateOf(false)
     }
-    val suppressLiveMetricsForPoi = poiTapMessage != null || !mapChrome.shows(MapFocusControl.LIVE_METRICS)
+    val suppressLiveMetricsForPoi = !mapChrome.shows(MapFocusControl.LIVE_METRICS)
     val guidanceRemainingDisplay =
         GuidanceMapRemainingDisplayState(
             enabled = turnByTurnMapProgressEnabled,
@@ -216,7 +207,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
             guideBackToRouteActive = guideBackToRouteActive,
             suppressed =
                 mapFocusMode ||
-                    poiTapMessage != null ||
                     turnByTurnFullScreenExpanded ||
                     recordingDashboardFullScreenExpanded ||
                     combinedGuidanceRecordingFullScreenExpanded,
@@ -464,22 +454,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
         }
     }
 
-    PoiTapMessageOverlay(
-        poiTapMessage = poiTapMessage,
-        poiTapCanExpand = poiTapCanExpand,
-        poiTapCanCreateGpx = poiTapCanCreateGpx,
-        poiTapExpanded = poiTapExpanded,
-        onPoiTapExpandToggle = onPoiTapExpandToggle,
-        onPoiTapCreateGpx = onPoiTapCreateGpx,
-        onPoiTapDismiss = onPoiTapDismiss,
-        onPoiTapScrollInProgressChanged = onPoiTapScrollInProgressChanged,
-        screenSize = screenSize,
-        sideButtonEdgePadding = sideButtonEdgePadding,
-        sideButtonSize = sideButtonSize,
-        navButtonBottomPadding = navButtonBottomPadding,
-        navButtonSize = navButtonSize,
-    )
-
     GpxInspectionBSelectionPromptOverlay(
         visible = selectingGpxPointB,
         screenSize = screenSize,
@@ -518,7 +492,6 @@ internal fun BoxScope.NavigateOverlaysLayer(
             onToggleExpanded = onShortcutTrayToggle,
             onKeepAppOpenClick = onKeepAppOpenToggle,
             onGpxToolsClick = onGpxToolsClick,
-            onCreatePoiClick = onCreatePoiClick,
             onMapFocusClick = {
                 onShortcutTrayDismiss()
                 if (mapFocusMode) onExitMapFocus() else onEnterMapFocus()
@@ -582,8 +555,7 @@ internal fun BoxScope.NavigateOverlaysLayer(
         compactPopupEnabled = turnByTurnCompactPopupEnabled,
         compactPopupSuppressed = suppressCompactGuidancePopup,
         suppressed =
-            poiTapMessage != null ||
-                recordingDashboardFullScreenExpanded ||
+            recordingDashboardFullScreenExpanded ||
                 combinedGuidanceRecordingActive,
         onPause = onPauseTurnByTurnGuidance,
         onResume = onResumeTurnByTurnGuidance,
@@ -611,8 +583,7 @@ internal fun BoxScope.NavigateOverlaysLayer(
             showRouteCompleteRecordingPrompt = false
         },
         suppressed =
-            poiTapMessage != null ||
-                turnByTurnFullScreenExpanded ||
+            turnByTurnFullScreenExpanded ||
                 combinedGuidanceRecordingActive,
         onPause = onPauseRecording,
         onResume = onResumeRecording,
@@ -646,9 +617,7 @@ internal fun BoxScope.NavigateOverlaysLayer(
         compactPopupEnabled = turnByTurnCompactPopupEnabled,
         compactPopupSuppressed = suppressCompactGuidancePopup,
         isScreenInteractive = isScreenInteractive,
-        suppressed =
-            poiTapMessage != null ||
-                !combinedGuidanceRecordingActive,
+        suppressed = !combinedGuidanceRecordingActive,
         onPauseGuidance = onPauseTurnByTurnGuidance,
         onResumeGuidance = onResumeTurnByTurnGuidance,
         onStopGuidance = onStopTurnByTurnGuidance,

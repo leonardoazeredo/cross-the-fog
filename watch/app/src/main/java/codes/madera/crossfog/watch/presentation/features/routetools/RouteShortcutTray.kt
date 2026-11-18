@@ -74,7 +74,6 @@ internal fun BoxScope.RouteShortcutTray(
     onToggleExpanded: () -> Unit,
     onKeepAppOpenClick: () -> Unit,
     onGpxToolsClick: () -> Unit,
-    onCreatePoiClick: () -> Unit,
     onMapFocusClick: () -> Unit,
     onRecordingClick: () -> Unit,
     onHeadingReferenceMark: (Float) -> Unit,
@@ -162,18 +161,6 @@ internal fun BoxScope.RouteShortcutTray(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
-                        ShortcutActionChip(
-                            text = stringResource(R.string.common_poi),
-                            height = actionHeight,
-                            onClick = onCreatePoiClick,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(iconSize),
-                                tint = Color(0xFFFFD54F),
-                            )
-                        }
                         ShortcutActionChip(
                             text = stringResource(R.string.common_gpx),
                             height = actionHeight,
