@@ -1,5 +1,7 @@
 package codes.madera.crossfog.platform
 
+import codes.madera.crossfog.link.Framing
+import codes.madera.crossfog.link.Ids
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -54,7 +56,7 @@ class StagingStore(
     requireId(id)
     val file = File(dir, "$id$BIN")
     if (!file.exists()) return null
-    if (file.length() > MAX_FRAME_BYTES + OVERHEAD_BYTES) throw UnreadableItemException()
+    if (file.length() > Framing.MAX_FRAME_BYTES + OVERHEAD_BYTES) throw UnreadableItemException()
     return try {
       KeyWrap(key, id).unwrap(file.readBytes())
     } catch (e: AEADBadTagException) {
@@ -99,9 +101,8 @@ class UnreadableItemException(cause: Throwable? = null) :
 
 /**
  * The id becomes a file name and arrives from watch frames and from JS. The RFC form; it matches
- * zod 4's uuid() except that the nil and max UUIDs are rejected. Frames checks the same form, so a
+ * zod 4's uuid() except that the nil and max UUIDs are rejected. `link/` checks the same form, so a
  * frame it accepts is never one this store refuses, and a looser match would stage items that
  * pendingActivities then skips.
  */
-internal val UUID_ID =
-  Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}")
+internal val UUID_ID = Ids.UUID

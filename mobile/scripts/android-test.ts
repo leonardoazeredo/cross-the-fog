@@ -6,6 +6,8 @@ import {
   type AndroidTestMode,
   attachedDevices,
   defaultAndroidHome,
+  LINK_DIR_FROM_ANDROID,
+  linkMissingMessage,
   missingTooling,
   needsPrebuild,
   noDeviceMessage,
@@ -82,6 +84,13 @@ if (!hasGradlew || needsPrebuild(settings)) {
   ) {
     process.exit(1);
   }
+}
+
+// A missing link/ must stop the run here: the :link:test step would otherwise be the one that quietly does not exist.
+const linkDir = join(androidDir, LINK_DIR_FROM_ANDROID);
+if (!existsSync(join(linkDir, "build.gradle.kts"))) {
+  console.error(linkMissingMessage(linkDir));
+  process.exit(1);
 }
 
 say(
