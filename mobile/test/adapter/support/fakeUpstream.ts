@@ -34,6 +34,8 @@ export function installFakeUpstream(win: Window, doc: Document): void {
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "unzip.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "parser.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "reveal.js"), "utf-8"));
+  (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "md5.js"), "utf-8"));
+  (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "fogWriter.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(
     readFileSync(resolve(APP_SRC, "importMessages.js"), "utf-8"),
   );
@@ -75,6 +77,7 @@ export function installFakeUpstream(win: Window, doc: Document): void {
         fogMap,
         inflate: fflate.unzlibSync,
         parseTileId,
+        tileName: (winAny.FogWriter as { tileName(id: number): string }).tileName,
       });
     }
     importStats.corrupt = tally.corrupt;

@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AssignFiles, OutcomeHooks } from "../../web-adapter/loader.js";
 import { installOutcomeHooks, loadCopy } from "../../web-adapter/loader.js";
-import { backupWithDamagedTiles, notABackup, standardBackup } from "../fixtures/make-backup.js";
+import {
+  backupWithDamagedTiles,
+  makeBackup,
+  notABackup,
+  STANDARD_EXTRAS,
+  STANDARD_TILES,
+  standardBackup,
+} from "../fixtures/make-backup.js";
 import { installFakeUpstream } from "./support/fakeUpstream.js";
 import { loadUpstreamDom } from "./support/upstreamDom.js";
 
@@ -37,6 +44,14 @@ it("a good backup carries no corrupt count", async () => {
   const outcome = await load(standardBackup());
   expect(outcome).toEqual({ ok: true, tiles: 2 });
   expect(outcome).not.toHaveProperty("corrupt");
+});
+
+it("does not call a plain file named like a tile id damaged", async () => {
+  const bytes = makeBackup(STANDARD_TILES, {
+    ...STANDARD_EXTRAS,
+    "Sync/Snapshot": new TextEncoder().encode("junk"),
+  });
+  expect(await load(bytes)).toEqual({ ok: true, tiles: 2 });
 });
 
 it("counts damaged tile files beside the tiles that decoded", async () =>

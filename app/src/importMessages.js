@@ -29,20 +29,31 @@
 
   const tally = () => ({ added: 0, corrupt: 0, classes: new Set() });
 
+  // A tile's file name is its id's own name (the id's letters plus a checksum of the id), so a plain word such as
+  // "Snapshot" or "Config", which parseTileId also reads as an id, is not one.
+  function isTileName(name, env) {
+    const id = env.parseTileId(name);
+    if (id == null) return false;
+    try { return env.tileName(id) === name; } catch (e) { return false; } // an id outside the grid has no name
+  }
+
   // Decodes one file into env.fogMap and counts it in t. A file whose name is no tile's is not a tile (a .DS_Store, a
-  // plist) and is left alone, so it never counts as damage; a tile's own file that cannot be inflated or parsed is
-  // counted as corrupt, and only its error's class is kept (a thrown string counts as "string"): the parser's message
-  // names the tile.
-  // env: {fogMap, inflate(bytes) -> Uint8Array, parseTileId(name) -> id | null}
+  // plist, a file called "Snapshot") and is left alone, so it never counts as damage; a tile's own file that cannot be
+  // inflated or parsed is counted as corrupt, and only its error's class is kept (a thrown string counts as "string"):
+  // the parser's message names the tile. pako returns nothing, rather than throwing, for a stream cut short, which is
+  // the usual shape of a half-copied file, so no data is damage too.
+  // env: {fogMap, inflate(bytes) -> Uint8Array | undefined, parseTileId(name) -> id | null, tileName(id) -> name}
   function decode(t, name, bytes, env) {
-    if (env.parseTileId(name) == null) return;
+    if (!isTileName(name, env)) return;
     try {
-      if (env.fogMap.addTile(name, env.inflate(bytes))) t.added++;
+      const data = env.inflate(bytes);
+      if (!data) throw new TypeError("inflate returned no data");
+      if (env.fogMap.addTile(name, data)) t.added++;
     } catch (e) {
       t.corrupt++;
       t.classes.add(e && typeof e === "object" && e.name ? String(e.name) : typeof e);
     }
   }
 
-  global.ImportMessages = { status, tally, decode };
+  global.ImportMessages = { status, tally, decode, isTileName };
 })(window);

@@ -20,8 +20,9 @@ const cut = (name) => ({ name, bytes: zlib.deflateSync(Buffer.alloc(10)) });
 // a file with a tile's name whose bytes are no deflate stream at all
 const junkTile = (name) => ({ name, bytes: Buffer.from("this is not zlib data") });
 const goodTile = (n) => ({ name: n, bytes: goodBytes(n) });
-// made-up tile names the parser reads (nameOf(1) is tile id 1), so they never collide with the two fixtures' names
-const nameOf = (id) => "test" + String(id).split("").map((d) => "olhwjsktri"[Number(d)]).join("") + "zz";
+// the name Fog of World gives tile ids 1, 2, 3: ids no fixture uses, so a made-up tile never collides with one
+const nameOf = (id) => global.FogWriter.tileName(id);
+const leaked = new RegExp([1, 2, 3].map(nameOf).join("|"));
 
 const { status } = ImportMessages;
 
@@ -56,7 +57,7 @@ const { status } = ImportMessages;
 }
 
 // ---- the counting
-const env = () => ({ fogMap: new FogParser.FogMap(), inflate: (b) => zlib.inflateSync(Buffer.from(b)), parseTileId: FogParser.parseTileId });
+const env = () => ({ fogMap: new FogParser.FogMap(), inflate: (b) => zlib.inflateSync(Buffer.from(b)), parseTileId: FogParser.parseTileId, tileName: FogWriter.tileName });
 { // a tile name decodes, a damaged one is counted, a file that is no tile's is ignored without being counted
   const e = env(), t = ImportMessages.tally();
   ImportMessages.decode(t, good[0], goodBytes(good[0]), e);
@@ -67,11 +68,24 @@ const env = () => ({ fogMap: new FogParser.FogMap(), inflate: (b) => zlib.inflat
   assert.equal(t.added, 1);
   assert.equal(t.corrupt, 2);
   assert.deepEqual([...t.classes].sort(), ["Error"]);
-  assert.doesNotMatch(JSON.stringify([...t.classes]), /test|lltk/, "the class names only, never a tile name");
+  assert.doesNotMatch(JSON.stringify([...t.classes]), leaked, "the class names only, never a tile name");
+}
+{ // a word that parseTileId also reads as an id is no tile: a good import beside it is not called damaged
+  const t = ImportMessages.tally(), e = env();
+  for (const w of ["Snapshot", "Config", "Setting", "Version", "History"]) ImportMessages.decode(t, w, Buffer.from("junk"), e);
+  assert.equal(t.corrupt, 0);
+  assert.equal(ImportMessages.isTileName(good[0], e), true);
+  assert.equal(ImportMessages.isTileName("Snapshot", e), false);
+}
+{ // an inflater that returns nothing is damage even when the parser would take nothing without complaint
+  const t = ImportMessages.tally();
+  ImportMessages.decode(t, good[0], Buffer.alloc(3), { fogMap: { addTile: () => false }, inflate: () => undefined, parseTileId: FogParser.parseTileId, tileName: FogWriter.tileName });
+  assert.equal(t.corrupt, 1);
+  assert.equal(t.added, 0);
 }
 { // a thrown string (pako throws its message) is counted by its type, never by its text
   const t = ImportMessages.tally();
-  ImportMessages.decode(t, nameOf(3), Buffer.alloc(3), { fogMap: new FogParser.FogMap(), inflate: () => { throw "incorrect header check test-tile-name"; }, parseTileId: FogParser.parseTileId });
+  ImportMessages.decode(t, nameOf(3), Buffer.alloc(3), { fogMap: new FogParser.FogMap(), inflate: () => { throw "incorrect header check " + nameOf(3); }, parseTileId: FogParser.parseTileId, tileName: FogWriter.tileName });
   assert.equal(t.corrupt, 1);
   assert.deepEqual([...t.classes], ["string"]);
 }
@@ -83,6 +97,7 @@ function fnText(name) {
   assert.ok(start >= 0, `${name} not found in main.js`);
   return src.slice(start, src.indexOf("\n  }\n", start) + 4);
 }
+const realPako = require("../app/vendor/pako_inflate.min.js"); // the inflater the page ships: it returns nothing for a cut stream
 function loaders(files, unzip) {
   const shown = [], warns = [];
   const fogMap = new FogParser.FogMap();
@@ -91,7 +106,7 @@ function loaders(files, unzip) {
   const scope = {
     fogMap, importStats, ImportMessages, FogParser,
     console: { warn: (...a) => warns.push(a) },
-    pako: { inflate: (b) => zlib.inflateSync(Buffer.from(b)) },
+    pako: realPako, FogWriter,
     FogZip: { unzip: unzip || (() => files.map((f) => ({ name: "Sync/" + f.name, data: f.bytes }))) },
     map: { fitBounds() {} }, fogChanged() { calls.fog++; },
     setLoad: (m) => shown.push(m),
@@ -135,6 +150,19 @@ const last = (r) => r.shown[r.shown.length - 1];
       assert.equal(r.importStats.corrupt, 0);
       assert.deepEqual(r.warns, []);
     }
+    { // plain words that parse as tile ids (Snapshot, Config) beside good tiles are not damage
+      const r = await run([goodTile(good[0]), { name: "Snapshot", bytes: Buffer.from("junk") }, { name: "Config", bytes: Buffer.from("junk") }]);
+      assert.equal(last(r), "1 tiles loaded ✓", source);
+      assert.equal(r.importStats.corrupt, 0);
+    }
+    { // a tile cut short (a half-copied file): pako returns nothing instead of throwing, and it is still counted
+      const cutShort = { name: good[1], bytes: goodBytes(good[1]).subarray(0, 100) };
+      const r = await run([goodTile(good[0]), cutShort, junkTile(nameOf(2))]);
+      assert.equal(last(r), "1 tiles loaded ✓, but 2 tiles could not be read (damaged files).", source);
+      assert.equal(r.importStats.corrupt, 2);
+      const all = await run([cutShort]);
+      assert.match(last(all), /^None of the fog tiles could be read: 1 damaged file\./, source);
+    }
     { // some damaged: the good ones show, the count is beside them, one log line with classes only
       const r = await run([goodTile(good[0]), cut(nameOf(1)), junkTile(nameOf(2))]);
       assert.equal(last(r), "1 tiles loaded ✓, but 2 tiles could not be read (damaged files).", source);
@@ -142,7 +170,7 @@ const last = (r) => r.shown[r.shown.length - 1];
       assert.equal(r.fogMap.tileCount, 1);
       assert.equal(r.importStats.corrupt, 2);
       assert.equal(r.warns.length, 1);
-      assert.doesNotMatch(JSON.stringify(r.warns), /test|lltk|zz/, "no tile or file name in the log");
+      assert.doesNotMatch(JSON.stringify(r.warns), leaked, "no tile or file name in the log");
     }
     { // all damaged: worded as damaged, not as not found
       const r = await run([cut(nameOf(1)), junkTile(nameOf(2))]);

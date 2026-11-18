@@ -189,7 +189,7 @@
   // ---- data loading -----------------------------------------------------------
   const loadStatus = $("loadStatus");
   const setLoad = (m) => { loadStatus.textContent = m; };
-  const decodeEnv = { fogMap, inflate: (bytes) => pako.inflate(bytes), parseTileId: FogParser.parseTileId };
+  const decodeEnv = { fogMap, inflate: (bytes) => pako.inflate(bytes), parseTileId: FogParser.parseTileId, tileName: FogWriter.tileName };
   // how many tile files of the latest import could not be decoded: the phone adapter reads it once the import is done
   const importStats = { corrupt: 0 };
   // classes and the count only: a tile's name, or the parser's message, would say which ground the person has been to

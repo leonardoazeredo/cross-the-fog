@@ -12,7 +12,7 @@ import { loadUpstream, loadZipLikeDefog } from "../support/loadUpstream.js";
 const up = loadUpstream();
 
 it("names tiles the way the parser reads them", () => {
-  expect(tileFilename(257, 256)).toBe("testlwlwhizz");
+  expect(tileFilename(257, 256)).toBe("a291lwlwhizo");
   expect(up.parseTileId(tileFilename(257, 256))).toBe(131329);
   expect(up.parseTileId(tileFilename(256, 256))).toBe(131328);
 });

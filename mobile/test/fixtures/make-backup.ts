@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { zlibSync } from "fflate";
 
 export interface BlockSpec {
@@ -41,13 +42,22 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+const MASK2 = "eizxdwknmo";
+
+// Fog of World's own name for a tile (the page only reads a file as a tile when its name is this exact one):
+// the first 4 hex digits of the id's MD5, the id in MASK letters, its last two digits in MASK2 letters.
 export function tileFilename(x: number, y: number): string {
-  const id = y * 512 + x;
-  const digits = String(id)
-    .split("")
-    .map((d) => MASK[Number(d)])
-    .join("");
-  return `test${digits}zz`;
+  const digits = String(y * 512 + x);
+  const map = (d: string, mask: string) =>
+    d
+      .split("")
+      .map((c) => mask[Number(c)])
+      .join("");
+  return (
+    createHash("md5").update(digits).digest("hex").slice(0, 4) +
+    map(digits, MASK) +
+    map(digits.slice(-2), MASK2)
+  );
 }
 
 export function encodeTile(spec: TileSpec): Uint8Array {
