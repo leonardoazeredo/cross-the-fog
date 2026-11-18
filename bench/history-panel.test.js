@@ -174,6 +174,25 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
       });
       return { chip, tap: () => onClick() };
     })();
+    // a hash that fails on a later tap does not leave the earlier send as the one the chip speaks for
+    const later = (() => {
+      let onClick = null, fail = false;
+      const btn = { disabled: true, addEventListener: (_, fn) => { onClick = fn; } }, chip = { textContent: "" };
+      const route = { revision: 1 };
+      const ctl = createSendControl({
+        button: btn, chip, getRecord: () => ({ id: "r1", gpx: "<gpx v" + route.revision + "/>" }), hasRoute: () => true, revision: () => route.revision, canSend: () => true,
+        contentHash: (text) => { if (fail) throw new TypeError("no digest"); return "hash:" + text; }, send: () => {}
+      });
+      return { ctl, chip, route, tap: () => onClick(), failNext: () => { fail = true; } };
+    })();
+    later.tap();
+    later.route.revision++;
+    later.failNext();
+    later.tap();
+    assert.equal(later.chip.textContent, "Could not send");
+    later.ctl.update();
+    assert.equal(later.chip.textContent, "Could not send", "a refresh with no further edit keeps the failure of this tap");
+
     errors.length = 0;
     brokenCtl.chip.textContent = "On the watch";
     brokenCtl.tap();

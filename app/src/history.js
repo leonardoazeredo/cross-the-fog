@@ -311,8 +311,8 @@
         }, REPLY_TIMEOUT_MS);
       } catch (e) {
         console.error("crossfog: could not hand the route to the phone", e instanceof Error ? e.name : typeof e);
-        // A hash that failed leaves `sent` unset above, so the failure still has a route to be shown for.
-        if (!sent) sent = { id: rec.id, revision: opts.revision(), hash };
+        // This tap owns the failure, whether the hash or the send threw: an earlier send's `sent` must not stay.
+        sent = { id: rec.id, revision: opts.revision(), hash };
         state = "failed";
       }
       paint();

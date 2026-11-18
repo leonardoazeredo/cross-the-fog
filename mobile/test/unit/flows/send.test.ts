@@ -206,6 +206,58 @@ describe("send revisions", () => {
   });
 });
 
+describe("send failures name their revision", () => {
+  const failing = (over: { save?: boolean; queue?: boolean }) => {
+    const link = createFakeWatchLink();
+    const sent: NativeToWeb[] = [];
+    const flow = createSendFlow({
+      revisionOf,
+      link: {
+        ...link,
+        queueRoute: async (r) => {
+          if (over.queue) throw new Error("native refused");
+          return link.queueRoute(r);
+        },
+      },
+      routes: {
+        ...createMemoryRouteStore(),
+        save: async () => {
+          if (over.save) throw new Error("disk full");
+        },
+      },
+      send: (m) => sent.push(m),
+    });
+    return { flow, sent };
+  };
+
+  it.each([
+    ["a save", { save: true }],
+    ["a queue", { queue: true }],
+  ])(
+    "carries the revision of the GPX when %s fails, the page's or the phone's own",
+    async (_name, over) => {
+      const gpx = "<gpx>failing</gpx>";
+      const own = await revisionOf(gpx);
+      for (const pageRevision of [own, undefined]) {
+        const { flow, sent } = failing(over);
+        await flow.sendRoute(
+          route({ gpx, ...(pageRevision === undefined ? {} : { revision: pageRevision }) }),
+        );
+        expect(sent).toEqual([
+          {
+            v: 1,
+            type: "routeStatus",
+            routeId: route().id,
+            state: "failed",
+            why: COPY.routeNotSent,
+            revision: own,
+          },
+        ]);
+      }
+    },
+  );
+});
+
 describe("send", () => {
   it("saves the route, queues it on the link and tells the page it is waiting", async () => {
     const { link, routes, sent, flow } = setup();
