@@ -1,0 +1,881 @@
+@file:Suppress("LargeClass", "TooGenericExceptionCaught", "TooManyFunctions")
+
+package codes.madera.crossfog.watch.presentation.features.download
+
+import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.content.res.Resources
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.IBinder
+import android.os.PowerManager
+import android.os.SystemClock
+import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
+import codes.madera.crossfog.watch.GlanceMapWearApp
+import codes.madera.crossfog.watch.R
+import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
+import codes.madera.crossfog.watch.core.service.transfer.runtime.DownloadNetworkLease
+import codes.madera.crossfog.watch.presentation.ACTION_OPEN_OAM_EXTRACTION
+import codes.madera.crossfog.watch.presentation.MainActivity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.HttpURLConnection
+
+class OamDownloadForegroundService : Service() {
+    private val notificationManager by lazy { getSystemService(NotificationManager::class.java) }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val serviceClient by lazy { OamDownloadServiceClient(applicationContext) }
+    private val ownedStatePublisher by lazy {
+        OamOwnedDownloadStatePublisher(
+            currentState = { serviceClient.state.value },
+            publish = serviceClient::publish,
+        )
+    }
+    private val downloader: OamBundleDownloader by lazy {
+        val container = (application as GlanceMapWearApp).container
+        OamBundleDownloader(
+            context = applicationContext,
+            mapRepository = container.mapRepository,
+            poiRepository = container.poiRepository,
+            connectionFactory = { url ->
+                val network =
+                    downloadNetwork.awaitNetwork(DOWNLOAD_NETWORK_WAIT_TIMEOUT_MS)
+                        ?: throw IOException(resources.getString(R.string.download_no_internet))
+                (network.openConnection(url) as HttpURLConnection).also { connection ->
+                    DebugTelemetry.log(
+                        "OamDownload",
+                        "event=http_network_selected connection=${System.identityHashCode(connection)} " +
+                            downloadNetwork.describeNetwork(network),
+                    )
+                }
+            },
+        )
+    }
+    private val networkMonitor by lazy { OamDownloadNetworkMonitor(applicationContext) }
+    private val downloadNetwork: DownloadNetworkLease by lazy {
+        DownloadNetworkLease(
+            context = this,
+            onEvent = { event, detail -> DebugTelemetry.log("OamDownload", "event=$event $detail") },
+            onWifiReady = {
+                // Capture/mark targets now; only the potentially blocking disconnect is deferred.
+                downloader.requestNetworkHandoff { connection ->
+                    serviceScope.launch { runCatching { connection.disconnect() } }
+                }
+            },
+        )
+    }
+    private val operationGate = OamDownloadOperationGate()
+    private var operationJob: Job? = null
+    private var stopRequest: OwnedStopRequest? = null
+    private var foregroundStartId: Int? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var wakeLockAcquiredAtElapsedMs: Long? = null
+    private var wakeLockGeneration = 0
+
+    @Volatile private var foregroundActive = false
+    private val wakeLockDiagnostics = OamWakeLockObserver(this, WAKE_LOCK_TAG)
+    private var terminalNotificationPosted = false
+
+    override fun onCreate() {
+        super.onCreate()
+        ensureChannel()
+    }
+
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
+        when (intent?.action) {
+            ACTION_RUN_PERSISTED -> startPersistedOperation(startId)
+            ACTION_PAUSE -> requestOwnedStop(OwnedStopRequest.PAUSE)
+            ACTION_CANCEL -> requestOwnedStop(OwnedStopRequest.CANCEL)
+            ACTION_PROGRESS -> {
+                val title =
+                    intent.getStringExtra(EXTRA_TITLE)
+                        ?: resources.getString(R.string.download_downloading_offline_bundle)
+                val detail = intent.getStringExtra(EXTRA_DETAIL) ?: resources.getString(R.string.download_preparing)
+                val bytesDone = intent.getLongExtra(EXTRA_BYTES_DONE, 0L)
+                val totalBytes = intent.getLongExtra(EXTRA_TOTAL_BYTES, -1L).takeIf { it > 0L }
+                val isExtracting = intent.getBooleanExtra(EXTRA_IS_EXTRACTING, false)
+                if (foregroundActive) {
+                    updateForegroundNotification(title, detail, bytesDone, totalBytes, isExtracting)
+                } else {
+                    startOrUpdateForeground(title, detail, bytesDone, totalBytes, isExtracting)
+                }
+                foregroundStartId = startId
+            }
+            ACTION_STOP -> stopSelf()
+            null -> {
+                if (serviceClient.loadPlan()?.status == OamPersistedDownloadStatus.RUNNING) {
+                    startPersistedOperation(startId)
+                } else {
+                    stopSelf()
+                }
+            }
+            else -> stopSelf()
+        }
+        return if (serviceClient.loadPlan()?.status == OamPersistedDownloadStatus.RUNNING) {
+            START_STICKY
+        } else {
+            START_NOT_STICKY
+        }
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        clearExtractionState()
+        if (!terminalNotificationPosted) {
+            runCatching { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) }
+        }
+        foregroundActive = false
+        releaseLocks()
+        downloadNetwork.close()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(
+        startId: Int,
+        fgsType: Int,
+    ) {
+        super.onTimeout(startId, fgsType)
+        if (fgsType and ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC == 0) return
+        if (operationGate.matchesStartId(startId)) {
+            if (operationGate.claimTimeout(startId) != null) {
+                requestOwnedStop(OwnedStopRequest.TIMEOUT, alreadyClaimed = true)
+            }
+            clearForegroundAndStop(startId)
+        } else if (!operationGate.hasActiveSession() && foregroundStartId == startId) {
+            clearForegroundAndStop(startId)
+        }
+    }
+
+    private fun startPersistedOperation(startId: Int) {
+        if (operationJob?.isActive == true) return
+        val initialPlan = serviceClient.loadPlan()
+        if (initialPlan == null || initialPlan.status != OamPersistedDownloadStatus.RUNNING) {
+            stopSelf()
+            return
+        }
+        val session = operationGate.begin(startId)
+        stopRequest = null
+        foregroundStartId = startId
+        startOrUpdateForeground(
+            title = resources.getString(R.string.download_downloading_offline_bundle),
+            detail =
+                resources.getQuantityString(
+                    R.plurals.download_preparing_area_s,
+                    initialPlan.areaIds.size,
+                    initialPlan.areaIds.size,
+                ),
+            bytesDone = 0L,
+            totalBytes = null,
+        )
+        operationJob =
+            serviceScope.launch {
+                runPersistedOperation(initialPlan, session)
+            }
+    }
+
+    private suspend fun runPersistedOperation(
+        initialPlan: OamPersistedDownloadPlan,
+        session: OamDownloadOperationSession,
+    ) {
+        var plan = initialPlan
+        val areasById = OamDownloadCatalog.areas.associateBy(OamDownloadArea::id)
+        val areas = plan.areaIds.mapNotNull(areasById::get)
+        if (areas.size != plan.areaIds.size) {
+            if (operationGate.claim(session, OamDownloadOperationEnd.FAILURE) != null) {
+                failOwnedOperation(
+                    plan,
+                    resources.getString(R.string.download_one_or_more_download_areas_are_no_longer_available),
+                )
+            }
+            operationGate.finish(session)
+            return
+        }
+        val networkHandle = watchForWifiRecovery(networkMonitor.currentState())
+        val progressThrottler = OamProgressThrottler()
+        try {
+            downloadNetwork.start()
+            serviceClient.publish(plan.runningState(phase = "STARTING", resources = resources))
+            for (index in plan.nextAreaIndex until areas.size) {
+                val area = areas[index]
+                downloader.downloadBundle(
+                    area = area,
+                    selection = plan.selection,
+                    extractionKeepAliveState = ::currentKeepAliveState,
+                    onExtractionRunningChanged = ::updateExtractionState,
+                ) { progress ->
+                    if (!progress.shouldShowInBundleProgress()) return@downloadBundle
+                    if (!progressThrottler.shouldEmit(progress)) return@downloadBundle
+                    val detail =
+                        resources.getString(
+                            R.string.download_area_progress_detail,
+                            index + 1,
+                            areas.size,
+                            area.region,
+                            progress.detail,
+                        )
+                    publishRunningState(plan, progress, detail)
+                    startOrUpdateForeground(
+                        title = resources.getString(R.string.download_downloading_offline_bundle),
+                        detail = detail,
+                        bytesDone = progress.bytesDone,
+                        totalBytes = progress.totalBytes,
+                    )
+                }
+                plan = plan.copy(nextAreaIndex = index + 1)
+                serviceClient.savePlan(plan)
+            }
+            if (operationGate.claim(session, OamDownloadOperationEnd.COMPLETE) != null) {
+                completeOwnedOperation(areas)
+            } else {
+                handleOwnedCancellation(plan, session)
+            }
+        } catch (cancelled: CancellationException) {
+            handleOwnedCancellation(plan, session)
+            throw cancelled
+        } catch (error: Exception) {
+            if (operationGate.claim(session, OamDownloadOperationEnd.FAILURE) != null) {
+                failOwnedOperation(plan, error.message ?: resources.getString(R.string.download_download_failed))
+            } else {
+                handleOwnedCancellation(plan, session)
+            }
+        } finally {
+            DebugTelemetry.log(
+                "OamDownload",
+                "event=progress_throttle_summary owner=service " +
+                    "requested=${progressThrottler.requestedCount} emitted=${progressThrottler.emittedCount} " +
+                    "suppressed=${progressThrottler.suppressedCount}",
+            )
+            networkHandle.close()
+            downloadNetwork.close()
+            if (operationGate.finish(session)) operationJob = null
+        }
+    }
+
+    private fun completeOwnedOperation(areas: List<OamDownloadArea>) {
+        serviceClient.clearPlan()
+        serviceClient.publish(
+            OamOwnedDownloadState(
+                status = OamOwnedDownloadStatus.COMPLETE,
+                areaCount = areas.size,
+                completedAreaCount = areas.size,
+                phase = "READY",
+                detail = resources.getQuantityString(R.plurals.download_area_s, areas.size, areas.size),
+            ),
+        )
+        val completionDetail =
+            if (areas.size == 1) {
+                resources.getString(R.string.download_installed, areas.first().region)
+            } else {
+                resources.getQuantityString(R.plurals.download_bundles_installed_2, areas.size, areas.size)
+            }
+        showTerminalNotification(
+            title = resources.getString(R.string.download_download_complete),
+            detail = completionDetail,
+            category = NotificationCompat.CATEGORY_STATUS,
+            timeoutAfterMs = 10_000L,
+        )
+    }
+
+    private fun requestOwnedStop(
+        request: OwnedStopRequest,
+        alreadyClaimed: Boolean = false,
+    ) {
+        val activeJob = operationJob
+        if (
+            !alreadyClaimed &&
+            activeJob?.isActive == true &&
+            operationGate.claimActive(request.toOperationEnd()) == null
+        ) {
+            return
+        }
+        stopRequest = request
+        val persistedPlan = serviceClient.loadPlan()
+        when (request) {
+            OwnedStopRequest.PAUSE,
+            OwnedStopRequest.TIMEOUT,
+            -> {
+                persistedPlan?.copy(status = OamPersistedDownloadStatus.PAUSED)?.let(serviceClient::savePlan)
+            }
+            OwnedStopRequest.CANCEL -> serviceClient.clearPlan()
+        }
+        ownedStatePublisher.update { current ->
+            current.copy(
+                phase = if (request == OwnedStopRequest.CANCEL) "CANCELING" else "PAUSING",
+                errorMessage = null,
+                isExtracting = false,
+            )
+        }
+        activeJob?.cancel(CancellationException(request.name.lowercase()))
+        downloader.abortActiveDownloads(
+            reason =
+                when (request) {
+                    OwnedStopRequest.PAUSE -> "user_pause"
+                    OwnedStopRequest.TIMEOUT -> "foreground_service_timeout"
+                    OwnedStopRequest.CANCEL -> "user_cancel"
+                },
+        )
+        if (activeJob == null && persistedPlan != null) {
+            serviceScope.launch { handleOwnedCancellation(persistedPlan) }
+        }
+    }
+
+    // Resource-call wrapping increases line count; keep the existing flow together.
+    @Suppress("LongMethod")
+    private fun handleOwnedCancellation(
+        plan: OamPersistedDownloadPlan,
+        session: OamDownloadOperationSession? = null,
+    ) {
+        if (session != null && !operationGate.owns(session)) return
+        when (stopRequest) {
+            OwnedStopRequest.PAUSE -> {
+                val paused = plan.copy(status = OamPersistedDownloadStatus.PAUSED)
+                serviceClient.savePlan(paused)
+                serviceClient.publish(
+                    paused
+                        .runningState(
+                            phase = "PAUSED",
+                            resources = resources,
+                        ).copy(status = OamOwnedDownloadStatus.PAUSED),
+                )
+                showTerminalNotification(
+                    title = resources.getString(R.string.download_download_paused),
+                    detail =
+                        resources.getQuantityString(
+                            R.plurals.download_area_s,
+                            plan.areaIds.size,
+                            plan.areaIds.size,
+                        ),
+                    category = NotificationCompat.CATEGORY_STATUS,
+                )
+            }
+            OwnedStopRequest.TIMEOUT -> {
+                val paused = plan.copy(status = OamPersistedDownloadStatus.PAUSED)
+                serviceClient.savePlan(paused)
+                serviceClient.publish(
+                    paused
+                        .runningState(
+                            phase = "PAUSED",
+                            resources = resources,
+                        ).copy(status = OamOwnedDownloadStatus.PAUSED),
+                )
+            }
+            OwnedStopRequest.CANCEL -> {
+                serviceClient.clearPlan()
+                serviceClient.publish(
+                    OamOwnedDownloadState(
+                        status = OamOwnedDownloadStatus.CANCELED,
+                        areaCount = plan.areaIds.size,
+                        completedAreaCount = plan.nextAreaIndex,
+                        phase = "CANCELED",
+                        detail =
+                            resources.getQuantityString(
+                                R.plurals.download_area_s,
+                                plan.areaIds.size,
+                                plan.areaIds.size,
+                            ),
+                    ),
+                )
+                clearForegroundAndStop()
+            }
+            null -> {
+                // Android is stopping the process/service. Keep RUNNING persisted so START_STICKY can recover it.
+                serviceClient.savePlan(plan.copy(status = OamPersistedDownloadStatus.RUNNING))
+                serviceClient.publish(
+                    plan.runningState(
+                        phase = "STARTING",
+                        detail = resources.getString(R.string.download_waiting_to_resume),
+                        resources = resources,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun failOwnedOperation(
+        plan: OamPersistedDownloadPlan,
+        message: String,
+    ) {
+        DebugTelemetry.log(
+            "OamDownload",
+            "event=bundle_failed completedAreas=${plan.nextAreaIndex} totalAreas=${plan.areaIds.size} " +
+                "error=${message.replace(' ', '_')}",
+        )
+        serviceClient.clearPlan()
+        serviceClient.publish(
+            OamOwnedDownloadState(
+                status = OamOwnedDownloadStatus.FAILED,
+                areaCount = plan.areaIds.size,
+                completedAreaCount = plan.nextAreaIndex,
+                phase = "FAILED",
+                detail = resources.getQuantityString(R.plurals.download_area_s, plan.areaIds.size, plan.areaIds.size),
+                errorMessage = message,
+            ),
+        )
+        showTerminalNotification(
+            title = resources.getString(R.string.download_download_failed),
+            detail = message,
+            category = NotificationCompat.CATEGORY_ERROR,
+        )
+    }
+
+    private fun updateExtractionState(isExtracting: Boolean) {
+        val state = ownedStatePublisher.updateExtractionState(isExtracting) ?: return
+        if (foregroundActive) {
+            updateForegroundNotification(
+                title = resources.getString(R.string.download_downloading_offline_bundle),
+                detail = state.detail ?: resources.getString(R.string.download_preparing),
+                bytesDone = state.bytesDone,
+                totalBytes = state.totalBytes,
+                isExtracting = state.isExtracting,
+            )
+        }
+    }
+
+    private fun clearExtractionState() = updateExtractionState(isExtracting = false)
+
+    private fun publishRunningState(
+        plan: OamPersistedDownloadPlan,
+        progress: OamDownloadProgress,
+        detail: String,
+    ) {
+        ownedStatePublisher.publishProgress(
+            plan.runningState(
+                phase = progress.phase,
+                detail = detail,
+                bytesDone = progress.bytesDone,
+                totalBytes = progress.totalBytes,
+                resources = resources,
+            ),
+        )
+    }
+
+    private fun watchForWifiRecovery(initialState: OamDownloadNetworkState): AutoCloseable {
+        val observer =
+            OamDownloadNetworkRecoveryObserver(initialState) { state ->
+                DebugTelemetry.log(
+                    "OamDownload",
+                    "event=wifi_recovered ${state.telemetryFields}",
+                )
+            }
+        return networkMonitor.watchNetworkState(observer::onChanged)
+    }
+
+    @SuppressLint("WakelockTimeout")
+    @Synchronized
+    private fun startOrUpdateForeground(
+        title: String,
+        detail: String,
+        bytesDone: Long,
+        totalBytes: Long?,
+        isExtracting: Boolean? = null,
+    ) {
+        acquireLocks()
+        updateForegroundNotification(title, detail, bytesDone, totalBytes, isExtracting)
+    }
+
+    @Synchronized
+    private fun updateForegroundNotification(
+        title: String,
+        detail: String,
+        bytesDone: Long,
+        totalBytes: Long?,
+        isExtracting: Boolean? = null,
+    ) {
+        val notification = buildProgressNotification(title, detail, bytesDone, totalBytes, isExtracting)
+        val foregroundServiceType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, foregroundServiceType)
+        foregroundActive = true
+    }
+
+    @SuppressLint("WakelockTimeout")
+    @Synchronized
+    private fun acquireLocks() {
+        var wakeLockAcquired = false
+        var wifiLockAcquired = false
+        if (wakeLock?.isHeld != true) {
+            wakeLockAcquiredAtElapsedMs = null
+            val powerManager = getSystemService(PowerManager::class.java)
+            wakeLock =
+                powerManager
+                    ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+                    ?.apply {
+                        setReferenceCounted(false)
+                        wakeLockDiagnostics.attach(this, wakeLockGeneration + 1)
+                        acquire(WAKE_LOCK_TIMEOUT_MS)
+                        wakeLockAcquired = isHeld
+                        if (wakeLockAcquired) {
+                            wakeLockAcquiredAtElapsedMs = SystemClock.elapsedRealtime()
+                            wakeLockGeneration += 1
+                        }
+                    }
+        }
+        if (wifiLock?.isHeld != true) {
+            val wifiManager = applicationContext.getSystemService(WifiManager::class.java)
+            wifiLock =
+                wifiManager
+                    ?.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, WIFI_LOCK_TAG)
+                    ?.apply {
+                        setReferenceCounted(false)
+                        runCatching { acquire() }
+                        wifiLockAcquired = isHeld
+                    }
+        }
+        if (wakeLockAcquired || wifiLockAcquired) {
+            val keepAliveState = currentKeepAliveState()
+            DebugTelemetry.log(
+                "OamDownload",
+                "event=foreground_keepalive_acquired wakeLock=$wakeLockAcquired wifiLock=$wifiLockAcquired " +
+                    "wakeLockType=${keepAliveState.wakeLockType} " +
+                    "wakeLockGeneration=${keepAliveState.wakeLockGeneration} " +
+                    "wakeLockTimeoutMs=${keepAliveState.wakeLockTimeoutMs ?: "na"}",
+            )
+        }
+    }
+
+    @Synchronized
+    private fun releaseLocks() {
+        wakeLockDiagnostics.detach(wakeLock)
+        val wakeLockWasHeld = wakeLock?.isHeld == true
+        val wifiLockWasHeld = wifiLock?.isHeld == true
+        wakeLock?.let { lock ->
+            if (lock.isHeld) runCatching { lock.release() }
+        }
+        wifiLock?.let { lock ->
+            if (lock.isHeld) runCatching { lock.release() }
+        }
+        wakeLock = null
+        wifiLock = null
+        wakeLockAcquiredAtElapsedMs = null
+        if (wakeLockWasHeld || wifiLockWasHeld) {
+            DebugTelemetry.log(
+                "OamDownload",
+                "event=foreground_keepalive_released wakeLock=$wakeLockWasHeld wifiLock=$wifiLockWasHeld",
+            )
+        }
+    }
+
+    @Synchronized
+    private fun currentKeepAliveState(): OamDownloadKeepAliveState {
+        val wakeLockHeld = wakeLock?.isHeld == true
+        val acquireAgeMs =
+            wakeLockAcquiredAtElapsedMs?.let {
+                (SystemClock.elapsedRealtime() - it).coerceAtLeast(0L)
+            }
+        return OamDownloadKeepAliveState(
+            wakeLockHeld = wakeLockHeld,
+            wifiLockHeld = wifiLock?.isHeld == true,
+            wakeLockType = if (wakeLock != null) "PARTIAL_WAKE_LOCK" else "none",
+            wakeLockAcquireAgeMs = acquireAgeMs,
+            wakeLockTimeoutMs = if (wakeLock != null) WAKE_LOCK_TIMEOUT_MS else null,
+            wakeLockGeneration = wakeLockGeneration,
+            wakeLockSystemEnabled = wakeLockDiagnostics.systemEnabled,
+            wakeLockIdentity = wakeLock?.let(System::identityHashCode),
+            wakeLockTag = wakeLock?.let { WAKE_LOCK_TAG },
+            foregroundServiceActive = foregroundActive,
+            foregroundServiceType =
+                when {
+                    !foregroundActive -> null
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    else -> 0
+                },
+            operationActive = operationJob?.isActive,
+        )
+    }
+
+    private fun buildProgressNotification(
+        title: String,
+        detail: String,
+        bytesDone: Long,
+        totalBytes: Long?,
+        isExtracting: Boolean? = null,
+    ): android.app.Notification {
+        val extractionInProgress = isExtracting ?: serviceClient.state.value.isExtracting
+        val builder =
+            NotificationCompat
+                .Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(
+                    if (extractionInProgress) {
+                        resources.getString(R.string.download_installing_offline_bundle)
+                    } else {
+                        title
+                    },
+                ).setContentText(detail)
+                .setContentIntent(contentIntent(openDownloads = extractionInProgress))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+
+        val total = totalBytes?.takeIf { it > 0L }
+        if (total != null) {
+            val progress = ((bytesDone.coerceAtLeast(0L) * 100L) / total).toInt().coerceIn(0, 100)
+            builder.setProgress(100, progress, false)
+        } else {
+            builder.setProgress(0, 0, true)
+        }
+        return builder.build()
+    }
+
+    private fun showTerminalNotification(
+        title: String,
+        detail: String,
+        category: String,
+        timeoutAfterMs: Long? = null,
+    ) {
+        runCatching { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) }
+        foregroundActive = false
+        releaseLocks()
+        foregroundStartId = null
+        terminalNotificationPosted = true
+        val builder =
+            NotificationCompat
+                .Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(title)
+                .setContentText(detail)
+                .setContentIntent(contentIntent())
+                .setOnlyAlertOnce(true)
+                .setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setCategory(category)
+        timeoutAfterMs?.let(builder::setTimeoutAfter)
+        runCatching { notificationManager.notify(NOTIFICATION_ID, builder.build()) }
+        stopSelf()
+    }
+
+    private fun clearForegroundAndStop(startId: Int? = null) {
+        runCatching { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) }
+        foregroundActive = false
+        releaseLocks()
+        if (startId == null || foregroundStartId == startId) foregroundStartId = null
+        runCatching { notificationManager.cancel(NOTIFICATION_ID) }
+        if (startId == null) stopSelf() else stopSelf(startId)
+    }
+
+    private fun ensureChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                resources.getString(R.string.download_map_downloads),
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
+    }
+
+    private fun contentIntent(openDownloads: Boolean = false): PendingIntent {
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (openDownloads) action = ACTION_OPEN_OAM_EXTRACTION
+            }
+        return PendingIntent.getActivity(
+            this,
+            if (openDownloads) OAM_EXTRACTION_REQUEST_CODE else 0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    companion object {
+        private const val ACTION_RUN_PERSISTED =
+            "codes.madera.crossfog.watch.action.OAM_RUN_PERSISTED_DOWNLOAD"
+        private const val ACTION_PAUSE = "codes.madera.crossfog.watch.action.OAM_PAUSE_DOWNLOAD"
+        private const val ACTION_CANCEL = "codes.madera.crossfog.watch.action.OAM_CANCEL_DOWNLOAD"
+        private const val ACTION_PROGRESS = "codes.madera.crossfog.watch.action.OAM_DOWNLOAD_PROGRESS"
+        private const val ACTION_STOP = "codes.madera.crossfog.watch.action.OAM_DOWNLOAD_STOP"
+        private const val EXTRA_TITLE = "title"
+        private const val EXTRA_DETAIL = "detail"
+        private const val EXTRA_BYTES_DONE = "bytes_done"
+        private const val EXTRA_TOTAL_BYTES = "total_bytes"
+        private const val EXTRA_IS_EXTRACTING = "is_extracting"
+        private const val CHANNEL_ID = "OamDownloadChannel"
+        private const val NOTIFICATION_ID = 42_210
+        private const val OAM_EXTRACTION_REQUEST_CODE = 42_211
+        private const val WAKE_LOCK_TAG = "GlanceMap:OamDownload"
+        private const val WIFI_LOCK_TAG = "GlanceMap:OamDownloadWifi"
+        private const val DOWNLOAD_NETWORK_WAIT_TIMEOUT_MS = 8_000L
+        private const val WAKE_LOCK_TIMEOUT_MS = 6L * 60L * 60L * 1000L
+
+        fun startPersistedDownload(context: Context) {
+            val intent = Intent(context, OamDownloadForegroundService::class.java).setAction(ACTION_RUN_PERSISTED)
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun requestPause(context: Context) {
+            val intent = Intent(context, OamDownloadForegroundService::class.java).setAction(ACTION_PAUSE)
+            runCatching { context.startService(intent) }
+        }
+
+        fun requestCancel(context: Context) {
+            val intent = Intent(context, OamDownloadForegroundService::class.java).setAction(ACTION_CANCEL)
+            runCatching { context.startService(intent) }
+        }
+
+        internal fun showProgress(
+            context: Context,
+            progress: OamForegroundProgress,
+        ) {
+            val intent =
+                Intent(context, OamDownloadForegroundService::class.java).apply {
+                    action = ACTION_PROGRESS
+                    putExtra(EXTRA_TITLE, progress.title)
+                    putExtra(EXTRA_DETAIL, progress.detail)
+                    putExtra(EXTRA_BYTES_DONE, progress.bytesDone)
+                    putExtra(EXTRA_TOTAL_BYTES, progress.totalBytes ?: -1L)
+                    putExtra(EXTRA_IS_EXTRACTING, progress.isExtracting)
+                }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun stop(context: Context) {
+            val intent = Intent(context, OamDownloadForegroundService::class.java).setAction(ACTION_STOP)
+            runCatching { context.startService(intent) }
+            context.stopService(Intent(context, OamDownloadForegroundService::class.java))
+        }
+    }
+}
+
+internal data class OamForegroundProgress(
+    val title: String,
+    val detail: String,
+    val bytesDone: Long,
+    val totalBytes: Long?,
+    val isExtracting: Boolean = false,
+)
+
+private enum class OwnedStopRequest {
+    PAUSE,
+    CANCEL,
+    TIMEOUT,
+}
+
+private fun OwnedStopRequest.toOperationEnd(): OamDownloadOperationEnd =
+    when (this) {
+        OwnedStopRequest.PAUSE -> OamDownloadOperationEnd.PAUSE
+        OwnedStopRequest.CANCEL -> OamDownloadOperationEnd.CANCEL
+        OwnedStopRequest.TIMEOUT -> OamDownloadOperationEnd.TIMEOUT
+    }
+
+internal data class OamDownloadOperationSession(
+    val startId: Int,
+    val generation: Long,
+)
+
+internal enum class OamDownloadOperationEnd {
+    PAUSE,
+    CANCEL,
+    TIMEOUT,
+    COMPLETE,
+    FAILURE,
+}
+
+/** Serializes terminal decisions from the service command and Android timeout callbacks. */
+internal class OamDownloadOperationGate {
+    private var nextGeneration = 0L
+    private var activeSession: OamDownloadOperationSession? = null
+    private var terminalEnd: OamDownloadOperationEnd? = null
+
+    @Synchronized
+    fun begin(startId: Int): OamDownloadOperationSession =
+        OamDownloadOperationSession(startId = startId, generation = ++nextGeneration).also {
+            activeSession = it
+            terminalEnd = null
+        }
+
+    @Synchronized
+    fun claimTimeout(startId: Int): OamDownloadOperationSession? {
+        val session = activeSession?.takeIf { it.startId == startId } ?: return null
+        return claim(session, OamDownloadOperationEnd.TIMEOUT)
+    }
+
+    @Synchronized
+    fun claimActive(end: OamDownloadOperationEnd): OamDownloadOperationSession? = activeSession?.let { claim(it, end) }
+
+    @Synchronized
+    fun claim(
+        session: OamDownloadOperationSession,
+        end: OamDownloadOperationEnd,
+    ): OamDownloadOperationSession? {
+        if (activeSession != session || terminalEnd != null) return null
+        terminalEnd = end
+        return session
+    }
+
+    @Synchronized
+    fun owns(session: OamDownloadOperationSession): Boolean = activeSession == session
+
+    @Synchronized
+    fun matchesStartId(startId: Int): Boolean = activeSession?.startId == startId
+
+    @Synchronized
+    fun hasActiveSession(): Boolean = activeSession != null
+
+    @Synchronized
+    fun terminalEndFor(session: OamDownloadOperationSession): OamDownloadOperationEnd? =
+        if (activeSession ==
+            session
+        ) {
+            terminalEnd
+        } else {
+            null
+        }
+
+    @Synchronized
+    fun finish(session: OamDownloadOperationSession): Boolean {
+        if (activeSession != session) return false
+        activeSession = null
+        terminalEnd = null
+        return true
+    }
+}
+
+private fun OamPersistedDownloadPlan.runningState(
+    resources: Resources,
+    phase: String,
+    detail: String = resources.getQuantityString(R.plurals.download_area_s, areaIds.size, areaIds.size),
+    bytesDone: Long = 0L,
+    totalBytes: Long? = null,
+): OamOwnedDownloadState =
+    OamOwnedDownloadState(
+        status = OamOwnedDownloadStatus.RUNNING,
+        areaIds = areaIds,
+        selection = selection,
+        areaCount = areaIds.size,
+        completedAreaCount = nextAreaIndex,
+        phase = phase,
+        detail = detail,
+        bytesDone = bytesDone,
+        totalBytes = totalBytes,
+    )

@@ -72,11 +72,11 @@ if (releaseArtifactTaskRequested && !hasReleaseSigning) {
 }
 
 android {
-    namespace = "com.glancemap.glancemapwearos"
+    namespace = "codes.madera.crossfog.watch"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.glancemap.glancemapwearos"
+        applicationId = "codes.madera.crossfog.watch"
         minSdk = 28
         targetSdk = 36
         versionCode = glanceMapWearVersionCode

@@ -1,0 +1,294 @@
+package codes.madera.crossfog.watch.core.service.transfer.datalayer
+
+import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
+import android.util.Log
+import codes.madera.crossfog.watch.R
+import codes.madera.crossfog.watch.core.service.ChannelTransferForegroundService
+import codes.madera.crossfog.watch.core.service.diagnostics.EnergyDiagnostics
+import codes.madera.crossfog.watch.core.service.diagnostics.TransferDiagnostics
+import codes.madera.crossfog.watch.core.service.transfer.contract.ReceiverMetadata
+import codes.madera.crossfog.watch.core.service.transfer.contract.TransferConstants
+import codes.madera.crossfog.watch.core.service.transfer.notifications.FGS_DATA_SYNC_TIMEOUT
+import codes.madera.crossfog.watch.core.service.transfer.notifications.NotificationHelper
+import codes.madera.crossfog.watch.core.service.transfer.notifications.foregroundStartFailureDetail
+import codes.madera.crossfog.watch.core.service.transfer.runtime.TransferTerminalOutcome
+import codes.madera.crossfog.watch.core.service.transfer.storage.WatchFileOps
+import com.google.android.gms.wearable.ChannelClient
+import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.tasks.await
+import java.io.IOException
+import java.util.Locale
+
+@Suppress("LongParameterList") // Existing transfer seams stay explicit to preserve the handler's behavior.
+internal class DataLayerChannelOpenedHandler(
+    private val service: ChannelTransferForegroundService,
+    private val notificationHelper: NotificationHelper,
+    private val fileOps: WatchFileOps,
+    private val transferMutex: Mutex,
+    private val channelReceiver: ChannelClientStrategy,
+    private val sendAck: suspend (sourceNodeId: String, transferId: String, status: String, detail: String) -> Unit,
+    private val expectedChecksum: String? = null,
+    private val expectedSize: Long? = null,
+    private val admissionOwner: Any? = null,
+) {
+    // Keep channel validation, serialization, and cleanup in one admitted transfer scope.
+    @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+    suspend fun handleChannelOpened(channel: ChannelClient.Channel) {
+        if (!channel.path.startsWith(TransferConstants.CHANNEL_PREFIX)) return
+
+        val parsed =
+            parseChannelPath(channel.path) ?: run {
+                Log.w(TAG, "Invalid channel path: ${channel.path}")
+                TransferDiagnostics.warn("Channel", "Invalid channel path")
+                return
+            }
+
+        val transferId = parsed.first
+        val fileName = fileOps.sanitizeFileName(parsed.second)
+        val notificationId = transferId.hashCode()
+
+        val metadata =
+            ReceiverMetadata(
+                transferId = transferId,
+                fileName = fileName,
+                totalSize = expectedSize ?: -1L,
+                sourceNodeId = channel.nodeId,
+                notificationId = notificationId,
+                checksumSha256 = expectedChecksum,
+            )
+        EnergyDiagnostics.recordEvent(
+            reason = "channel_transfer_start",
+            detail = "file=$fileName transferId=$transferId",
+        )
+        TransferDiagnostics.log(
+            "Channel",
+            "Open id=$transferId file=$fileName",
+        )
+
+        withTransferLock {
+            if (fileOps.fileBlocksIncomingTransfer(fileName)) {
+                val msg = "FILE_EXISTS:$fileName"
+                TransferDiagnostics.warn("Channel", "Target file already exists id=$transferId file=$fileName")
+                notificationHelper.showError(
+                    metadata.notificationId,
+                    metadata.fileName,
+                    service.getString(R.string.download_already_exists),
+                )
+                runCatching { Wearable.getChannelClient(service).close(channel).await() }
+                service.appScope().launch(Dispatchers.IO) {
+                    runCatching { sendAck(metadata.sourceNodeId, metadata.transferId, "ERROR", msg) }
+                        .onFailure {
+                            TransferDiagnostics.warn(
+                                "Channel",
+                                "Terminal ACK failed id=${metadata.transferId} status=ERROR",
+                            )
+                        }
+                }
+                return@withTransferLock
+            }
+
+            val wakeLock = service.acquireWakeLock("GlanceMap::ChannelTransfer", TransferConstants.WAKELOCK_MAX_MS)
+            service.releasePrewarmWakeLock("channel_transfer_start:$fileName")
+            var transferStarted = false
+            var receiverStarted = false
+            var payloadPromoted = false
+            var lastBytesCopied = 0L
+            var terminalAck: TerminalAck? = null
+
+            try {
+                service.onTransferStarted()
+                transferStarted = true
+                val integrityFailure =
+                    channelTransferIntegrityFailureReason(
+                        fileName = metadata.fileName,
+                        expectedSize = expectedSize,
+                        expectedChecksum = expectedChecksum,
+                    )
+                if (integrityFailure != null) throw IOException(integrityFailure)
+
+                val startMs = SystemClock.elapsedRealtime()
+                receiverStarted = true
+                val receivedSha =
+                    channelReceiver.receiveFromChannel(service, channel, metadata) { bytesCopied ->
+                        lastBytesCopied = bytesCopied
+                        // Channel progress is optional; keep minimal to avoid overhead
+                        if (bytesCopied > 0L) {
+                            notificationHelper.updateForeground(
+                                metadata.notificationId,
+                                metadata.fileName,
+                                service.getString(R.string.download_receiving_mb, bytesCopied / (1024 * 1024)),
+                                -1, // Indeterminate progress for channel transfers
+                            )
+                        }
+                    }
+                payloadPromoted = true
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                // Returning from receive means AtomicStreamWriter validated the staged size and
+                // checksum before promotion; do not add a second post-promotion failure point.
+                TransferDiagnostics.log(
+                    "Channel",
+                    "event=staged_validation transferId=${metadata.transferId} " +
+                        "expectedBytes=${expectedSize ?: "na"} receivedBytes=$lastBytesCopied " +
+                        "expectedChecksumAvailable=yes actualChecksumAvailable=${receivedSha.isNotBlank()} " +
+                        "checksumMatch=true " +
+                        "stagedValidation=passed promotionResult=succeeded",
+                )
+                TransferDiagnostics.log(
+                    "Channel",
+                    "event=write_complete transferId=${metadata.transferId} bytesReceived=$lastBytesCopied " +
+                        "expectedBytes=${expectedSize ?: "na"} commitSucceeded=true",
+                )
+
+                TransferDiagnostics.log(
+                    "Channel",
+                    "Checksum verified id=${metadata.transferId} file=${metadata.fileName}",
+                )
+                TransferDiagnostics.log(
+                    "Channel",
+                    "event=checksum_complete transferId=${metadata.transferId} " +
+                        "expectedChecksumAvailable=yes actualChecksumAvailable=yes checksumMatch=true " +
+                        "checksumVerified=true " +
+                        "checksumDurationMs=na verificationMode=staged_inline",
+                )
+                fileOps.finishReceivedFile(metadata.fileName)
+                TransferDiagnostics.log(
+                    "Channel",
+                    "event=commit_complete transferId=${metadata.transferId} commitSucceeded=true",
+                )
+
+                val terminalClaimed =
+                    service.claimForegroundTransfer(metadata.transferId, TransferTerminalOutcome.DONE)
+                if (!terminalClaimed) return@withTransferLock
+                terminalAck = TerminalAck(status = "DONE", detail = "")
+                notificationHelper.showCompletion(
+                    metadata.notificationId,
+                    metadata.fileName,
+                    service.getString(R.string.gpx_saved),
+                )
+                val sizeMiB = lastBytesCopied / (1024.0 * 1024.0)
+                val speedMiBps = if (durationMs > 0) sizeMiB / (durationMs / 1000.0) else 0.0
+                TransferDiagnostics.log(
+                    "Channel",
+                    "Summary id=${metadata.transferId} file=${metadata.fileName} size=$lastBytesCopied " +
+                        "durationMs=$durationMs speedMiBps=${String.format(Locale.US, "%.2f", speedMiBps)} " +
+                        "bytesReceived=$lastBytesCopied copyDurationMs=$durationMs " +
+                        "finalAckStatus=${terminalAck.status}",
+                )
+                EnergyDiagnostics.recordEvent(
+                    reason = "channel_transfer_done",
+                    detail = "file=${metadata.fileName} transferId=${metadata.transferId}",
+                )
+            } catch (e: CancellationException) {
+                if (e.message != FGS_DATA_SYNC_TIMEOUT) throw e
+                TransferDiagnostics.warn(
+                    "Channel",
+                    "Timeout cancellation handled id=${metadata.transferId} file=${metadata.fileName}",
+                )
+            } catch (e: Exception) {
+                val detail =
+                    if (e.javaClass.name == "android.app.ForegroundServiceStartNotAllowedException") {
+                        foregroundStartFailureDetail(e.javaClass.name, Build.VERSION.SDK_INT, e.message)
+                    } else {
+                        e.message ?: "Unknown error"
+                    }
+                val reason = channelTransferFailureReason(detail)
+                Log.e(TAG, "Channel transfer failed id=${metadata.transferId} reason=$reason")
+                val promotionResult = if (payloadPromoted) "succeeded" else "not_succeeded"
+                TransferDiagnostics.error(
+                    "Channel",
+                    "Failed id=${metadata.transferId} file=${metadata.fileName} reason=$reason",
+                )
+                TransferDiagnostics.warn(
+                    "Channel",
+                    "event=staged_validation transferId=${metadata.transferId} " +
+                        "expectedBytes=${expectedSize ?: "na"} receivedBytes=$lastBytesCopied " +
+                        "expectedChecksumAvailable=${!expectedChecksum.isNullOrBlank()} " +
+                        "actualChecksumAvailable=${reason == "checksum_mismatch" || payloadPromoted} " +
+                        "checksumMatch=${if (reason == "checksum_mismatch") "false" else "na"} " +
+                        "checksumVerified=false " +
+                        "stagedValidation=failed promotionResult=$promotionResult " +
+                        "terminalStatus=ERROR reason=$reason",
+                )
+                if (service.claimForegroundTransfer(metadata.transferId, TransferTerminalOutcome.ERROR)) {
+                    terminalAck = TerminalAck(status = "ERROR", detail = detail)
+                    notificationHelper.showError(
+                        metadata.notificationId,
+                        metadata.fileName,
+                        service.getString(R.string.download_failed, detail),
+                    )
+                    EnergyDiagnostics.recordEvent(
+                        reason = "channel_transfer_error",
+                        detail = "file=${metadata.fileName} transferId=${metadata.transferId} msg=$detail",
+                    )
+                }
+            } finally {
+                if (!receiverStarted) {
+                    runCatching { Wearable.getChannelClient(service).close(channel).await() }
+                }
+                service.endForegroundTransfer(metadata.transferId)
+                runCatching {
+                    if (transferStarted) service.onTransferFinished()
+                }.onFailure {
+                    TransferDiagnostics.warn(
+                        "Channel",
+                        "Transfer-finished cleanup failed id=${metadata.transferId}",
+                    )
+                }
+                runCatching { service.releaseWakeLock(wakeLock) }
+                    .onFailure {
+                        TransferDiagnostics.warn(
+                            "Channel",
+                            "Wake-lock cleanup failed id=${metadata.transferId}",
+                        )
+                    }
+                TransferDiagnostics.log(
+                    "Channel",
+                    "event=cleanup_complete transferId=${metadata.transferId}",
+                )
+                terminalAck?.let { ack ->
+                    service.appScope().launch(Dispatchers.IO) {
+                        runCatching {
+                            sendAck(metadata.sourceNodeId, metadata.transferId, ack.status, ack.detail)
+                        }.onFailure {
+                            TransferDiagnostics.warn(
+                                "Channel",
+                                "Terminal ACK failed id=${metadata.transferId} status=${ack.status}",
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun <T> withTransferLock(block: suspend () -> T): T =
+        if (admissionOwner == null) {
+            transferMutex.withLock { block() }
+        } else {
+            block()
+        }
+
+    private companion object {
+        const val TAG = "DataLayerChOpen"
+    }
+
+    private data class TerminalAck(
+        val status: String,
+        val detail: String,
+    )
+}
+
+internal fun parseChannelPath(path: String): Pair<String, String>? {
+    val parts = path.split('/').filter { it.isNotBlank() }
+    if (parts.size < 4) return null
+    val transferId = parts[2]
+    val safeName = parts[3]
+    return transferId to Uri.decode(safeName)
+}

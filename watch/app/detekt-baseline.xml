@@ -294,69 +294,69 @@
     <ID>ImplicitDefaultLocale:TransferRunner.kt$TransferRunner$String.format("%.2f", speedMBps)</ID>
     <ID>InstanceOfCheckForException:AtomicStreamWriter.kt$AtomicStreamWriter$e is CancellationException</ID>
     <ID>InstanceOfCheckForException:AtomicStreamWriter.kt$AtomicStreamWriter$e is IOException</ID>
-    <ID>InvalidPackageDeclaration:AmbientScreen.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:CombinedGuidanceRecordingOverlay.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:CompassConeLayer.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:DeadReckoning.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:DiagnosticsExporterLogcat.kt$package com.glancemap.glancemapwearos.core.service.diagnostics</ID>
-    <ID>InvalidPackageDeclaration:DiagnosticsExporterSnapshots.kt$package com.glancemap.glancemapwearos.core.service.diagnostics</ID>
-    <ID>InvalidPackageDeclaration:DiagnosticsExporterTelemetry.kt$package com.glancemap.glancemapwearos.core.service.diagnostics</ID>
-    <ID>InvalidPackageDeclaration:GpsAccuracyCircleLayer.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:GpxOverlayBitmaps.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:GpxOverlayGeometry.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:GuidanceManeuverIcon.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:LocationViewModel.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:LocationViewModelSupportTest.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:MapOverlays.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:MapViewExtensions.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateBackHandler.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateCompassUiState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateContent.Geometry.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateContent.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateContentSizing.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateContentStatusOverlays.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateDebugOverlayState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateEffects.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateEffectsSupportTest.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateExpandedOverlayState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateGuidanceHelpers.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateGuidanceRuntime.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateLiveHudState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateMapReadyEffect.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateMapSurfaceTelemetry.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateMapZoomState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateOverlaysLayer.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigatePanTelemetry.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigatePermissionRequiredContent.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigatePoiTapUtils.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateRecordingStatus.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateRouteToolOverlayHost.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateRouteToolViewport.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateRuntimeState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScaleIndicator.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.Actions.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.Dialogs.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.Permissions.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.RouteTools.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.Support.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreen.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateScreenLifecycle.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateSettingsState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateStartupCentering.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateTimeFormatting.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateUiState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigateViewModel.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigationArrowMarker.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigationDotMarker.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigationMarkerRenderState.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:NavigationMarkerVisuals.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:ReliefDemRepository.kt$package com.glancemap.glancemapwearos.presentation.features.maps</ID>
-    <ID>InvalidPackageDeclaration:ReliefOverlayDiskCache.kt$package com.glancemap.glancemapwearos.presentation.features.maps</ID>
-    <ID>InvalidPackageDeclaration:ReliefOverlayRuntime.kt$package com.glancemap.glancemapwearos.presentation.features.maps</ID>
-    <ID>InvalidPackageDeclaration:ReliefOverlayTypes.kt$package com.glancemap.glancemapwearos.presentation.features.maps</ID>
-    <ID>InvalidPackageDeclaration:ReliefTileRenderer.kt$package com.glancemap.glancemapwearos.presentation.features.maps</ID>
-    <ID>InvalidPackageDeclaration:TurnByTurnDashboard.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
-    <ID>InvalidPackageDeclaration:TurnByTurnGuidanceOverlay.kt$package com.glancemap.glancemapwearos.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:AmbientScreen.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:CombinedGuidanceRecordingOverlay.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:CompassConeLayer.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:DeadReckoning.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:DiagnosticsExporterLogcat.kt$package codes.madera.crossfog.watch.core.service.diagnostics</ID>
+    <ID>InvalidPackageDeclaration:DiagnosticsExporterSnapshots.kt$package codes.madera.crossfog.watch.core.service.diagnostics</ID>
+    <ID>InvalidPackageDeclaration:DiagnosticsExporterTelemetry.kt$package codes.madera.crossfog.watch.core.service.diagnostics</ID>
+    <ID>InvalidPackageDeclaration:GpsAccuracyCircleLayer.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:GpxOverlayBitmaps.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:GpxOverlayGeometry.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:GuidanceManeuverIcon.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:LocationViewModel.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:LocationViewModelSupportTest.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:MapOverlays.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:MapViewExtensions.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateBackHandler.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateCompassUiState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateContent.Geometry.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateContent.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateContentSizing.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateContentStatusOverlays.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateDebugOverlayState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateEffects.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateEffectsSupportTest.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateExpandedOverlayState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateGuidanceHelpers.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateGuidanceRuntime.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateLiveHudState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateMapReadyEffect.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateMapSurfaceTelemetry.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateMapZoomState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateOverlaysLayer.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigatePanTelemetry.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigatePermissionRequiredContent.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigatePoiTapUtils.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateRecordingStatus.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateRouteToolOverlayHost.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateRouteToolViewport.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateRuntimeState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScaleIndicator.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.Actions.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.Dialogs.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.Permissions.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.RouteTools.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.Support.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreen.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateScreenLifecycle.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateSettingsState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateStartupCentering.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateTimeFormatting.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateUiState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigateViewModel.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigationArrowMarker.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigationDotMarker.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigationMarkerRenderState.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:NavigationMarkerVisuals.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:ReliefDemRepository.kt$package codes.madera.crossfog.watch.presentation.features.maps</ID>
+    <ID>InvalidPackageDeclaration:ReliefOverlayDiskCache.kt$package codes.madera.crossfog.watch.presentation.features.maps</ID>
+    <ID>InvalidPackageDeclaration:ReliefOverlayRuntime.kt$package codes.madera.crossfog.watch.presentation.features.maps</ID>
+    <ID>InvalidPackageDeclaration:ReliefOverlayTypes.kt$package codes.madera.crossfog.watch.presentation.features.maps</ID>
+    <ID>InvalidPackageDeclaration:ReliefTileRenderer.kt$package codes.madera.crossfog.watch.presentation.features.maps</ID>
+    <ID>InvalidPackageDeclaration:TurnByTurnDashboard.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
+    <ID>InvalidPackageDeclaration:TurnByTurnGuidanceOverlay.kt$package codes.madera.crossfog.watch.presentation.features.navigate</ID>
     <ID>LargeClass:BRouterRoutePlanner.kt$BRouterRoutePlanner : RoutePlanner</ID>
     <ID>LargeClass:BundledAssetThemeComposer.kt$BundledAssetThemeComposer</ID>
     <ID>LargeClass:DiagnosticsExporter.kt$DiagnosticsExporter</ID>
@@ -821,7 +821,7 @@
     <ID>MaxLineLength:MainActivity.kt$MainActivity$val recordingStartWithTurnByTurn by appContainer.settingsViewModel.recordingStartWithTurnByTurn.collectAsState()</ID>
     <ID>MaxLineLength:MainActivity.kt$MainActivity$val turnByTurnGpsIntervalSeconds by appContainer.settingsViewModel.turnByTurnGpsIntervalSeconds.collectAsState()</ID>
     <ID>MaxLineLength:MainActivity.kt$MainActivity$val turnByTurnScreenOffGpsIntervalSeconds by appContainer.settingsViewModel.turnByTurnScreenOffGpsIntervalSeconds.collectAsState()</ID>
-    <ID>MaxLineLength:MapOverlays.kt$onPoiMarkersSnapshotChanged: (List&lt;com.glancemap.glancemapwearos.presentation.features.poi.PoiOverlayMarker&gt;) -&gt; Unit</ID>
+    <ID>MaxLineLength:MapOverlays.kt$onPoiMarkersSnapshotChanged: (List&lt;codes.madera.crossfog.watch.presentation.features.poi.PoiOverlayMarker&gt;) -&gt; Unit</ID>
     <ID>MaxLineLength:MapRenderer.ThemeSupport.kt$"FILE:${file.absolutePath}|$lastModified|$length|THEME:${bundledThemeId.uppercase(Locale.ROOT)}|HILLS:$hillShadingEnabled"</ID>
     <ID>MaxLineLength:MapRenderer.kt$MapRenderer.Companion$fun captureCacheDiagnostics(context: Context): CacheDiagnosticsSnapshot</ID>
     <ID>MaxLineLength:MapViewModel.kt$MapViewModel$"Selection theme=${selection.themeId} mapsforge=${selection.mapsforgeThemeName} style=${selection.styleId} overlays=${selection.enabledOverlayLayerIds} hillShading=${selection.hillShadingEnabled} reliefOverlay=${selection.reliefOverlayEnabled}"</ID>
@@ -1188,34 +1188,34 @@
     <ID>TooGenericExceptionCaught:WatchGpsLocationGateway.kt$WatchGpsLocationGateway$error: Exception</ID>
     <ID>TooManyFunctions:AdaptivePositionFilter.kt$PositionKalmanFilter</ID>
     <ID>TooManyFunctions:BRouterRoutePlanner.kt$BRouterRoutePlanner : RoutePlanner</ID>
-    <ID>TooManyFunctions:BRouterRoutePlanner.kt$com.glancemap.glancemapwearos.core.routing.BRouterRoutePlanner.kt</ID>
+    <ID>TooManyFunctions:BRouterRoutePlanner.kt$codes.madera.crossfog.watch.core.routing.BRouterRoutePlanner.kt</ID>
     <ID>TooManyFunctions:BundledAssetThemeComposer.kt$BundledAssetThemeComposer</ID>
-    <ID>TooManyFunctions:CombinedGuidanceRecordingOverlay.kt$com.glancemap.glancemapwearos.presentation.features.navigate.CombinedGuidanceRecordingOverlay.kt</ID>
-    <ID>TooManyFunctions:CompassAlgorithms.kt$com.glancemap.glancemapwearos.domain.sensors.CompassAlgorithms.kt</ID>
+    <ID>TooManyFunctions:CombinedGuidanceRecordingOverlay.kt$codes.madera.crossfog.watch.presentation.features.navigate.CombinedGuidanceRecordingOverlay.kt</ID>
+    <ID>TooManyFunctions:CompassAlgorithms.kt$codes.madera.crossfog.watch.domain.sensors.CompassAlgorithms.kt</ID>
     <ID>TooManyFunctions:CompassDeepTraceDiagnostics.kt$CompassDeepTraceDiagnostics</ID>
     <ID>TooManyFunctions:CompassHeadingDiagnostics.kt$CompassHeadingDiagnostics</ID>
-    <ID>TooManyFunctions:CompassHeadingReferenceDiagnostics.kt$com.glancemap.glancemapwearos.core.service.diagnostics.CompassHeadingReferenceDiagnostics.kt</ID>
-    <ID>TooManyFunctions:CompassManager.Support.kt$com.glancemap.glancemapwearos.domain.sensors.CompassManager.Support.kt</ID>
+    <ID>TooManyFunctions:CompassHeadingReferenceDiagnostics.kt$codes.madera.crossfog.watch.core.service.diagnostics.CompassHeadingReferenceDiagnostics.kt</ID>
+    <ID>TooManyFunctions:CompassManager.Support.kt$codes.madera.crossfog.watch.domain.sensors.CompassManager.Support.kt</ID>
     <ID>TooManyFunctions:CompassManager.kt$CompassManager</ID>
-    <ID>TooManyFunctions:CompassRecalibrationDialog.kt$com.glancemap.glancemapwearos.presentation.features.settings.CompassRecalibrationDialog.kt</ID>
-    <ID>TooManyFunctions:CompassRuntime.kt$com.glancemap.glancemapwearos.domain.sensors.CompassRuntime.kt</ID>
-    <ID>TooManyFunctions:CompassSettingsScreen.Support.kt$com.glancemap.glancemapwearos.presentation.features.settings.CompassSettingsScreen.Support.kt</ID>
+    <ID>TooManyFunctions:CompassRecalibrationDialog.kt$codes.madera.crossfog.watch.presentation.features.settings.CompassRecalibrationDialog.kt</ID>
+    <ID>TooManyFunctions:CompassRuntime.kt$codes.madera.crossfog.watch.domain.sensors.CompassRuntime.kt</ID>
+    <ID>TooManyFunctions:CompassSettingsScreen.Support.kt$codes.madera.crossfog.watch.presentation.features.settings.CompassSettingsScreen.Support.kt</ID>
     <ID>TooManyFunctions:DataLayerListenerService.kt$DataLayerListenerService : WearableListenerService</ID>
     <ID>TooManyFunctions:Dem3CoverageUtils.kt$Dem3CoverageUtils</ID>
-    <ID>TooManyFunctions:DiagnosticsExporterSnapshots.kt$com.glancemap.glancemapwearos.core.service.diagnostics.DiagnosticsExporterSnapshots.kt</ID>
-    <ID>TooManyFunctions:DiagnosticsExporterTelemetry.kt$com.glancemap.glancemapwearos.core.service.diagnostics.DiagnosticsExporterTelemetry.kt</ID>
+    <ID>TooManyFunctions:DiagnosticsExporterSnapshots.kt$codes.madera.crossfog.watch.core.service.diagnostics.DiagnosticsExporterSnapshots.kt</ID>
+    <ID>TooManyFunctions:DiagnosticsExporterTelemetry.kt$codes.madera.crossfog.watch.core.service.diagnostics.DiagnosticsExporterTelemetry.kt</ID>
     <ID>TooManyFunctions:EnergyDiagnostics.kt$EnergyDiagnostics</ID>
-    <ID>TooManyFunctions:ExternalRunPodClient.kt$com.glancemap.glancemapwearos.presentation.features.recording.external.ExternalRunPodClient.kt</ID>
+    <ID>TooManyFunctions:ExternalRunPodClient.kt$codes.madera.crossfog.watch.presentation.features.recording.external.ExternalRunPodClient.kt</ID>
     <ID>TooManyFunctions:FusedOrientationProviderAdapter.kt$FusedOrientationProviderAdapter : CompassOrientationProvider</ID>
-    <ID>TooManyFunctions:GpsSettingsScreen.kt$com.glancemap.glancemapwearos.presentation.features.settings.GpsSettingsScreen.kt</ID>
-    <ID>TooManyFunctions:GpxElevationProfileDialog.Support.kt$com.glancemap.glancemapwearos.presentation.features.gpx.GpxElevationProfileDialog.Support.kt</ID>
-    <ID>TooManyFunctions:GpxEtaEstimator.kt$com.glancemap.glancemapwearos.presentation.features.gpx.GpxEtaEstimator.kt</ID>
-    <ID>TooManyFunctions:GpxInspectionPopup.kt$com.glancemap.glancemapwearos.presentation.features.maps.GpxInspectionPopup.kt</ID>
-    <ID>TooManyFunctions:GpxProfileUtils.kt$com.glancemap.glancemapwearos.presentation.features.gpx.GpxProfileUtils.kt</ID>
+    <ID>TooManyFunctions:GpsSettingsScreen.kt$codes.madera.crossfog.watch.presentation.features.settings.GpsSettingsScreen.kt</ID>
+    <ID>TooManyFunctions:GpxElevationProfileDialog.Support.kt$codes.madera.crossfog.watch.presentation.features.gpx.GpxElevationProfileDialog.Support.kt</ID>
+    <ID>TooManyFunctions:GpxEtaEstimator.kt$codes.madera.crossfog.watch.presentation.features.gpx.GpxEtaEstimator.kt</ID>
+    <ID>TooManyFunctions:GpxInspectionPopup.kt$codes.madera.crossfog.watch.presentation.features.maps.GpxInspectionPopup.kt</ID>
+    <ID>TooManyFunctions:GpxProfileUtils.kt$codes.madera.crossfog.watch.presentation.features.gpx.GpxProfileUtils.kt</ID>
     <ID>TooManyFunctions:GpxRouteToolOperations.kt$GpxRouteToolOperations</ID>
-    <ID>TooManyFunctions:GpxTurnByTurnGuidance.kt$com.glancemap.glancemapwearos.presentation.features.navigate.guidance.GpxTurnByTurnGuidance.kt</ID>
+    <ID>TooManyFunctions:GpxTurnByTurnGuidance.kt$codes.madera.crossfog.watch.presentation.features.navigate.guidance.GpxTurnByTurnGuidance.kt</ID>
     <ID>TooManyFunctions:GpxViewModel.kt$GpxViewModel : ViewModel</ID>
-    <ID>TooManyFunctions:GpxViewModel.kt$com.glancemap.glancemapwearos.presentation.features.gpx.GpxViewModel.kt</ID>
+    <ID>TooManyFunctions:GpxViewModel.kt$codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel.kt</ID>
     <ID>TooManyFunctions:LocationEngine.kt$LocationEngine</ID>
     <ID>TooManyFunctions:LocationService.kt$LocationService : Service</ID>
     <ID>TooManyFunctions:LocationServiceTelemetry.kt$LocationServiceTelemetry</ID>
@@ -1223,22 +1223,22 @@
     <ID>TooManyFunctions:MapRenderer.kt$MapRenderer</ID>
     <ID>TooManyFunctions:MapViewModel.kt$MapViewModel : ViewModel</ID>
     <ID>TooManyFunctions:MarkerMotionTelemetry.kt$MarkerMotionTelemetry</ID>
-    <ID>TooManyFunctions:NavigateEffects.kt$com.glancemap.glancemapwearos.presentation.features.navigate.NavigateEffects.kt</ID>
-    <ID>TooManyFunctions:NavigateGuidanceHelpers.kt$com.glancemap.glancemapwearos.presentation.features.navigate.NavigateGuidanceHelpers.kt</ID>
-    <ID>TooManyFunctions:NavigateLocationEffects.kt$com.glancemap.glancemapwearos.presentation.features.navigate.effects.NavigateLocationEffects.kt</ID>
-    <ID>TooManyFunctions:NavigateOverlaysLayer.Support.kt$com.glancemap.glancemapwearos.presentation.features.navigate.NavigateOverlaysLayer.Support.kt</ID>
+    <ID>TooManyFunctions:NavigateEffects.kt$codes.madera.crossfog.watch.presentation.features.navigate.NavigateEffects.kt</ID>
+    <ID>TooManyFunctions:NavigateGuidanceHelpers.kt$codes.madera.crossfog.watch.presentation.features.navigate.NavigateGuidanceHelpers.kt</ID>
+    <ID>TooManyFunctions:NavigateLocationEffects.kt$codes.madera.crossfog.watch.presentation.features.navigate.effects.NavigateLocationEffects.kt</ID>
+    <ID>TooManyFunctions:NavigateOverlaysLayer.Support.kt$codes.madera.crossfog.watch.presentation.features.navigate.NavigateOverlaysLayer.Support.kt</ID>
     <ID>TooManyFunctions:PoiRepository.kt$PoiRepository</ID>
-    <ID>TooManyFunctions:PoiRepositoryCategories.kt$com.glancemap.glancemapwearos.data.repository.PoiRepositoryCategories.kt</ID>
+    <ID>TooManyFunctions:PoiRepositoryCategories.kt$codes.madera.crossfog.watch.data.repository.PoiRepositoryCategories.kt</ID>
     <ID>TooManyFunctions:PoiRepositoryImpl.kt$PoiRepositoryImpl : PoiRepository</ID>
-    <ID>TooManyFunctions:PoiScreen.Support.kt$com.glancemap.glancemapwearos.presentation.features.poi.PoiScreen.Support.kt</ID>
+    <ID>TooManyFunctions:PoiScreen.Support.kt$codes.madera.crossfog.watch.presentation.features.poi.PoiScreen.Support.kt</ID>
     <ID>TooManyFunctions:PoiViewModel.kt$PoiViewModel : ViewModel</ID>
-    <ID>TooManyFunctions:RecordingExternalSensorsScreen.kt$com.glancemap.glancemapwearos.presentation.features.settings.RecordingExternalSensorsScreen.kt</ID>
-    <ID>TooManyFunctions:RecordingMetricModels.kt$com.glancemap.glancemapwearos.presentation.features.recording.dashboard.RecordingMetricModels.kt</ID>
-    <ID>TooManyFunctions:RecordingSensorBridge.kt$com.glancemap.glancemapwearos.presentation.features.recording.sensors.RecordingSensorBridge.kt</ID>
+    <ID>TooManyFunctions:RecordingExternalSensorsScreen.kt$codes.madera.crossfog.watch.presentation.features.settings.RecordingExternalSensorsScreen.kt</ID>
+    <ID>TooManyFunctions:RecordingMetricModels.kt$codes.madera.crossfog.watch.presentation.features.recording.dashboard.RecordingMetricModels.kt</ID>
+    <ID>TooManyFunctions:RecordingSensorBridge.kt$codes.madera.crossfog.watch.presentation.features.recording.sensors.RecordingSensorBridge.kt</ID>
     <ID>TooManyFunctions:ReliefOverlayLayer.kt$ReliefOverlayLayer : Layer</ID>
-    <ID>TooManyFunctions:RouteDataFiles.kt$com.glancemap.glancemapwearos.core.routing.RouteDataFiles.kt</ID>
-    <ID>TooManyFunctions:RouteToolModels.kt$com.glancemap.glancemapwearos.presentation.features.routetools.RouteToolModels.kt</ID>
-    <ID>TooManyFunctions:RouteToolsActionPanel.Support.kt$com.glancemap.glancemapwearos.presentation.features.routetools.RouteToolsActionPanel.Support.kt</ID>
+    <ID>TooManyFunctions:RouteDataFiles.kt$codes.madera.crossfog.watch.core.routing.RouteDataFiles.kt</ID>
+    <ID>TooManyFunctions:RouteToolModels.kt$codes.madera.crossfog.watch.presentation.features.routetools.RouteToolModels.kt</ID>
+    <ID>TooManyFunctions:RouteToolsActionPanel.Support.kt$codes.madera.crossfog.watch.presentation.features.routetools.RouteToolsActionPanel.Support.kt</ID>
     <ID>TooManyFunctions:SelfHealFailoverCoordinator.kt$SelfHealFailoverCoordinator</ID>
     <ID>TooManyFunctions:SensorManagerOrientationProvider.kt$SensorManagerOrientationProvider : CompassOrientationProviderSensorEventListener</ID>
     <ID>TooManyFunctions:SettingsRepository.kt$SettingsRepository</ID>
@@ -1246,14 +1246,14 @@
     <ID>TooManyFunctions:SettingsRepositoryImpl.kt$SettingsRepositoryImpl$Companion</ID>
     <ID>TooManyFunctions:SettingsViewModel.kt$SettingsViewModel : ViewModel</ID>
     <ID>TooManyFunctions:ThemeRepositoryImpl.kt$ThemeRepositoryImpl : ThemeRepository</ID>
-    <ID>TooManyFunctions:ThemeRepositoryParsing.kt$com.glancemap.glancemapwearos.data.repository.maps.theme.ThemeRepositoryParsing.kt</ID>
+    <ID>TooManyFunctions:ThemeRepositoryParsing.kt$codes.madera.crossfog.watch.data.repository.maps.theme.ThemeRepositoryParsing.kt</ID>
     <ID>TooManyFunctions:ThemeViewModel.kt$ThemeViewModel : ViewModel</ID>
-    <ID>TooManyFunctions:TraceGpxEncoder.kt$com.glancemap.glancemapwearos.presentation.features.recording.TraceGpxEncoder.kt</ID>
+    <ID>TooManyFunctions:TraceGpxEncoder.kt$codes.madera.crossfog.watch.presentation.features.recording.TraceGpxEncoder.kt</ID>
     <ID>TooManyFunctions:TraceRecordingViewModel.kt$TraceRecordingViewModel : ViewModel</ID>
-    <ID>TooManyFunctions:TraceRecordingViewModel.kt$com.glancemap.glancemapwearos.presentation.features.recording.TraceRecordingViewModel.kt</ID>
+    <ID>TooManyFunctions:TraceRecordingViewModel.kt$codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingViewModel.kt</ID>
     <ID>TooManyFunctions:TransferRuntimeHost.kt$TransferRuntimeHost</ID>
     <ID>TooManyFunctions:TransferSessionState.kt$TransferSessionState</ID>
-    <ID>TooManyFunctions:TurnByTurnGuidanceOverlay.kt$com.glancemap.glancemapwearos.presentation.features.navigate.TurnByTurnGuidanceOverlay.kt</ID>
+    <ID>TooManyFunctions:TurnByTurnGuidanceOverlay.kt$codes.madera.crossfog.watch.presentation.features.navigate.TurnByTurnGuidanceOverlay.kt</ID>
     <ID>TooManyFunctions:WatchFileOps.kt$WatchFileOps</ID>
     <ID>TooManyFunctions:WatchGpsLocationGateway.kt$WatchGpsLocationGateway : LocationGateway</ID>
     <ID>TooManyFunctions:WatchTransferForegroundService.kt$WatchTransferForegroundService : ServiceTransferRuntimeHost</ID>
