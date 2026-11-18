@@ -54,7 +54,7 @@
 
     // null alone cannot tell offline from a blocked host or a broken decoder; one line per distinct stage and
     // error class says which. A message can hold the tile URL or its number, so it is never logged, and a name
-    // that is no plain identifier is not either; a thrown string or number is named by its type, as importMessages does
+    // that is no plain identifier is not either; any other thrown non-object (a string, a number) is named by its type
     function warnOnce(stage, e) {
       const kind = e !== null && typeof e === "object" && typeof e.name === "string" && /^[A-Za-z][A-Za-z0-9]{0,39}$/.test(e.name)
         ? e.name : e !== null && typeof e !== "object" ? typeof e : "unknown";
