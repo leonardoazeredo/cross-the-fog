@@ -198,7 +198,6 @@ class MapRenderer(
         val bundledThemeCacheDirCount: Int,
         val bundledThemeCacheTotalSizeBytes: Long,
         val demDisk: DemDiskDiagnostics,
-        val worldWindTileCacheSizeBytes: Long,
     )
 
     data class CacheBucketDiagnostics(

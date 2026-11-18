@@ -24,14 +24,9 @@ import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.maps.Dem3CoverageUtils
 import codes.madera.crossfog.watch.core.maps.DemSignatureStore
 import codes.madera.crossfog.watch.core.maps.DemSource
-import codes.madera.crossfog.watch.core.routing.RoutingCoverageUtils
-import codes.madera.crossfog.watch.core.routing.routingSegmentPartFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentTargetFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentsDir
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.transfer.storage.partialFileUseGuard
 import codes.madera.crossfog.watch.data.repository.MapRepositoryImpl
-import codes.madera.crossfog.watch.data.repository.PoiRepository
 import codes.madera.crossfog.watch.data.repository.internal.AtomicStreamWriter
 import codes.madera.crossfog.watch.presentation.features.maps.theme.createMissingDemMarker
 import codes.madera.crossfog.watch.presentation.features.maps.theme.validateDemTileFile
@@ -59,7 +54,6 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import kotlin.coroutines.coroutineContext
 
-private const val OAM_REMOTE_BROUTER_SEGMENTS_BASE_URL = "https://brouter.de/brouter/segments4"
 private const val DEM_TELEMETRY_SAMPLE_LIMIT = 5
 
 data class OamDownloadProgress(
@@ -67,12 +61,6 @@ data class OamDownloadProgress(
     val detail: String,
     val bytesDone: Long = 0L,
     val totalBytes: Long? = null,
-)
-
-private data class RoutingSegmentDownloadResult(
-    val fileName: String,
-    val downloaded: Boolean,
-    val available: Boolean = true,
 )
 
 internal enum class DemTileDownloadOutcome {
@@ -168,23 +156,6 @@ internal fun buildRemoteFileRequestsForBundle(
                 ),
             )
         }
-        if (bundle.poiFileName != null) {
-            add(
-                RemoteFileRequest(
-                    url = area.poiZipUrl,
-                    fileName = oamRemoteFileName(area.poiZipUrl),
-                ),
-            )
-        }
-        bundle.routingFileNames.forEach { fileName ->
-            val safeName = File(fileName).name
-            add(
-                RemoteFileRequest(
-                    url = "$OAM_REMOTE_BROUTER_SEGMENTS_BASE_URL/$safeName",
-                    fileName = safeName,
-                ),
-            )
-        }
         bundle.demTileIds
             .filterNot(shouldSkipKnownMissingDemTile)
             .forEach { tileId ->
@@ -195,7 +166,6 @@ internal fun buildRemoteFileRequestsForBundle(
 class OamBundleDownloader(
     private val context: Context,
     private val mapRepository: MapRepositoryImpl,
-    private val poiRepository: PoiRepository,
     private val bundleStore: OamBundleStore = OamBundleStore(context),
     connectionFactory: suspend (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
 ) {
@@ -210,13 +180,6 @@ class OamBundleDownloader(
     }
     private val activeConnections: MutableSet<HttpURLConnection>
         get() = activeConnectionRegistry.connections
-    private val refugesInfoImporter by lazy {
-        RefugesInfoPoiImporter(
-            context = context,
-            poiRepository = poiRepository,
-            activeConnections = activeConnections,
-        )
-    }
 
     suspend fun installedBundles(): List<OamInstalledBundle> = bundleStore.listInstalledBundles()
 
@@ -228,8 +191,6 @@ class OamBundleDownloader(
             val area = OamDownloadCatalog.areas.firstOrNull { it.id == bundle.areaId }
             val repairFileNames = mutableListOf<String>()
             val mapFiles = mapRepository.listMapFiles()
-            val poiFiles = poiRepository.listPoiFiles()
-
             bundle.mapFileName?.let { fileName ->
                 val file = mapFiles.firstOrNull { it.name.equals(fileName, ignoreCase = true) }
                 val healthy =
@@ -238,29 +199,6 @@ class OamBundleDownloader(
                 if (!healthy) {
                     repairFileNames += area?.let { oamRemoteFileName(it.mapZipUrl) } ?: File(fileName).name
                 }
-            }
-            bundle.poiFileName?.let { fileName ->
-                val file = poiFiles.firstOrNull { it.name.equals(fileName, ignoreCase = true) }
-                val healthy =
-                    file.isHealthyLocalFile() &&
-                        (!thorough || runCatching { validatePoiFile(file!!, resources = context.resources) }.isSuccess)
-                if (!healthy) {
-                    repairFileNames += area?.let { oamRemoteFileName(it.poiZipUrl) } ?: File(fileName).name
-                }
-            }
-            bundle.refugesInfoFileName?.let { fileName ->
-                val file = poiFiles.firstOrNull { it.name.equals(fileName, ignoreCase = true) }
-                val healthy =
-                    file.isHealthyLocalFile() &&
-                        (!thorough || runCatching { validatePoiFile(file!!, resources = context.resources) }.isSuccess)
-                if (!healthy) repairFileNames += File(fileName).name
-            }
-            bundle.routingFileNames.forEach { fileName ->
-                val file = routingSegmentTargetFile(context, fileName)
-                val healthy =
-                    file.isHealthyLocalFile() &&
-                        (!thorough || runCatching { validateRoutingSegmentIndex(file, resources = context.resources) }.isSuccess)
-                if (!healthy) repairFileNames += File(fileName).name
             }
             bundle.demTileIds.forEach { tileId ->
                 if (isKnownMissingDemTile(tileId, bundle.demSource)) return@forEach
@@ -379,22 +317,6 @@ class OamBundleDownloader(
                 if (selection.includeMap) {
                     deleteZipAndPartial("${area.id}.map.zip")
                 }
-                if (selection.includePoi) {
-                    deleteZipAndPartial("${area.id}.poi.zip")
-                }
-                if (selection.includeRefugesInfo) {
-                    val fileName = refugesInfoFileNameForArea(area)
-                    File(context.cacheDir, ".$fileName.tmp").delete()
-                    File(context.cacheDir, fileName).delete()
-                }
-                if (selection.includeRouting) {
-                    routingSegmentNamesForArea(
-                        area = area,
-                        installedBundles = installedBundles,
-                    ).forEach { fileName ->
-                        routingSegmentPartFile(context, fileName).delete()
-                    }
-                }
                 if (selection.includeDem) {
                     runCatching {
                         demTileIdsForArea(
@@ -415,8 +337,6 @@ class OamBundleDownloader(
         forceMap: Boolean = forceMapAndPoi,
         forcePoi: Boolean = forceMapAndPoi,
         forceRefugesInfo: Boolean = forceMap,
-        forceRoutingSegments: Boolean = false,
-        forceRoutingFileNames: Set<String> = emptySet(),
         forceDemTiles: Boolean = false,
         forceDemTileIds: Set<String> = emptySet(),
         extractionKeepAliveState: () -> OamDownloadKeepAliveState = { OamDownloadKeepAliveState() },
@@ -431,7 +351,7 @@ class OamBundleDownloader(
             DebugTelemetry.log(
                 OAM_DOWNLOAD_TELEMETRY_TAG,
                 "event=bundle_start area=${area.id} map=${selection.includeMap} poi=${selection.includePoi} " +
-                    "routing=${selection.includeRouting} dem=${selection.includeDem} " +
+                    "dem=${selection.includeDem} " +
                     "demSource=${selection.demSource.id} refuges=${selection.includeRefugesInfo}",
             )
             val progressArbiter = OamBundleProgressArbiter(onProgress)
@@ -538,100 +458,6 @@ class OamBundleDownloader(
                 }
             }
 
-            var poiFileName: String? = existingBundle?.poiFileName
-            var poiArchive: File? = null
-            var poiExtraction: kotlinx.coroutines.Deferred<String>? = null
-            if (selection.includePoi) {
-                if (forcePoi) deleteZipAndPartial("${area.id}.poi.zip")
-                val existingPoiFile =
-                    if (forcePoi) {
-                        null
-                    } else {
-                        existingPoiFileForArea(area = area, knownFileName = existingBundle?.poiFileName)
-                    }
-                val archiveName = "${area.id}.poi.zip"
-                val completedArchiveAvailable = File(downloadDir, archiveName).isHealthyLocalFile()
-                val poiMetadata =
-                    if (
-                        shouldFetchRemoteMetadataBeforeDownload(
-                            localFileAvailable = existingPoiFile != null,
-                            completedArchiveAvailable = completedArchiveAvailable,
-                            forceDownload = forcePoi,
-                        )
-                    ) {
-                        fetchRemoteMetadataOrNull(
-                            RemoteFileRequest(
-                                url = area.poiZipUrl,
-                                fileName = remoteFileName(area.poiZipUrl),
-                            ),
-                        )
-                    } else {
-                        null
-                    }
-                poiMetadata?.let { remoteFilesByUrl[it.url] = it }
-                if (existingPoiFile != null) {
-                    poiFileName = existingPoiFile.name
-                    reportExistingFile(
-                        label = context.resources.getString(R.string.common_poi),
-                        file = existingPoiFile,
-                        onProgress = progressArbiter::emitForeground,
-                    )
-                    deleteZipAndPartial("${area.id}.poi.zip")
-                } else {
-                    poiArchive =
-                        reusableBundleArchiveOrNull(
-                            directory = downloadDir,
-                            fileName = archiveName,
-                            entryExtension = ".poi",
-                            expectedSize = poiMetadata?.contentLengthBytes,
-                        )?.also { archive ->
-                            reportReusableArchive(context.resources.getString(R.string.common_poi), archive, progressArbiter::emitForeground)
-                        } ?: progressArbiter.runNetwork { networkProgress ->
-                            downloadFile(
-                                url = area.poiZipUrl,
-                                dir = downloadDir,
-                                fileName = archiveName,
-                                label = context.resources.getString(R.string.common_poi),
-                                progressDetail = context.resources.getString(R.string.download_poi_zip),
-                                bufferSize = OAM_ZIP_DOWNLOAD_BUFFER_SIZE,
-                                progressStepBytes = 2L * 1024 * 1024,
-                                fsync = false,
-                                onResponseMetadata = { metadata -> remoteFilesByUrl[metadata.url] = metadata },
-                                onProgress = networkProgress,
-                            )
-                        }
-                    val archive = checkNotNull(poiArchive)
-                    poiExtraction =
-                        async(Dispatchers.IO) {
-                            try {
-                                extractionLane.withPermit {
-                                    progressArbiter.runExtraction { extractionProgress ->
-                                        extractFirstEntry(
-                                            zipFile = archive,
-                                            extension = ".poi",
-                                            label = context.resources.getString(R.string.common_poi),
-                                            extractionKeepAliveState = extractionKeepAliveState,
-                                            onExtractionRunningChanged = onExtractionRunningChanged,
-                                            onProgress = extractionProgress,
-                                        ) { fileName, input, expectedSize, progress ->
-                                            poiRepository.savePoiFileAtomic(
-                                                fileName = fileName,
-                                                inputStream = input,
-                                                expectedSize = expectedSize,
-                                                resumeOffset = 0L,
-                                                onProgress = progress,
-                                            )
-                                        }
-                                    }
-                                }
-                            } catch (error: ZipException) {
-                                archive.delete()
-                                throw error
-                            }
-                        }
-                }
-            }
-
             mapExtraction?.let { extraction ->
                 mapFileName = progressArbiter.awaitExtraction(extraction)
                 mapArchive?.delete()
@@ -647,49 +473,6 @@ class OamBundleDownloader(
                     remoteFiles = remoteFilesByUrl.values,
                 )
             }
-
-            var downloadedRoutingFileNames = existingBundle?.downloadedRoutingFileNames.orEmpty()
-            val routingFileNames =
-                if (selection.includeRouting) {
-                    val requiredSegments = routingSegmentNamesForArea(area = area, mapFileName = mapFileName)
-                    val segmentResults =
-                        requiredSegments.map { fileName ->
-                            val segmentUrl = "$BROUTER_SEGMENTS_BASE_URL/$fileName"
-                            val safeName = File(fileName).name
-                            val forceDownload = forceRoutingSegments || safeName in forceRoutingFileNames
-                            val localFileAvailable =
-                                routingSegmentTargetFile(context, safeName).isHealthyLocalFile()
-                            if (
-                                shouldFetchRemoteMetadataBeforeDownload(
-                                    localFileAvailable = localFileAvailable,
-                                    forceDownload = forceDownload,
-                                )
-                            ) {
-                                fetchRemoteMetadataOrNull(
-                                    RemoteFileRequest(
-                                        url = segmentUrl,
-                                        fileName = safeName,
-                                    ),
-                                )?.let { remoteFilesByUrl[it.url] = it }
-                            }
-                            progressArbiter.runNetwork { networkProgress ->
-                                downloadRoutingSegment(
-                                    fileName = safeName,
-                                    forceDownload = forceDownload,
-                                    onResponseMetadata = { metadata -> remoteFilesByUrl[metadata.url] = metadata },
-                                    onProgress = networkProgress,
-                                )
-                            }
-                        }
-                    val resultFileNames = segmentResults.filter { it.available }.map { it.fileName }
-                    downloadedRoutingFileNames =
-                        (downloadedRoutingFileNames + segmentResults.filter { it.downloaded }.map { it.fileName })
-                            .distinct()
-                            .filter { it in resultFileNames }
-                    resultFileNames
-                } else {
-                    existingBundle?.routingFileNames.orEmpty()
-                }
 
             var downloadedDemTileIds = existingBundle?.downloadedDemTileIds.orEmpty()
             val demTileIds =
@@ -772,55 +555,16 @@ class OamBundleDownloader(
                     existingBundle?.demTileIds.orEmpty()
                 }
 
-            poiExtraction?.let { extraction ->
-                poiFileName = progressArbiter.awaitExtraction(extraction)
-                poiArchive?.delete()
-            }
-
-            var refugesInfoFileName: String? = existingBundle?.refugesInfoFileName
-            if (selection.includeRefugesInfo) {
-                val existingRefugesInfoFile =
-                    if (forceRefugesInfo) {
-                        null
-                    } else {
-                        existingRefugesInfoFileForArea(
-                            area = area,
-                            knownFileName = existingBundle?.refugesInfoFileName,
-                        )
-                    }
-                if (existingRefugesInfoFile != null) {
-                    refugesInfoFileName = existingRefugesInfoFile.name
-                    reportExistingFile(
-                        label = context.resources.getString(R.string.download_refuges_info),
-                        file = existingRefugesInfoFile,
-                        onProgress = progressArbiter::emitForeground,
-                    )
-                } else {
-                    val mapFile =
-                        mapFileForArea(area = area, mapFileName = mapFileName)
-                            ?: throw IOException(
-                                context.resources.getString(R.string.download_refuges_info_needs_the_map_in_this_bundle_or_an_installed_map_for, area.region),
-                            )
-                    refugesInfoFileName =
-                        refugesInfoImporter.importForMap(
-                            mapFile = mapFile,
-                            fileName = refugesInfoFileNameForArea(area),
-                            areaLabel = area.region,
-                            onProgress = progressArbiter::emitForeground,
-                        )
-                }
-            }
-
             val installed =
                 OamInstalledBundle(
                     areaId = area.id,
                     areaLabel = area.region,
                     bundleChoice = selection.toBundleChoice(),
                     mapFileName = mapFileName,
-                    poiFileName = poiFileName,
-                    refugesInfoFileName = refugesInfoFileName,
-                    routingFileNames = routingFileNames,
-                    downloadedRoutingFileNames = downloadedRoutingFileNames,
+                    poiFileName = existingBundle?.poiFileName,
+                    refugesInfoFileName = existingBundle?.refugesInfoFileName,
+                    routingFileNames = existingBundle?.routingFileNames.orEmpty(),
+                    downloadedRoutingFileNames = existingBundle?.downloadedRoutingFileNames.orEmpty(),
                     demSource =
                         if (selection.includeDem) {
                             selection.demSource
@@ -833,9 +577,6 @@ class OamBundleDownloader(
                     remoteFiles = remoteFilesByUrl.values.sortedBy { it.url },
                 )
             bundleStore.upsert(installed)
-            if (selection.includeRouting) {
-                RoutingCoverageUtils.clearCaches()
-            }
             if (selection.includeDem) {
                 DemSignatureStore.markDirty(context)
                 Dem3CoverageUtils.clearCaches()
@@ -850,21 +591,15 @@ class OamBundleDownloader(
     suspend fun deleteBundle(bundle: OamInstalledBundle) {
         withContext(Dispatchers.IO) {
             val otherBundles = bundleStore.listInstalledBundles().filterNot { it.areaId == bundle.areaId }
-            val routingFilesUsedByOtherBundles = otherBundles.flatMap { it.routingFileNames }.toSet()
             val demTilesUsedByOtherBundles =
                 otherBundles.filter { it.demSource == bundle.demSource }.flatMap { it.demTileIds }.toSet()
             val deletedFiles = mutableListOf<File>()
             val mapFile = mapRepository.listMapFiles().firstOrNull { it.name == bundle.mapFileName }
-            val poiFiles = poiRepository.listPoiFiles()
-            val poiFile = poiFiles.firstOrNull { it.name == bundle.poiFileName }
-            val refugesFile = poiFiles.firstOrNull { it.name == bundle.refugesInfoFileName }
-            listOfNotNull(mapFile, poiFile, refugesFile).forEach { file ->
+            listOfNotNull(mapFile).forEach { file ->
                 deletedFiles += file
                 deletedFiles += File(file.parentFile, ".${file.name}.part")
             }
             mapFile?.let { mapRepository.deleteMapFile(it.absolutePath) }
-            poiFile?.let { poiRepository.deletePoiFile(it.absolutePath) }
-            refugesFile?.let { poiRepository.deletePoiFile(it.absolutePath) }
             listOf("${bundle.areaId}.map.zip", "${bundle.areaId}.poi.zip").forEach { name ->
                 val file = File(downloadDir, File(name).name)
                 val partial = File(downloadDir, ".${file.name}.part")
@@ -872,16 +607,6 @@ class OamBundleDownloader(
                 file.delete()
                 partial.delete()
             }
-            bundle.downloadedRoutingFileNames
-                .filterNot { it in routingFilesUsedByOtherBundles }
-                .forEach { fileName ->
-                    val file = routingSegmentTargetFile(context, fileName)
-                    val partial = routingSegmentPartFile(context, fileName)
-                    deletedFiles += listOf(file, partial)
-                    file.delete()
-                    partial.delete()
-                }
-            RoutingCoverageUtils.clearCaches()
             val remainingMapDemTiles =
                 mapRepository
                     .listMapFiles()
@@ -910,31 +635,6 @@ class OamBundleDownloader(
         val safeName = File(fileName).name
         File(downloadDir, safeName).delete()
         File(downloadDir, ".$safeName.part").delete()
-    }
-
-    private suspend fun routingSegmentNamesForArea(
-        area: OamDownloadArea,
-        installedBundles: List<OamInstalledBundle>,
-    ): Set<String> =
-        routingSegmentNamesForArea(
-            area = area,
-            mapFileName =
-                installedBundles
-                    .firstOrNull { it.areaId == area.id }
-                    ?.mapFileName,
-        ).toSet()
-
-    private suspend fun routingSegmentNamesForArea(
-        area: OamDownloadArea,
-        mapFileName: String?,
-    ): List<String> {
-        val mapFile =
-            mapFileForArea(area = area, mapFileName = mapFileName)
-                ?: throw IOException(context.resources.getString(R.string.download_routing_needs_the_map_in_this_bundle_or_an_installed_map_for, area.region))
-        return RoutingCoverageUtils
-            .requiredSegmentNamesForMapFile(mapFile)
-            ?.sorted()
-            ?: throw IOException(context.resources.getString(R.string.download_cannot_read_map_bounds_for_routing))
     }
 
     private suspend fun demTileIdsForArea(
@@ -988,34 +688,6 @@ class OamBundleDownloader(
                     "${area.region}.map",
                 ),
             )
-
-    private suspend fun existingPoiFileForArea(
-        area: OamDownloadArea,
-        knownFileName: String?,
-    ): File? =
-        poiRepository
-            .listPoiFiles()
-            .firstMatchingFileName(
-                listOf(
-                    knownFileName,
-                    "${area.region}.poi",
-                ),
-            )
-
-    private suspend fun existingRefugesInfoFileForArea(
-        area: OamDownloadArea,
-        knownFileName: String?,
-    ): File? =
-        poiRepository
-            .listPoiFiles()
-            .firstMatchingFileName(
-                listOf(
-                    knownFileName,
-                    refugesInfoFileNameForArea(area),
-                ),
-            )
-
-    private fun refugesInfoFileNameForArea(area: OamDownloadArea): String = "${area.region}.refuges-info.poi"
 
     private fun List<File>.firstMatchingFileName(candidateNames: Iterable<String?>): File? =
         firstOrNull { file ->
@@ -1099,79 +771,6 @@ class OamBundleDownloader(
                 totalBytes = archive.length().takeIf { it > 0L },
             ),
         )
-    }
-
-    private suspend fun downloadRoutingSegment(
-        fileName: String,
-        forceDownload: Boolean,
-        onResponseMetadata: (OamRemoteFileMetadata) -> Unit,
-        onProgress: (OamDownloadProgress) -> Unit,
-    ): RoutingSegmentDownloadResult {
-        val safeName = File(fileName).name
-        val targetFile = routingSegmentTargetFile(context, safeName)
-        if (forceDownload) {
-            routingSegmentPartFile(context, safeName).delete()
-        }
-        if (!forceDownload && targetFile.exists() && targetFile.length() > 0L) {
-            onProgress(
-                OamDownloadProgress(
-                    phase = "READY",
-                    detail = safeName,
-                    bytesDone = targetFile.length(),
-                    totalBytes = targetFile.length(),
-                ),
-            )
-            return RoutingSegmentDownloadResult(fileName = safeName, downloaded = false)
-        }
-        val url = "$BROUTER_SEGMENTS_BASE_URL/$safeName"
-        val result =
-            runCatching {
-                downloadFile(
-                    url = url,
-                    dir = routingSegmentsDir(context),
-                    fileName = safeName,
-                    label = context.resources.getString(R.string.download_routing),
-                    progressDetail = safeName,
-                    bufferSize = 512 * 1024,
-                    progressStepBytes = 1L * 1024 * 1024,
-                    fsync = true,
-                    onResponseMetadata = onResponseMetadata,
-                    onProgress = onProgress,
-                ).let { downloadedFile ->
-                    runCatching { validateRoutingSegmentIndex(downloadedFile, resources = context.resources) }
-                        .onFailure { error ->
-                            DebugTelemetry.log(
-                                OAM_DOWNLOAD_TELEMETRY_TAG,
-                                "event=routing_integrity_failed file=$safeName " +
-                                    "error=${error.message.orEmpty().replace(' ', '_')}",
-                            )
-                            downloadedFile.delete()
-                            routingSegmentPartFile(context, safeName).delete()
-                        }.getOrThrow()
-                }
-                RoutingSegmentDownloadResult(fileName = safeName, downloaded = true)
-            }.getOrElse { error ->
-                if (error.isHttpNotFound()) {
-                    DebugTelemetry.log(
-                        OAM_DOWNLOAD_TELEMETRY_TAG,
-                        "event=skip_missing_routing_segment file=$safeName url=$url",
-                    )
-                    onProgress(
-                        OamDownloadProgress(
-                            phase = "SKIPPED",
-                            detail = context.resources.getString(R.string.download_unavailable, safeName),
-                        ),
-                    )
-                    RoutingSegmentDownloadResult(
-                        fileName = safeName,
-                        downloaded = false,
-                        available = false,
-                    )
-                } else {
-                    throw error
-                }
-            }
-        return result
     }
 
     private suspend fun downloadDemTile(
@@ -1923,7 +1522,6 @@ class OamBundleDownloader(
         private const val DOWNLOAD_PROGRESS_TELEMETRY_INTERVAL_MS = 5_000L
         private const val EXTRACTION_STALL_HEARTBEAT_INTERVAL_MS = 30_000L
         private const val LARGE_DETAILED_DEM_TILE_THRESHOLD = 100
-        private const val BROUTER_SEGMENTS_BASE_URL = "https://brouter.de/brouter/segments4"
         private const val OAM_DOWNLOAD_TELEMETRY_TAG = "OamDownload"
     }
 }
@@ -1936,19 +1534,6 @@ private fun validateMapFile(file: File) {
         map.boundingBox()
     } finally {
         map.close()
-    }
-}
-
-private fun validatePoiFile(
-    file: File,
-    resources: Resources,
-) {
-    SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-        database.rawQuery("PRAGMA quick_check(1)", emptyArray()).use { cursor ->
-            check(cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)) {
-                resources.getString(R.string.download_poi_database_integrity_check_failed)
-            }
-        }
     }
 }
 

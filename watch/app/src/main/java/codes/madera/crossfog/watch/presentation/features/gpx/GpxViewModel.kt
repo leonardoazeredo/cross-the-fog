@@ -8,13 +8,9 @@ import androidx.lifecycle.viewModelScope
 import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.gpx.GpxElevationFilterConfig
 import codes.madera.crossfog.watch.core.gpx.GpxElevationFilterDefaults
-import codes.madera.crossfog.watch.core.routing.RoutePlanner
-import codes.madera.crossfog.watch.core.routing.RoutePlannerRequest
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.location.policy.LocationFixPolicy
-import codes.madera.crossfog.watch.data.repository.GpxExportRepository
 import codes.madera.crossfog.watch.data.repository.GpxRepositoryImpl
-import codes.madera.crossfog.watch.data.repository.PoiRepository
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.presentation.SyncManager
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GpxGuidanceSession
@@ -29,11 +25,7 @@ import codes.madera.crossfog.watch.presentation.features.recording.dashboard.Rec
 import codes.madera.crossfog.watch.presentation.features.recording.dashboard.RecordingDashboardSnapshot
 import codes.madera.crossfog.watch.presentation.features.recording.dashboard.estimateRecordingCalories
 import codes.madera.crossfog.watch.presentation.features.recording.fastestContinuousSegmentSpeedMps
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolCreatePreview
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolKind
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolModifyPreview
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolSaveResult
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolSession
+import codes.madera.crossfog.watch.presentation.features.routetools.buildRenamedGpxFileName
 import codes.madera.crossfog.watch.presentation.features.routetools.routeToolFailureMessage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +41,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mapsforge.core.model.LatLong
+import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -100,7 +93,6 @@ internal fun buildTurnByTurnGuidanceSessionFromProfile(
 }
 
 data class GpxRouteServices(
-    val planner: RoutePlanner,
     val elevationProvider: RecordingElevationProvider,
 )
 
@@ -109,10 +101,8 @@ data class GpxRouteServices(
 class GpxViewModel(
     private val resources: Resources,
     private val gpxRepository: GpxRepositoryImpl,
-    private val gpxExportRepository: GpxExportRepository,
     private val syncManager: SyncManager,
     private val settingsRepository: SettingsRepository,
-    private val poiRepository: PoiRepository,
     private val routeServices: GpxRouteServices,
 ) : ViewModel() {
     private val _gpxFiles = MutableStateFlow<List<GpxFileState>>(emptyList())
@@ -153,8 +143,6 @@ class GpxViewModel(
     private val _turnByTurnGuidancePaused = MutableStateFlow(false)
     val turnByTurnGuidancePaused: StateFlow<Boolean> = _turnByTurnGuidancePaused.asStateFlow()
 
-    private var lastObservedActiveGpxPaths: Set<String>? = null
-    private var previousGpxWaypointPoiFolderLinkEnabled: Boolean? = null
 
     // ----------------------------
     // Internal inspection session state
@@ -224,16 +212,6 @@ class GpxViewModel(
     private var backpackWeightKg = SettingsRepository.DEFAULT_BACKPACK_WEIGHT_KG
     private var bikeWeightKg = SettingsRepository.DEFAULT_BIKE_WEIGHT_KG
     private var activeActivityProfile = SettingsRepository.DEFAULT_ACTIVITY_PROFILE
-    private val routeToolOperations =
-        GpxRouteToolOperations(
-            resources = resources,
-            gpxRepository = gpxRepository,
-            routePlanner = routeServices.planner,
-            activeGpxFiles = { _gpxFiles.value },
-            elevationFilterConfig = { elevationFilterConfig },
-            etaModelConfig = { etaModelConfig },
-        )
-
     // Require press to be close to route
     private val pressThresholdMeters = 30.0
 
@@ -359,20 +337,7 @@ class GpxViewModel(
                 hasObservedInitialActivePaths = true
                 val reloadId = reloadCoordinator.request()
                 reloadCoordinator.await(reloadId)
-                syncLinkedGpxWaypointPoiFolders(activePaths)
                 if (isInitial) initialGpxLoadCompleted.complete(Unit)
-            }.launchIn(viewModelScope)
-
-        settingsRepository.linkGpxWaypointPoiFolders
-            .onEach { enabled ->
-                val wasEnabled = previousGpxWaypointPoiFolderLinkEnabled
-                previousGpxWaypointPoiFolderLinkEnabled = enabled
-                if (enabled && wasEnabled == false) {
-                    gpxRepository
-                        .getActiveGpxFiles()
-                        .first()
-                        .forEach { path -> setLinkedGpxWaypointPoiEnabled(path = path, enabled = true) }
-                }
             }.launchIn(viewModelScope)
 
         syncManager.gpxSyncRequest
@@ -1015,79 +980,6 @@ class GpxViewModel(
         DebugTelemetry.log("GpxViewModel", "event=reset_active_files")
     }
 
-    private suspend fun syncLinkedGpxWaypointPoiFolders(activePaths: Set<String>) {
-        val previousPaths = lastObservedActiveGpxPaths
-        lastObservedActiveGpxPaths = activePaths
-        if (previousPaths == null) {
-            activePaths.forEach { path -> setLinkedGpxWaypointPoiEnabled(path = path, enabled = true) }
-            return
-        }
-        (previousPaths - activePaths).forEach { path ->
-            setLinkedGpxWaypointPoiEnabled(path = path, enabled = false)
-        }
-        (activePaths - previousPaths).forEach { path ->
-            setLinkedGpxWaypointPoiEnabled(path = path, enabled = true)
-        }
-    }
-
-    private suspend fun setLinkedGpxWaypointPoiEnabled(
-        path: String,
-        enabled: Boolean,
-    ) {
-        if (settingsRepository.linkGpxWaypointPoiFolders.first()) {
-            val gpxFileName = File(path).name
-            val linkedPoiFiles = findLinkedGpxWaypointPoiFiles(gpxFileName)
-            if (linkedPoiFiles.isNotEmpty()) {
-                val changed = syncLinkedGpxWaypointPoiFiles(linkedPoiFiles, gpxFileName, enabled)
-                if (changed) {
-                    syncManager.requestPoiSync()
-                    DebugTelemetry.log(
-                        "GpxViewModel",
-                        "event=linked_waypoints_sync file=${gpxFileName.telemetryToken()} " +
-                            "active=$enabled folders=${linkedPoiFiles.size}",
-                    )
-                }
-            }
-        }
-    }
-
-    private suspend fun findLinkedGpxWaypointPoiFiles(gpxFileName: String): List<File> =
-        runCatching { poiRepository.findGpxWaypointPoiFiles(gpxFileName) }
-            .getOrElse { error ->
-                DebugTelemetry.log(
-                    "GpxViewModel",
-                    "event=linked_waypoints_sync_failed file=${gpxFileName.telemetryToken()} " +
-                        "reason=${error.javaClass.simpleName}",
-                )
-                emptyList()
-            }
-
-    private suspend fun syncLinkedGpxWaypointPoiFiles(
-        linkedPoiFiles: List<File>,
-        gpxFileName: String,
-        enabled: Boolean,
-    ): Boolean {
-        var changed = false
-        linkedPoiFiles.forEach { poiFile ->
-            runCatching {
-                val categories = poiRepository.readCategories(poiFile.absolutePath)
-                poiRepository.setFileEnabled(poiFile.absolutePath, enabled)
-                poiRepository.setEnabledCategories(
-                    path = poiFile.absolutePath,
-                    enabledCategoryIds = if (enabled) categories.map { it.id }.toSet() else emptySet(),
-                )
-                changed = true
-            }.onFailure { error ->
-                DebugTelemetry.log(
-                    "GpxViewModel",
-                    "event=linked_waypoints_sync_failed file=${gpxFileName.telemetryToken()} " +
-                        "poi=${poiFile.name.telemetryToken()} reason=${error.javaClass.simpleName}",
-                )
-            }
-        }
-        return changed
-    }
-
     // Resource-call wrapping increases line count; keep the existing flow together.
     @Suppress("LongMethod")
     fun startTurnByTurnGuidance(
@@ -1177,34 +1069,6 @@ class GpxViewModel(
     fun resumeTurnByTurnGuidance() {
         if (_turnByTurnGuidanceSession.value == null) return
         _turnByTurnGuidancePaused.value = false
-    }
-
-    fun buildTurnByTurnGuideBackRoute(
-        origin: LatLong,
-        destination: LatLong,
-        onComplete: (Result<List<LatLong>>) -> Unit,
-    ) {
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        routeServices.planner
-                            .createRoute(
-                                RoutePlannerRequest(
-                                    origin = origin,
-                                    destination = destination,
-                                ),
-                            ).points
-                            .map { it.latLong }
-                            .also { points ->
-                                require(
-                                    points.size >= 2,
-                                ) { resources.getString(R.string.gpx_brouter_did_not_return_a_guide_back_route) }
-                            }
-                    }
-                }
-            onComplete(result)
-        }
     }
 
     fun markTurnByTurnStartReached() {
@@ -1338,6 +1202,55 @@ class GpxViewModel(
         }
     }
 
+    private suspend fun renameGpxFileOnDisk(
+        filePath: String,
+        newName: String,
+    ): File {
+        val sourceFile = File(filePath)
+        require(sourceFile.exists()) { resources.getString(R.string.gpx_the_gpx_could_not_be_found) }
+
+        val normalizedTitle =
+            newName
+                .trim()
+                .replace(Regex("\\s+"), " ")
+        require(normalizedTitle.isNotBlank()) { resources.getString(R.string.gpx_enter_a_gpx_name_first) }
+
+        val parsed = parseGpxData(sourceFile)
+        require(parsed.points.isNotEmpty()) { resources.getString(R.string.gpx_the_gpx_does_not_contain_any_points) }
+
+        val targetFileName = buildRenamedGpxFileName(normalizedTitle)
+        val targetMatchesSource = targetFileName.equals(sourceFile.name, ignoreCase = true)
+        if (!targetMatchesSource && gpxRepository.fileExists(targetFileName)) {
+            error(resources.getString(R.string.gpx_a_gpx_with_that_name_already_exists))
+        }
+
+        val bytes = renameGpxXmlTitle(sourceFile.readText(), normalizedTitle)
+        gpxRepository.saveGpxFileAtomic(
+            fileName = targetFileName,
+            inputStream = ByteArrayInputStream(bytes),
+            onProgress = {},
+            expectedSize = bytes.size.toLong(),
+        )
+
+        val savedFile =
+            gpxRepository
+                .listGpxFiles()
+                .firstOrNull { it.name.equals(targetFileName, ignoreCase = true) }
+                ?: error(resources.getString(R.string.gpx_the_renamed_gpx_was_not_found_after_saving))
+
+        val currentActive = gpxRepository.getActiveGpxFiles().first()
+        if (filePath in currentActive || savedFile.absolutePath in currentActive) {
+            val updatedActive = (currentActive - filePath) + savedFile.absolutePath
+            gpxRepository.setActiveGpxFiles(updatedActive)
+        }
+
+        if (!sourceFile.absolutePath.equals(savedFile.absolutePath, ignoreCase = true)) {
+            gpxRepository.deleteGpxFile(sourceFile.absolutePath)
+        }
+
+        return savedFile
+    }
+
     fun renameGpxFile(
         filePath: String,
         newName: String,
@@ -1347,26 +1260,13 @@ class GpxViewModel(
             val result =
                 withContext(Dispatchers.IO) {
                     runCatching {
-                        routeToolOperations.renameGpxFileOnDisk(
+                        renameGpxFileOnDisk(
                             filePath = filePath,
                             newName = newName,
                         )
                     }
                 }
             result.getOrNull()?.let { savedFile ->
-                val renamedWaypointFolders =
-                    poiRepository.updateLinkedGpxWaypointFileName(
-                        previousGpxFileName = File(filePath).name,
-                        newGpxFileName = savedFile.name,
-                    )
-                if (renamedWaypointFolders > 0) {
-                    syncManager.requestPoiSync()
-                    val activePaths = gpxRepository.getActiveGpxFiles().first()
-                    setLinkedGpxWaypointPoiEnabled(
-                        path = savedFile.absolutePath,
-                        enabled = savedFile.absolutePath in activePaths,
-                    )
-                }
                 clearAllGpxCaches()
                 if (_turnByTurnGuidanceSession.value?.trackId == filePath) stopTurnByTurnGuidance()
                 if (aPos?.trackId == filePath) dismissInspection()
@@ -1374,108 +1274,6 @@ class GpxViewModel(
                 reloadGpxFilesAndWait()
             }
             onComplete(result.map { })
-        }
-    }
-
-    fun sendGpxToPhone(path: String) {
-        val fileState = _gpxFiles.value.firstOrNull { it.path == path }
-        val displayName = fileState?.displayTitle ?: File(path).nameWithoutExtension
-        viewModelScope.launch {
-            _exportUiState.value =
-                GpxExportUiState(
-                    filePath = path,
-                    isSending = true,
-                    message = resources.getString(R.string.gpx_sending, displayName.take(18)),
-                )
-            val result =
-                withContext(Dispatchers.IO) {
-                    gpxExportRepository.sendGpxToPhone(
-                        file = File(path),
-                        displayName = displayName,
-                    )
-                }
-            _exportUiState.value =
-                result.fold(
-                    onSuccess = {
-                        GpxExportUiState(
-                            filePath = path,
-                            message = resources.getString(R.string.gpx_sent_to_phone),
-                        )
-                    },
-                    onFailure = { error ->
-                        GpxExportUiState(
-                            filePath = path,
-                            message =
-                                error
-                                    .routeToolFailureMessage(resources)
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?: resources.getString(R.string.gpx_send_failed),
-                        )
-                    },
-                )
-            delay(3_000L)
-            if (_exportUiState.value.filePath == path && !_exportUiState.value.isSending) {
-                _exportUiState.value = GpxExportUiState()
-            }
-        }
-    }
-
-    fun sendGpxFilesToPhone(paths: List<String>) {
-        val uniquePaths = paths.distinct().filter { path -> _gpxFiles.value.any { it.path == path } }
-        if (uniquePaths.isEmpty()) return
-        viewModelScope.launch {
-            var sentCount = 0
-            var failedCount = 0
-            uniquePaths.forEachIndexed { index, path ->
-                val fileState = _gpxFiles.value.firstOrNull { it.path == path }
-                val displayName = fileState?.displayTitle ?: File(path).nameWithoutExtension
-                _exportUiState.value =
-                    GpxExportUiState(
-                        filePath = path,
-                        isSending = true,
-                        message = resources.getString(R.string.gpx_sending_2, index + 1, uniquePaths.size),
-                    )
-                val result =
-                    withContext(Dispatchers.IO) {
-                        gpxExportRepository.sendGpxToPhone(
-                            file = File(path),
-                            displayName = displayName,
-                        )
-                    }
-                result.fold(
-                    onSuccess = {
-                        sentCount += 1
-                        _exportUiState.value =
-                            GpxExportUiState(
-                                filePath = path,
-                                message = resources.getString(R.string.gpx_sent, index + 1, uniquePaths.size),
-                            )
-                    },
-                    onFailure = { error ->
-                        failedCount += 1
-                        _exportUiState.value =
-                            GpxExportUiState(
-                                filePath = path,
-                                message =
-                                    error
-                                        .routeToolFailureMessage(resources)
-                                        ?.takeIf { it.isNotBlank() }
-                                        ?: resources.getString(R.string.gpx_send_failed),
-                            )
-                    },
-                )
-                delay(500L)
-            }
-
-            _exportUiState.value =
-                GpxExportUiState(
-                    filePath = uniquePaths.last(),
-                    message = batchSendSummary(sentCount = sentCount, failedCount = failedCount, resources = resources),
-                )
-            delay(3_000L)
-            if (!_exportUiState.value.isSending) {
-                _exportUiState.value = GpxExportUiState()
-            }
         }
     }
 
@@ -1806,148 +1604,6 @@ class GpxViewModel(
         _inspectionUiState.value = null
         _selectedPointA.value = null
         _selectedPointB.value = null
-    }
-
-    internal fun applyRouteToolModification(
-        session: RouteToolSession,
-        onProgress: (String) -> Unit = {},
-        onComplete: (Result<RouteToolSaveResult>) -> Unit,
-    ) {
-        if (session.options.toolKind != RouteToolKind.MODIFY) {
-            onComplete(
-                Result.failure(
-                    IllegalArgumentException(
-                        resources.getString(R.string.gpx_only_gpx_modify_actions_are_supported_here),
-                    ),
-                ),
-            )
-            return
-        }
-
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching { routeToolOperations.applyModification(session, onProgress) }
-                }
-            if (result.isSuccess) {
-                clearAllGpxCaches()
-                dismissInspection()
-                reloadGpxFilesAndWait()
-                onComplete(result)
-            } else {
-                onComplete(result)
-            }
-        }
-    }
-
-    internal fun previewRouteToolModification(
-        session: RouteToolSession,
-        onComplete: (Result<RouteToolModifyPreview>) -> Unit,
-    ) {
-        if (session.options.toolKind != RouteToolKind.MODIFY) {
-            onComplete(
-                Result.failure(
-                    IllegalArgumentException(
-                        resources.getString(R.string.gpx_only_gpx_modify_actions_are_supported_here),
-                    ),
-                ),
-            )
-            return
-        }
-
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching { routeToolOperations.previewModification(session) }
-                }
-            onComplete(result)
-        }
-    }
-
-    internal fun previewRouteToolCreation(
-        session: RouteToolSession,
-        currentLocation: LatLong?,
-        onComplete: (Result<RouteToolCreatePreview>) -> Unit,
-    ) {
-        if (session.options.toolKind != RouteToolKind.CREATE) {
-            onComplete(
-                Result.failure(
-                    IllegalArgumentException(
-                        resources.getString(R.string.gpx_only_gpx_create_actions_are_supported_here),
-                    ),
-                ),
-            )
-            return
-        }
-
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching { routeToolOperations.previewCreation(session, currentLocation) }
-                }
-            onComplete(result)
-        }
-    }
-
-    internal fun applyRouteToolCreation(
-        session: RouteToolSession,
-        currentLocation: LatLong?,
-        preview: RouteToolCreatePreview? = null,
-        onProgress: (String) -> Unit = {},
-        onComplete: (Result<RouteToolSaveResult>) -> Unit,
-    ) {
-        if (session.options.toolKind != RouteToolKind.CREATE) {
-            onComplete(
-                Result.failure(
-                    IllegalArgumentException(
-                        resources.getString(R.string.gpx_only_gpx_create_actions_are_supported_here),
-                    ),
-                ),
-            )
-            return
-        }
-
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        routeToolOperations.applyCreation(
-                            session = session,
-                            currentLocation = currentLocation,
-                            preview = preview,
-                            onProgress = onProgress,
-                        )
-                    }
-                }
-            if (result.isSuccess) {
-                clearAllGpxCaches()
-                dismissInspection()
-                onComplete(result)
-                requestGpxReload()
-            } else {
-                onComplete(result)
-            }
-        }
-    }
-
-    internal fun renameRouteToolResult(
-        filePath: String,
-        newName: String,
-        onComplete: (Result<RouteToolSaveResult>) -> Unit,
-    ) {
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    runCatching { routeToolOperations.renameSavedRoute(filePath, newName) }
-                }
-            if (result.isSuccess) {
-                clearAllGpxCaches()
-                if (aPos?.trackId == filePath) dismissInspection()
-                if (_elevationProfileUiState.value?.trackPath == filePath) dismissElevationProfile()
-                reloadGpxFilesAndWait()
-            }
-            onComplete(result)
-        }
     }
 
     // -------------------------------------------------------------------------

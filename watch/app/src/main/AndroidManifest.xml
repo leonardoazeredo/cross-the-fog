@@ -72,14 +72,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.SEND" />
-            <data android:mimeType="text/plain" />
-        </intent>
-    </queries>
-
-    <!-- Required for HTTP file transfer to phone on LAN/private IP -->
     <application
         android:name=".GlanceMapWearApp"
         android:allowBackup="false"
@@ -94,10 +86,6 @@
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
-
-        <meta-data
-            android:name="com.google.android.gms.wearable.CHANNEL_BUFFER_SIZE"
-            android:value="${channelBufferSize}" />
 
         <activity
             android:name=".presentation.MainActivity"
@@ -122,16 +110,6 @@
             android:exported="false" />
 
         <service
-            android:name=".core.service.WatchTransferForegroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
-
-        <service
-            android:name=".core.service.ChannelTransferForegroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
-
-        <service
             android:name=".presentation.features.download.OamDownloadForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
@@ -140,26 +118,6 @@
             android:name=".presentation.features.maps.theme.StandaloneDemDownloadForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
-
-        <!-- ✅ Correct binding for WearableListenerService -->
-        <service
-            android:name=".core.service.DataLayerListenerService"
-            android:exported="true"
-            android:foregroundServiceType="dataSync">
-            <intent-filter>
-                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
-            </intent-filter>
-        </service>
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_provider_paths" />
-        </provider>
 
     </application>
 

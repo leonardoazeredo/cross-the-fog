@@ -25,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.ViewComfyAlt
 import androidx.compose.material.icons.filled.Visibility
@@ -73,8 +72,6 @@ internal fun BoxScope.RouteShortcutTray(
     headingReferenceTestActive: Boolean,
     onToggleExpanded: () -> Unit,
     onKeepAppOpenClick: () -> Unit,
-    onGpxToolsClick: () -> Unit,
-    onCreatePoiClick: () -> Unit,
     onMapFocusClick: () -> Unit,
     onRecordingClick: () -> Unit,
     onHeadingReferenceMark: (Float) -> Unit,
@@ -161,32 +158,6 @@ internal fun BoxScope.RouteShortcutTray(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column {
-                        ShortcutActionChip(
-                            text = stringResource(R.string.common_poi),
-                            height = actionHeight,
-                            onClick = onCreatePoiClick,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(iconSize),
-                                tint = Color(0xFFFFD54F),
-                            )
-                        }
-                        ShortcutActionChip(
-                            text = stringResource(R.string.common_gpx),
-                            height = actionHeight,
-                            onClick = onGpxToolsClick,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(iconSize),
-                                tint = Color.White,
-                            )
-                        }
-                    }
                     Column {
                         ShortcutActionChip(
                             text = stringResource(R.string.gpx_stay),

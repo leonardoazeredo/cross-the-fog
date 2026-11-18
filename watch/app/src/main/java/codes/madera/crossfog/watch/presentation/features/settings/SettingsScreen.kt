@@ -147,12 +147,6 @@ fun SettingsScreen(
         item { Text(stringResource(R.string.settings_screen_settings), style = MaterialTheme.typography.titleMedium) }
         item {
             SettingsSectionChip(
-                label = stringResource(R.string.settings_poi_settings),
-                onClick = { navController.navigate(WatchRoutes.POI_SETTINGS) },
-            )
-        }
-        item {
-            SettingsSectionChip(
                 label = stringResource(R.string.settings_gpx_settings),
                 onClick = { navController.navigate(WatchRoutes.GPX_SETTINGS) },
             )

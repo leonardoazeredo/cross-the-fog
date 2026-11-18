@@ -13,11 +13,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,8 +34,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
@@ -71,68 +67,6 @@ internal fun RouteToolBusySpinner(
                 .graphicsLayer { rotationZ = rotationDeg },
         tint = tint,
     )
-}
-
-@Composable
-internal fun RouteToolProgressDialog(
-    visible: Boolean,
-    message: String,
-    fullScreenBackground: Boolean = false,
-) {
-    if (!visible) return
-
-    Dialog(
-        onDismissRequest = {},
-        properties =
-            DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = false,
-                dismissOnClickOutside = false,
-            ),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .let { base ->
-                        if (fullScreenBackground) {
-                            base.background(Color.Black.copy(alpha = 0.92f))
-                        } else {
-                            base
-                        }
-                    },
-            contentAlignment = Alignment.Center,
-        ) {
-            BoxWithConstraints(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 22.dp, vertical = 18.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .widthIn(max = minOf(maxWidth, 164.dp))
-                            .background(
-                                Color.Black.copy(alpha = 0.88f),
-                                RoundedCornerShape(15.dp),
-                            ).padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    RouteToolBusySpinner(size = 18.dp)
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.labelMedium,
-                        textAlign = TextAlign.Start,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

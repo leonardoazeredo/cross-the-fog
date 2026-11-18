@@ -2,41 +2,23 @@
 
 package codes.madera.crossfog.watch.presentation.features.settings
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.content.res.Resources
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.Icon
-import androidx.wear.compose.material3.IconButton
-import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import codes.madera.crossfog.watch.BuildConfig
@@ -48,9 +30,6 @@ import codes.madera.crossfog.watch.core.service.diagnostics.CompassHeadingRefere
 import codes.madera.crossfog.watch.core.service.diagnostics.CrashDiagnosticsStore
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
 import codes.madera.crossfog.watch.core.service.diagnostics.DemDownloadDiagnostics
-import codes.madera.crossfog.watch.core.service.diagnostics.DiagnosticsEmailHandoff
-import codes.madera.crossfog.watch.core.service.diagnostics.DiagnosticsExporter
-import codes.madera.crossfog.watch.core.service.diagnostics.DiagnosticsSettingsSnapshot
 import codes.madera.crossfog.watch.core.service.diagnostics.EnergyDiagnostics
 import codes.madera.crossfog.watch.core.service.diagnostics.FieldMarkerDiagnostics
 import codes.madera.crossfog.watch.core.service.diagnostics.GnssDiagnostics
@@ -62,30 +41,13 @@ import codes.madera.crossfog.watch.core.service.diagnostics.TerrainDiagnostics
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.presentation.features.navigate.motion.MarkerMotionTelemetry
 import codes.madera.crossfog.watch.presentation.features.recording.external.ExternalSensorSimulation
-import codes.madera.crossfog.watch.presentation.features.routetools.RouteToolBusySpinner
-import codes.madera.crossfog.watch.presentation.ui.WearHelpDialog
-import codes.madera.crossfog.watch.presentation.ui.WearInfoDialog
-import codes.madera.crossfog.watch.presentation.ui.WearScreenSize
-import codes.madera.crossfog.watch.presentation.ui.rememberWearScreenSize
-import com.glancemap.shared.transfer.TransferDataLayerContract
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.wear.compose.material.Text as WearText
 
 private const val DEBUG_HELP_PREFS = "debug_settings_help_prefs"
-private const val DEBUG_EXPORT_INFO_SHOWN_KEY = "debug_export_info_shown"
 private val CLEAN_CAPTURE_DEFAULT_LABEL = R.string.debug_clear_all_captured_logs
 private val CLEAN_CAPTURE_CLEARED_LABEL = R.string.debug_all_captured_logs_have_been_cleared
 private const val CLEAN_CAPTURE_RESET_DELAY_MS = 3500L
-private val DIAGNOSTICS_DEFAULT_STATUS = R.string.debug_export_to_support_email
-
-private enum class DiagnosticsExportDialogMode {
-    GENERATING,
-    CHECK_PHONE,
-    FAILED,
-}
 
 @Composable
 @Suppress("FunctionNaming")
@@ -106,10 +68,8 @@ fun DebuggingSettingsScreen(
     onOpenGeneralSettings: () -> Unit,
 ) {
     val resources = LocalResources.current
-    val screenSize = rememberWearScreenSize()
     val listTokens = rememberSettingsListTokens()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val compassDeepTraceState by CompassDeepTraceDiagnostics.state.collectAsState()
     val compassHeadingReferenceTestActive by CompassHeadingReferenceDiagnostics.active.collectAsState()
     val compassHeadingReferenceBasis by CompassHeadingReferenceDiagnostics.referenceBasis.collectAsState()
@@ -142,7 +102,6 @@ fun DebuggingSettingsScreen(
     val turnByTurnBrouterGuideBackEnabled by viewModel.turnByTurnBrouterGuideBackEnabled.collectAsState()
     val turnByTurnRouteStartBehavior by viewModel.turnByTurnRouteStartBehavior.collectAsState()
     val turnByTurnReverseSuggestionMode by viewModel.turnByTurnReverseSuggestionMode.collectAsState()
-    val terrainEnabled by viewModel.terrain3dEnabled.collectAsState()
     val recordingSampleIntervalSeconds by viewModel.recordingSampleIntervalSeconds.collectAsState()
     val recordingScreenOffSampleIntervalSeconds by viewModel.recordingScreenOffSampleIntervalSeconds.collectAsState()
     val recordingAutoPauseMode by viewModel.recordingAutoPauseMode.collectAsState()
@@ -164,42 +123,16 @@ fun DebuggingSettingsScreen(
     val userWeightKg by viewModel.userWeightKg.collectAsState()
     val backpackWeightKg by viewModel.backpackWeightKg.collectAsState()
     val bikeWeightKg by viewModel.bikeWeightKg.collectAsState()
-    var diagnosticsExportStatus by remember {
-        mutableStateOf(resources.getString(DIAGNOSTICS_DEFAULT_STATUS))
-    }
     var cleanCaptureStatus by remember {
         mutableStateOf(resources.getString(CLEAN_CAPTURE_DEFAULT_LABEL))
     }
     var cleanCaptureResetToken by remember { mutableStateOf(0L) }
-    var exportInProgress by remember { mutableStateOf(false) }
-    var showExportInfoDialog by remember { mutableStateOf(false) }
-    var exportedDiagnosticsCount by remember { mutableStateOf(0) }
-    var exportDialogMode by remember { mutableStateOf<DiagnosticsExportDialogMode?>(null) }
-    var exportDialogMessage by remember { mutableStateOf("") }
     var energySummaryRevision by remember { mutableStateOf(0L) }
-    val helpPrefs =
-        remember(context) {
-            context.getSharedPreferences(DEBUG_HELP_PREFS, Context.MODE_PRIVATE)
-        }
-    val hasExportedDiagnostics = exportedDiagnosticsCount > 0
     val lastBatteryUse =
         remember(energySummaryRevision, gpsDebugTelemetry) {
             EnergyDiagnostics.summary().batteryUse
         }
     val batteryBenchmarkValidity = EnergyDiagnostics.batteryBenchmarkValidity()
-
-    val infoButtonSize =
-        when (screenSize) {
-            WearScreenSize.LARGE -> 24.dp
-            WearScreenSize.MEDIUM -> 22.dp
-            WearScreenSize.SMALL -> 20.dp
-        }
-    val infoIconSize =
-        when (screenSize) {
-            WearScreenSize.LARGE -> 14.dp
-            WearScreenSize.MEDIUM -> 13.dp
-            WearScreenSize.SMALL -> 12.dp
-        }
 
     LaunchedEffect(gpsDebugTelemetry, diagnosticsCaptureMode) {
         if (gpsDebugTelemetry) {
@@ -232,24 +165,6 @@ fun DebuggingSettingsScreen(
         }
     }
 
-    LaunchedEffect(helpPrefs) {
-        val alreadyShown = helpPrefs.getBoolean(DEBUG_EXPORT_INFO_SHOWN_KEY, false)
-        if (!alreadyShown) {
-            showExportInfoDialog = true
-        }
-    }
-
-    LaunchedEffect(context) {
-        val existingExportCount =
-            withContext(Dispatchers.IO) {
-                DiagnosticsExporter.exportedFileCount(context)
-            }
-        exportedDiagnosticsCount = existingExportCount
-        if (existingExportCount > 0 && diagnosticsExportStatus == resources.getString(DIAGNOSTICS_DEFAULT_STATUS)) {
-            diagnosticsExportStatus = buildRetryReadyLabel(existingExportCount, resources = resources)
-        }
-    }
-
     LaunchedEffect(cleanCaptureResetToken) {
         if (cleanCaptureResetToken <= 0L) return@LaunchedEffect
         delay(CLEAN_CAPTURE_RESET_DELAY_MS)
@@ -258,48 +173,7 @@ fun DebuggingSettingsScreen(
         }
     }
 
-    fun dismissExportInfoDialog() {
-        showExportInfoDialog = false
-        helpPrefs.edit().putBoolean(DEBUG_EXPORT_INFO_SHOWN_KEY, true).apply()
-    }
-
-    DiagnosticsExportInfoDialog(
-        visible = showExportInfoDialog,
-        onDismiss = { dismissExportInfoDialog() },
-    )
-    DiagnosticsExportStatusDialog(
-        mode = exportDialogMode,
-        message = exportDialogMessage,
-        onDismiss = { exportDialogMode = null },
-    )
-
     WearSettingsListScreen(listTokens = listTokens, horizontalAlignment = Alignment.CenterHorizontally) {
-        item {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                IconButton(
-                    onClick = { showExportInfoDialog = true },
-                    modifier =
-                        Modifier
-                            .size(infoButtonSize)
-                            .wrapContentSize(align = Alignment.Center),
-                    colors =
-                        IconButtonDefaults.iconButtonColors(
-                            containerColor = Color.Black.copy(alpha = 0.7f),
-                            contentColor = Color.White,
-                        ),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = stringResource(R.string.settings_diagnostics_export_info),
-                        modifier = Modifier.size(infoIconSize),
-                    )
-                }
-            }
-        }
-
         item {
             GeneralSettingsShortcutChip(
                 onClick = onOpenGeneralSettings,
@@ -322,19 +196,13 @@ fun DebuggingSettingsScreen(
                 secondaryLabel =
                     {
                         WearText(
-                            text =
-                                if (exportInProgress) {
-                                    stringResource(R.string.settings_export_in_progress)
-                                } else {
-                                    cleanCaptureStatus
-                                },
+                            text = cleanCaptureStatus,
                             modifier = Modifier.basicMarquee(),
                             overflow = TextOverflow.Visible,
                             maxLines = 1,
                         )
                     },
                 onClick = {
-                    if (exportInProgress) return@Chip
                     CompassHeadingReferenceDiagnostics.stop()
                     DebugTelemetry.clear()
                     CompassHeadingDiagnostics.reset()
@@ -350,11 +218,8 @@ fun DebuggingSettingsScreen(
                     MapHotPathDiagnostics.clear()
                     TerrainDiagnostics.clear()
                     CrashDiagnosticsStore.clear(context)
-                    DiagnosticsExporter.clearExportedFiles(context)
-                    exportedDiagnosticsCount = 0
                     cleanCaptureStatus = resources.getString(CLEAN_CAPTURE_CLEARED_LABEL)
                     cleanCaptureResetToken += 1L
-                    diagnosticsExportStatus = resources.getString(R.string.settings_cleared_start_capture)
                 },
             )
         }
@@ -363,7 +228,6 @@ fun DebuggingSettingsScreen(
             SettingsToggleChip(
                 checked = gpsDebugTelemetry,
                 onCheckedChanged = {
-                    if (exportInProgress) return@SettingsToggleChip
                     if (!it) {
                         EnergyDiagnostics.recordSample(
                             context = context,
@@ -377,16 +241,6 @@ fun DebuggingSettingsScreen(
                         type = if (it) "capture_start" else "capture_stop",
                         note = "source=capture_toggle",
                     )
-                    diagnosticsExportStatus =
-                        if (it) {
-                            resources.getString(R.string.settings_capturing)
-                        } else if (hasExportedDiagnostics) {
-                            buildRetryReadyLabel(exportedDiagnosticsCount, resources = resources)
-                        } else if (DebugTelemetry.size() > 0 || EnergyDiagnostics.snapshotLines().isNotEmpty()) {
-                            resources.getString(R.string.settings_send_to_phone)
-                        } else {
-                            resources.getString(R.string.settings_capture_off)
-                        }
                 },
                 label = stringResource(R.string.settings_2_start_capturing),
                 secondaryLabel =
@@ -400,8 +254,6 @@ fun DebuggingSettingsScreen(
                         } else {
                             stringResource(R.string.settings_general_diagnostics_running)
                         }
-                    } else if (exportInProgress) {
-                        stringResource(R.string.settings_export_in_progress)
                     } else if (
                         diagnosticsCaptureMode == SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_BATTERY &&
                         !batteryBenchmarkValidity.valid
@@ -451,276 +303,6 @@ fun DebuggingSettingsScreen(
         }
 
         item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                label =
-                    {
-                        WearText(
-                            text =
-                                if (hasExportedDiagnostics && !gpsDebugTelemetry) {
-                                    stringResource(R.string.settings_3_resend_diagnostic)
-                                } else {
-                                    stringResource(R.string.settings_3_export_diagnostic)
-                                },
-                            modifier = Modifier.fillMaxWidth().basicMarquee(),
-                            textAlign = TextAlign.Start,
-                            overflow = TextOverflow.Visible,
-                            maxLines = 1,
-                        )
-                    },
-                secondaryLabel =
-                    {
-                        WearText(
-                            text =
-                                if (exportInProgress) {
-                                    stringResource(R.string.settings_exporting)
-                                } else if (gpsDebugTelemetry) {
-                                    stringResource(R.string.settings_stop_export)
-                                } else {
-                                    diagnosticsExportStatus
-                                },
-                            modifier = Modifier.basicMarquee(),
-                            overflow = TextOverflow.Visible,
-                            maxLines = 1,
-                        )
-                    },
-                onClick = {
-                    if (exportInProgress) return@Chip
-                    coroutineScope.launch {
-                        exportInProgress = true
-                        exportDialogMode = DiagnosticsExportDialogMode.GENERATING
-                        exportDialogMessage = resources.getString(R.string.settings_generating_diagnostics_file)
-                        val captureWasEnabled = gpsDebugTelemetry
-                        var captureFrozenForExport = false
-                        try {
-                            CompassHeadingReferenceDiagnostics.stop()
-                            CompassDeepTraceDiagnostics.stop(reason = "export")
-                            val hasBufferedLogs =
-                                DebugTelemetry.size() > 0 ||
-                                    EnergyDiagnostics.snapshotLines().isNotEmpty() ||
-                                    CompassDeepTraceDiagnostics.snapshot().lines.isNotEmpty()
-                            val hasExistingExport =
-                                withContext(Dispatchers.IO) {
-                                    DiagnosticsExporter.latestExportFile(context) != null
-                                }
-                            val canExport = captureWasEnabled || hasBufferedLogs || hasExistingExport
-                            if (!canExport) {
-                                exportDialogMode = null
-                                diagnosticsExportStatus =
-                                    resources.getString(R.string.settings_no_logs_to_export_start_capturing_first)
-                                return@launch
-                            }
-
-                            diagnosticsExportStatus = resources.getString(R.string.settings_preparing_file)
-
-                            // Freeze capture state immediately to avoid session churn while exporting.
-                            if (captureWasEnabled) {
-                                EnergyDiagnostics.recordSample(
-                                    context = context,
-                                    reason = "capture_toggle_off",
-                                    detail = "source=export",
-                                )
-                                CompassHeadingDiagnostics.flush(reason = "capture_export")
-                                DebugTelemetry.freezeForExport()
-                                captureFrozenForExport = true
-                                viewModel.setGpsDebugTelemetry(false)
-                                CompassHeadingDiagnostics.reset()
-                                EnergyDiagnostics.configure(captureActive = false, fullDiagnostics = false)
-                                ScreenStateDiagnostics.configure(captureActive = false)
-                            }
-
-                            val diagnosticsFile =
-                                withContext(Dispatchers.IO) {
-                                    DiagnosticsExporter.export(
-                                        context = context,
-                                        settings =
-                                            DiagnosticsSettingsSnapshot(
-                                                gpsIntervalMs = gpsIntervalMs,
-                                                watchGpsOnly = isWatchGpsOnly,
-                                                keepAppOpen = keepAppOpen,
-                                                gpsInAmbientMode = gpsInAmbientMode,
-                                                gpsDebugTelemetry = captureWasEnabled,
-                                                terrainEnabled = terrainEnabled,
-                                                diagnosticsCaptureMode = diagnosticsCaptureMode,
-                                                gpsPassiveLocationExperiment = gpsPassiveLocationExperiment,
-                                                backButtonExitsNavigation = backButtonExitsNavigation,
-                                                backButtonClosesApp = backButtonClosesApp,
-                                                recordingSampleIntervalSeconds = recordingSampleIntervalSeconds,
-                                                recordingScreenOffSampleIntervalSeconds =
-                                                recordingScreenOffSampleIntervalSeconds,
-                                                recordingAutoPauseMode = recordingAutoPauseMode,
-                                                recordingTrackSmoothingMode = recordingTrackSmoothingMode,
-                                                recordingElevationSource = recordingElevationSource,
-                                                recordingHeartRateSource = recordingHeartRateSource,
-                                                recordingCadenceSource = recordingCadenceSource,
-                                                recordingSpeedSource = recordingSpeedSource,
-                                                recordingDistanceSource = recordingDistanceSource,
-                                                recordingStepsSource = recordingStepsSource,
-                                                recordingShowSavedGpxOnMap = recordingShowSavedGpxOnMap,
-                                                recordingStartWithTurnByTurn = recordingStartWithTurnByTurn,
-                                                recordingExternalHeartRateLinked =
-                                                    !recordingExternalHeartRateAddress.isNullOrBlank(),
-                                                recordingExternalHeartRateName = recordingExternalHeartRateName,
-                                                recordingExternalHeartRateAddressSuffix =
-                                                    recordingExternalHeartRateAddress?.takeLast(5),
-                                                recordingExternalRunPodLinked =
-                                                    !recordingExternalRunPodAddress.isNullOrBlank(),
-                                                recordingExternalRunPodName = recordingExternalRunPodName,
-                                                recordingExternalRunPodAddressSuffix =
-                                                    recordingExternalRunPodAddress?.takeLast(5),
-                                                activityProfile = activityProfile,
-                                                userWeightKg = userWeightKg,
-                                                backpackWeightKg = backpackWeightKg,
-                                                bikeWeightKg = bikeWeightKg,
-                                                turnByTurnGuidanceSource = turnByTurnGuidanceSource,
-                                                turnByTurnGpsIntervalSeconds = turnByTurnGpsIntervalSeconds,
-                                                turnByTurnScreenOffGpsIntervalSeconds =
-                                                turnByTurnScreenOffGpsIntervalSeconds,
-                                                turnByTurnHapticsEnabled = turnByTurnHapticsEnabled,
-                                                turnByTurnVoiceGuidanceEnabled = turnByTurnVoiceGuidanceEnabled,
-                                                turnByTurnTurnAlertsMode = turnByTurnTurnAlertsMode,
-                                                turnByTurnOffRouteAlertsEnabled = turnByTurnOffRouteAlertsEnabled,
-                                                turnByTurnCompactPopupEnabled = turnByTurnCompactPopupEnabled,
-                                                turnByTurnOffRouteAlertThresholdMeters =
-                                                turnByTurnOffRouteThresholdMeters,
-                                                turnByTurnOffRouteRepeatSeconds = turnByTurnOffRouteRepeatSeconds,
-                                                turnByTurnGpsInAmbientMode = turnByTurnGpsInAmbientMode,
-                                                turnByTurnScreenOffBatchingEnabled =
-                                                turnByTurnScreenOffBatchingEnabled,
-                                                turnByTurnBrouterGuideBackEnabled =
-                                                turnByTurnBrouterGuideBackEnabled,
-                                                turnByTurnRouteStartBehavior = turnByTurnRouteStartBehavior,
-                                                turnByTurnReverseSuggestionMode = turnByTurnReverseSuggestionMode,
-                                            ),
-                                        reuseLatestIfAvailable = !captureWasEnabled,
-                                    )
-                                }
-                            exportedDiagnosticsCount =
-                                withContext(Dispatchers.IO) {
-                                    DiagnosticsExporter.exportedFileCount(context)
-                                }
-                            exportDialogMessage =
-                                resources.getString(R.string.settings_sending_diagnostics_to_your_phone)
-
-                            val subject =
-                                resources.getString(
-                                    R.string.debug_status_detail,
-                                    TransferDataLayerContract.DIAGNOSTICS_SUBJECT_PREFIX,
-                                    diagnosticsFile.nameWithoutExtension,
-                                )
-
-                            // Prefer phone handoff first because many watches have no mail/share app.
-                            val handedOff =
-                                withContext(Dispatchers.IO) {
-                                    DiagnosticsEmailHandoff.sendToPhone(
-                                        context = context,
-                                        diagnosticsFile = diagnosticsFile,
-                                        subject = subject,
-                                    )
-                                }
-                            if (handedOff) {
-                                diagnosticsExportStatus =
-                                    resources.getString(R.string.settings_check_phone_use_button_3_to_resend)
-                                exportDialogMode = DiagnosticsExportDialogMode.CHECK_PHONE
-                                exportDialogMessage =
-                                    resources.getString(
-                                        R.string.settings_if_you_closed_the_phone_prompt_tap_button_3_again_to_resend,
-                                    )
-                                return@launch
-                            }
-                            exportDialogMode = null
-
-                            val uri =
-                                FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    diagnosticsFile,
-                                )
-
-                            val shareIntent =
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(
-                                        Intent.EXTRA_EMAIL,
-                                        arrayOf(TransferDataLayerContract.DIAGNOSTICS_SUPPORT_EMAIL),
-                                    )
-                                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        resources.getString(R.string.debug_diagnostics_export_attached_from_watch),
-                                    )
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-
-                            val hasWatchTargets =
-                                context.packageManager.queryIntentActivities(shareIntent, 0).isNotEmpty()
-                            if (!hasWatchTargets) {
-                                diagnosticsExportStatus =
-                                    buildRetryReadyLabel(exportedDiagnosticsCount, resources = resources)
-                                exportDialogMode = DiagnosticsExportDialogMode.FAILED
-                                exportDialogMessage =
-                                    resources.getString(
-                                        R.string.settings_diagnostics_phone_send_failed,
-                                    )
-                                return@launch
-                            }
-
-                            val chooser =
-                                Intent
-                                    .createChooser(
-                                        shareIntent,
-                                        resources.getString(R.string.settings_send_diagnostics),
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                            runCatching { context.startActivity(chooser) }
-                                .onSuccess {
-                                    diagnosticsExportStatus =
-                                        if (captureWasEnabled) {
-                                            resources.getString(R.string.settings_confirm_send_on_phone_capture_off)
-                                        } else {
-                                            resources.getString(R.string.settings_confirm_send_on_phone)
-                                        }
-                                }.onFailure {
-                                    diagnosticsExportStatus =
-                                        buildRetryReadyLabel(exportedDiagnosticsCount, resources = resources)
-                                    exportDialogMode = DiagnosticsExportDialogMode.FAILED
-                                    exportDialogMessage =
-                                        resources.getString(
-                                            R.string.settings_export_failed_tap_resend_diagnostic_to_try_again,
-                                        )
-                                }
-                        } catch (_: ActivityNotFoundException) {
-                            diagnosticsExportStatus =
-                                buildRetryReadyLabel(exportedDiagnosticsCount, resources = resources)
-                            exportDialogMode = DiagnosticsExportDialogMode.FAILED
-                            exportDialogMessage =
-                                resources.getString(R.string.settings_export_failed_tap_resend_diagnostic_to_try_again)
-                        } catch (_: Exception) {
-                            diagnosticsExportStatus =
-                                buildRetryReadyLabel(exportedDiagnosticsCount, resources = resources)
-                            exportDialogMode = DiagnosticsExportDialogMode.FAILED
-                            exportDialogMessage =
-                                resources.getString(R.string.settings_export_failed_tap_resend_diagnostic_to_try_again)
-                        } finally {
-                            if (captureWasEnabled && !captureFrozenForExport) {
-                                DebugTelemetry.freezeForExport()
-                            }
-                            viewModel.setGpsDebugTelemetry(false)
-                            EnergyDiagnostics.configure(captureActive = false, fullDiagnostics = false)
-                            ScreenStateDiagnostics.configure(captureActive = false)
-                            if (exportDialogMode == DiagnosticsExportDialogMode.GENERATING) {
-                                exportDialogMode = null
-                            }
-                            exportInProgress = false
-                        }
-                    }
-                },
-            )
-        }
-
-        item {
             DiagnosticsSettingsSectionTitle()
         }
         item {
@@ -751,7 +333,6 @@ fun DebuggingSettingsScreen(
                         )
                         energySummaryRevision += 1L
                         viewModel.setGpsDebugTelemetry(false)
-                        diagnosticsExportStatus = resources.getString(R.string.settings_capture_stopped_start_a_new_run)
                     }
                     viewModel.setDiagnosticsCaptureMode(mode)
                 },
@@ -764,7 +345,7 @@ fun DebuggingSettingsScreen(
                 checked = fullDiagnostics && gpsDebugTelemetryPopupEnabled,
                 enabled = fullDiagnostics,
                 onCheckedChanged = {
-                    if (exportInProgress || !fullDiagnostics) return@SettingsToggleChip
+                    if (!fullDiagnostics) return@SettingsToggleChip
                     viewModel.setGpsDebugTelemetryPopupEnabled(it)
                 },
                 label = stringResource(R.string.settings_debug_popup),
@@ -781,7 +362,6 @@ fun DebuggingSettingsScreen(
                 diagnosticsCaptureMode == SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_BATTERY
             SettingsToggleChip(
                 checked = compassDeepTraceState.active,
-                enabled = !exportInProgress,
                 onCheckedChanged = { enabled ->
                     if (enabled) {
                         CompassDeepTraceDiagnostics.start(
@@ -813,7 +393,6 @@ fun DebuggingSettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled =
                     compassDeepTraceState.active &&
-                        !exportInProgress &&
                         !compassHeadingReferenceTestActive,
                 label = {
                     WearText(
@@ -860,7 +439,7 @@ fun DebuggingSettingsScreen(
         item {
             Chip(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = compassDeepTraceState.active && !exportInProgress,
+                enabled = compassDeepTraceState.active,
                 label = {
                     WearText(
                         text =
@@ -921,83 +500,4 @@ fun DebuggingSettingsScreen(
             }
         }
     }
-}
-
-@Composable
-private fun DiagnosticsExportStatusDialog(
-    mode: DiagnosticsExportDialogMode?,
-    message: String,
-    onDismiss: () -> Unit,
-) {
-    if (mode == null) return
-
-    val dismissible = mode != DiagnosticsExportDialogMode.GENERATING
-    val title =
-        if (mode == DiagnosticsExportDialogMode.GENERATING) {
-            stringResource(R.string.settings_preparing_diagnostics)
-        } else if (mode == DiagnosticsExportDialogMode.FAILED) {
-            stringResource(R.string.settings_export_failed)
-        } else {
-            stringResource(R.string.settings_diagnostic_ready_check_your_phone)
-        }
-
-    WearInfoDialog(
-        visible = true,
-        title = title,
-        onDismiss = onDismiss,
-        dismissible = dismissible,
-    ) {
-        if (mode == DiagnosticsExportDialogMode.GENERATING) {
-            item {
-                RouteToolBusySpinner(size = 30.dp)
-            }
-        }
-        item {
-            Text(
-                text = message,
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (dismissible) {
-            item {
-                Button(
-                    onClick = onDismiss,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                ) {
-                    Text(stringResource(R.string.common_ok))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiagnosticsExportInfoDialog(
-    visible: Boolean,
-    onDismiss: () -> Unit,
-) {
-    WearHelpDialog(
-        visible = visible,
-        title = stringResource(R.string.settings_diagnostics_export),
-        onDismiss = onDismiss,
-        lines =
-            listOf(
-                stringResource(
-                    R.string.settings_after_export_check_your_phone_it_opens_the_email_draft_with_diagnostic,
-                ),
-            ),
-    )
-}
-
-private fun buildRetryReadyLabel(
-    count: Int,
-    resources: Resources,
-): String {
-    val safeCount = count.coerceAtLeast(1)
-    return resources.getQuantityString(R.plurals.debug_retry_ready, safeCount, safeCount)
 }

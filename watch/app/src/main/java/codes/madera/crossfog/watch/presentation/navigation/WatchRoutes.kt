@@ -3,7 +3,6 @@ package codes.madera.crossfog.watch.presentation.navigation
 object WatchRoutes {
     const val NAVIGATE = "navigate_screen"
     const val MAIN_MENU = "main_menu"
-    const val POI = "poi_screen"
     const val GPX = "gpx_screen"
     const val MAPS = "maps_screen"
     const val DOWNLOAD = "download_screen"
@@ -30,9 +29,7 @@ object WatchRoutes {
     const val DEBUG_SETTINGS = "debug_settings_screen"
     const val GPX_SETTINGS = "gpx_settings_screen"
     const val GPX_APPEARANCE_SETTINGS = "gpx_appearance_settings_screen"
-    const val GPX_TOOLS_SETTINGS = "gpx_tools_settings_screen"
     const val MAP_SETTINGS = "map_settings_screen"
-    const val POI_SETTINGS = "poi_settings_screen"
     const val MAP_DISPLAY_SETTINGS = "map_display_settings_screen"
     const val MAP_FOCUS_SETTINGS = "map_focus_settings_screen"
     const val MAP_ZOOM_SETTINGS = "map_zoom_settings_screen"

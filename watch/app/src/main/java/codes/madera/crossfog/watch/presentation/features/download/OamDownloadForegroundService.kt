@@ -51,7 +51,6 @@ class OamDownloadForegroundService : Service() {
         OamBundleDownloader(
             context = applicationContext,
             mapRepository = container.mapRepository,
-            poiRepository = container.poiRepository,
             connectionFactory = { url ->
                 val network =
                     downloadNetwork.awaitNetwork(DOWNLOAD_NETWORK_WAIT_TIMEOUT_MS)

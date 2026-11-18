@@ -195,10 +195,6 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    implementation("earth.worldwind:worldwind:2.1.1") {
-        // Mapsforge provides the same AndroidSVG classes.
-        exclude(group = "com.caverock", module = "androidsvg-aar")
-    }
     // JVM counterpart of Android's built-in JSON classes for draft checkpoint regression tests.
     testImplementation("org.json:json:20240303")
     implementation(platform(libs.compose.bom))
@@ -231,7 +227,6 @@ dependencies {
     implementation(libs.androidx.health.services)
 
     // Play Services / Coroutines
-    implementation(libs.play.services.wearable)
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.android)
@@ -242,7 +237,6 @@ dependencies {
     implementation(libs.mapsforge.map.android)
     implementation(libs.mapsforge.themes)
     implementation(libs.androidsvg)
-    implementation(project(":brouter-core"))
 
     // Previews
     implementation(libs.androidx.wear.tooling.preview)

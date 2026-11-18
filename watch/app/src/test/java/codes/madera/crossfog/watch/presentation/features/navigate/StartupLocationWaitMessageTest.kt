@@ -1,8 +1,6 @@
 package codes.madera.crossfog.watch.presentation.features.navigate
 
 import codes.madera.crossfog.watch.core.service.location.model.GpsEnvironmentWarning
-import codes.madera.crossfog.watch.data.repository.PoiType
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -25,8 +23,6 @@ class StartupLocationWaitMessageTest {
             retainedLocationAnchor = null,
             lastKnownLocation = null,
             startupMapFallbackState = StartupMapFallbackState.WAITING,
-            navigateTarget = null,
-            pendingPoiFocusTarget = null,
         )
 
     @Test
@@ -93,14 +89,11 @@ class StartupLocationWaitMessageTest {
     }
 
     @Test
-    fun offlineStoppedTrackingPanningAndPoiFocusStaySilent() {
+    fun offlineStoppedTrackingAndPanningStaySilent() {
         assertFalse(eligible(startup.copy(offlineMode = true)))
         assertFalse(eligible(startup.copy(shouldTrackLocation = false)))
         assertFalse(eligible(startup.copy(shouldFollowPosition = false)))
         assertFalse(eligible(isScreenInteractive = false))
-        val target = PoiNavigateTarget(lat = 45.0, lon = 6.0, label = "test", type = PoiType.GENERIC)
-        assertFalse(eligible(startup.copy(navigateTarget = target)))
-        assertFalse(eligible(startup.copy(pendingPoiFocusTarget = target)))
     }
 
     @Test
@@ -133,8 +126,6 @@ class StartupLocationWaitMessageTest {
         assertEquals("screen_inactive", reason(isScreenInteractive = false))
         assertEquals("viewport_restored", reason(hasRestoredViewport = true))
         assertEquals("gps_unavailable", reason(warning = GpsEnvironmentWarning.LOCATION_SETTINGS_UNSATISFIED))
-        val target = PoiNavigateTarget(lat = 45.0, lon = 6.0, label = "test", type = PoiType.GENERIC)
-        assertEquals("poi_focus", reason(startup.copy(navigateTarget = target)))
     }
 
     private fun reason(

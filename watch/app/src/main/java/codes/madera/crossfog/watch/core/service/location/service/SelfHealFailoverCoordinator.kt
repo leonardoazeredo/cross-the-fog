@@ -130,7 +130,7 @@ internal class SelfHealFailoverCoordinator(
             autoFusedPoorAccuracyStreak = 0
             return
         }
-        if (phoneConnected() != false) {
+        if (phoneConnected() == true) {
             autoFusedPoorAccuracyStreak = 0
             return
         }
@@ -280,7 +280,7 @@ internal class SelfHealFailoverCoordinator(
         expectedIntervalMs: Long,
     ) {
         if (!backgroundTracking || expectedIntervalMs <= 0L) return
-        if (phoneConnected() != false) return
+        if (phoneConnected() == true) return
         if (watchGpsOnly() || passiveLocationExperiment() || autoFusedFallbackToWatchGps) return
         if (engine.currentSourceModeOrNull() != LocationSourceMode.AUTO_FUSED) return
 
@@ -539,7 +539,7 @@ internal class SelfHealFailoverCoordinator(
         fixGapMs: Long,
         thresholdMs: Long,
     ): Boolean {
-        if (phoneConnected() != false) return false
+        if (phoneConnected() == true) return false
         if (watchGpsOnly() || autoFusedFallbackToWatchGps) return false
         if (engine.currentSourceModeOrNull() != LocationSourceMode.AUTO_FUSED) return false
         if (

@@ -38,7 +38,7 @@ class OamDownloadSelectionResourceTest {
         val selection = OamDownloadSelection()
 
         assertFalse(selection.includeRefugesInfo)
-        assertEquals("Map + POI + Routing + Standard elevation", selection.label(resources = resources))
+        assertEquals("Map + Standard elevation", selection.label(resources = resources))
     }
 
     @Test
@@ -47,7 +47,6 @@ class OamDownloadSelectionResourceTest {
             OamDownloadSelection(
                 includeMap = false,
                 includePoi = false,
-                includeRouting = false,
                 includeDem = false,
                 includeRefugesInfo = true,
             )

@@ -10,48 +10,15 @@ import codes.madera.crossfog.watch.data.repository.SettingsRepository
 internal fun NavigateBackHandler(
     mapFocusMode: Boolean,
     onExitMapFocus: () -> Unit,
-    createdPoiCreateInProgress: Boolean,
-    completedRouteToolDraftActive: Boolean,
-    routeToolExecutionInProgress: Boolean,
-    routeToolSessionActive: Boolean,
-    showPoiCreationChoiceDialog: Boolean,
-    showPoiCoordinateEntryDialog: Boolean,
-    showCreatedPoiRenameDialog: Boolean,
-    createdPoiRenameInProgress: Boolean,
-    poiCreationSelectionActive: Boolean,
-    showRouteToolsPanel: Boolean,
     shortcutTrayExpanded: Boolean,
     backButtonExitsNavigation: Boolean,
     backButtonClosesApp: Boolean,
     onCloseApp: () -> Unit,
-    onDismissCompletedRouteToolDraft: () -> Unit,
-    onCancelRouteToolSession: () -> Unit,
-    onDismissPoiCreationChoiceDialog: () -> Unit,
-    onDismissPoiCoordinateEntryDialog: () -> Unit,
-    onDismissCreatedPoiRename: () -> Unit,
-    onCancelPoiCreation: () -> Unit,
-    onDismissRouteToolsPanel: () -> Unit,
     onDismissShortcutTray: () -> Unit,
     onMenuClick: () -> Unit,
 ) {
     BackHandler(enabled = !mapFocusMode) {
         when {
-            createdPoiCreateInProgress -> Unit
-            completedRouteToolDraftActive -> {
-                if (!routeToolExecutionInProgress) {
-                    onDismissCompletedRouteToolDraft()
-                }
-            }
-            routeToolSessionActive -> onCancelRouteToolSession()
-            showPoiCoordinateEntryDialog -> onDismissPoiCoordinateEntryDialog()
-            showPoiCreationChoiceDialog -> onDismissPoiCreationChoiceDialog()
-            showCreatedPoiRenameDialog -> {
-                if (!createdPoiRenameInProgress) {
-                    onDismissCreatedPoiRename()
-                }
-            }
-            poiCreationSelectionActive -> onCancelPoiCreation()
-            showRouteToolsPanel -> onDismissRouteToolsPanel()
             shortcutTrayExpanded -> onDismissShortcutTray()
             else ->
                 handleNavigateBackWithoutOverlay(

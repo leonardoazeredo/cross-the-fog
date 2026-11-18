@@ -18,11 +18,6 @@ import codes.madera.crossfog.watch.core.maps.DemSource
 import codes.madera.crossfog.watch.core.maps.GeoBounds
 import codes.madera.crossfog.watch.core.maps.geoBoundsOrNull
 import codes.madera.crossfog.watch.core.maps.theme.validateExternalRenderTheme
-import codes.madera.crossfog.watch.core.routing.RoutingCoverageUtils
-import codes.madera.crossfog.watch.core.routing.isRoutingSegmentFileName
-import codes.madera.crossfog.watch.core.routing.routingSegmentBounds
-import codes.madera.crossfog.watch.core.routing.routingSegmentPartFile
-import codes.madera.crossfog.watch.core.routing.routingSegmentsDir
 import codes.madera.crossfog.watch.core.service.diagnostics.MapHotPathDiagnostics
 import codes.madera.crossfog.watch.core.service.diagnostics.TerrainDiagnostics
 import codes.madera.crossfog.watch.data.repository.MapRepositoryImpl
@@ -76,18 +71,6 @@ data class MapFileState(
     val demCombinedAvailableTiles: Int = 0,
     val demDetailedAvailableTiles: Int = 0,
     val demStandardAvailableTiles: Int = 0,
-    val routingCoverageKnown: Boolean = false,
-    val routingRequiredSegments: Int = 0,
-    val routingAvailableSegments: Int = 0,
-    val routingReady: Boolean = false,
-)
-
-data class RoutingPackFileState(
-    val name: String,
-    val path: String,
-    val sizeBytes: Long,
-    val modifiedAtMillis: Long,
-    val bounds: GeoBounds? = null,
 )
 
 data class DemTileFileState(
@@ -262,9 +245,6 @@ class MapViewModel(
     private val _reliefOverlayToggleEnabled = MutableStateFlow(false)
     val reliefOverlayToggleEnabled: StateFlow<Boolean> = _reliefOverlayToggleEnabled.asStateFlow()
 
-    private val _routingPackFiles = MutableStateFlow<List<RoutingPackFileState>>(emptyList())
-    val routingPackFiles: StateFlow<List<RoutingPackFileState>> = _routingPackFiles.asStateFlow()
-
     private val _mapAppearanceApplyInProgress = MutableStateFlow(false)
     val mapAppearanceApplyInProgress: StateFlow<Boolean> = _mapAppearanceApplyInProgress.asStateFlow()
     private val _hillshadeTerrainUnavailableEvent =
@@ -330,7 +310,6 @@ class MapViewModel(
 
     init {
         loadMapFiles()
-        loadRoutingPackFiles()
 
         selectedMapPath
             .onEach { newPath ->
@@ -380,7 +359,6 @@ class MapViewModel(
         syncManager.mapSyncRequest
             .onEach {
                 loadMapFiles(preserveExistingCoverage = false)
-                loadRoutingPackFiles()
             }.launchIn(viewModelScope)
 
         viewModelScope.launch {
@@ -629,7 +607,6 @@ class MapViewModel(
             Dem3CoverageUtils.coverageForMap(context, file, sources = listOf(DemSource.MAPSFORGE_DEM3))
         val combinedCoverage =
             Dem3CoverageUtils.coverageForMap(context, file, sources = DemSource.LOAD_PRIORITY)
-        val routingCoverage = RoutingCoverageUtils.coverageForMap(context, file)
 
         return MapFileState(
             name = file.name,
@@ -644,10 +621,6 @@ class MapViewModel(
             demCombinedAvailableTiles = combinedCoverage.availableTiles,
             demDetailedAvailableTiles = detailedCoverage.availableTiles,
             demStandardAvailableTiles = standardCoverage.availableTiles,
-            routingCoverageKnown = routingCoverage.isCoverageKnown,
-            routingRequiredSegments = routingCoverage.requiredSegments,
-            routingAvailableSegments = routingCoverage.availableSegments,
-            routingReady = routingCoverage.isReady,
         )
     }
 
@@ -866,30 +839,6 @@ class MapViewModel(
         }
     }
 
-    fun loadRoutingPackFiles() {
-        viewModelScope.launch {
-            val states =
-                withContext(Dispatchers.IO) {
-                    routingSegmentsDir(context)
-                        .listFiles()
-                        ?.asSequence()
-                        ?.filter { it.isFile && isRoutingSegmentFileName(it.name) }
-                        ?.sortedBy { it.name.lowercase() }
-                        ?.map { file ->
-                            RoutingPackFileState(
-                                name = file.name,
-                                path = file.absolutePath,
-                                sizeBytes = file.length(),
-                                modifiedAtMillis = file.lastModified(),
-                                bounds = routingSegmentBounds(file.name),
-                            )
-                        }?.toList()
-                        .orEmpty()
-                }
-            _routingPackFiles.value = states
-        }
-    }
-
     fun loadDemTileFiles() {
         viewModelScope.launch {
             val states =
@@ -948,38 +897,6 @@ class MapViewModel(
 
                 loadMapFiles(preserveExistingCoverage = false)
             }
-        }
-    }
-
-    fun deleteRoutingPackFile(path: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                val file = File(path)
-                if (file.exists() && isRoutingSegmentFileName(file.name)) {
-                    file.delete()
-                    routingSegmentPartFile(context, file.name).delete()
-                }
-            }
-            RoutingCoverageUtils.clearCaches()
-            loadRoutingPackFiles()
-            loadMapFiles(preserveExistingCoverage = false)
-        }
-    }
-
-    fun deleteAllRoutingPackFiles() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                routingSegmentsDir(context)
-                    .listFiles()
-                    ?.filter { it.isFile && isRoutingSegmentFileName(it.name) }
-                    ?.forEach { file ->
-                        file.delete()
-                        routingSegmentPartFile(context, file.name).delete()
-                    }
-            }
-            RoutingCoverageUtils.clearCaches()
-            loadRoutingPackFiles()
-            loadMapFiles(preserveExistingCoverage = false)
         }
     }
 
@@ -1060,14 +977,12 @@ class MapViewModel(
                         }
                     },
                     disableFeatures = {
-                        val terrainEnabled = settingsRepository.terrain3dEnabled.first()
                         val toggles =
                             themeRepository.getThemeItems().first().filterIsInstance<ThemeListItem.GlobalToggle>()
                         val hillEnabled = toggles.any { it.id == ThemeUiIds.HILL_SHADING && it.enabled }
                         val slopeEnabled = toggles.any { it.id == ThemeUiIds.RELIEF_OVERLAY && it.enabled }
                         disableTerrainFeatures(
-                            state = TerrainFeatureState(terrainEnabled, hillEnabled, slopeEnabled),
-                            disable3d = { settingsRepository.setTerrain3dEnabled(false) },
+                            state = TerrainFeatureState(hillEnabled, slopeEnabled),
                             disableHill = { themeRepository.setHillShadingEnabled(false) },
                             disableSlope = { themeRepository.setReliefOverlayEnabled(false) },
                         )
@@ -1092,7 +1007,6 @@ class MapViewModel(
                 AppDerivedCacheCleaner.clear(context)
             }
         Dem3CoverageUtils.clearCaches()
-        RoutingCoverageUtils.clearCaches()
         requestExternalCacheClear()
         loadMapFiles(preserveExistingCoverage = false)
         return result

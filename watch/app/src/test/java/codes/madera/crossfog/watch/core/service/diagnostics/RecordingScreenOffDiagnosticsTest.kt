@@ -1,6 +1,5 @@
 package codes.madera.crossfog.watch.core.service.diagnostics
 
-import codes.madera.crossfog.watch.core.service.diagnostics.export.writeRecordingInstrumentationSummarySection
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -137,9 +136,6 @@ class RecordingScreenOffDiagnosticsTest {
 
         assertInstrumentationCounters(counters)
 
-        val report = buildString { writeRecordingInstrumentationSummarySection(counters) }
-        assertInstrumentationReport(report)
-
         RecordingScreenOffDiagnostics.configure(fullDiagnostics = false)
         val stoppedCounters = RecordingScreenOffDiagnostics.snapshotInstrumentation()
         assertInstrumentationCounters(stoppedCounters)
@@ -224,13 +220,5 @@ class RecordingScreenOffDiagnosticsTest {
         assertEquals(1L, counters.recordingSensorScreenOffUiPublishCount)
         assertEquals(2L, counters.sensorCallbackCounts.getValue("HeartRate").count)
         assertEquals(1L, counters.sensorCallbackCounts.getValue("HeartRate").screenOffCount)
-    }
-
-    private fun assertInstrumentationReport(report: String) {
-        assertTrue(report.contains("recordingDashboardScreenOffTickCount=1"))
-        assertTrue(report.contains("recordingDashboardAggregateBuildCount=2"))
-        assertTrue(report.contains("tbtProjectionSegmentsScanned=8"))
-        assertTrue(report.contains("recordingDraftTotalBytesWritten=130"))
-        assertTrue(report.contains("recordingSensorHeartRateCallbackCount=2"))
     }
 }

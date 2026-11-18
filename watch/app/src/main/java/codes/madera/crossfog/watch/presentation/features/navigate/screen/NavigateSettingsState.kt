@@ -3,7 +3,6 @@ package codes.madera.crossfog.watch.presentation.features.navigate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import codes.madera.crossfog.watch.core.routing.HikeRouteProfileParams
 import codes.madera.crossfog.watch.data.repository.MapFocusControl
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.presentation.features.settings.SettingsViewModel
@@ -64,10 +63,6 @@ internal data class NavigateSettingsState(
     val recordingDashboardMetricSlots: List<String>,
     val turnByTurnDashboardMetricSlots: List<String>,
     val activityProfile: String,
-    val gpxToolRouteStyle: String,
-    val gpxToolUseElevation: Boolean,
-    val gpxToolAllowFerries: Boolean,
-    val gpxToolCustomHikeParams: HikeRouteProfileParams,
     val gpxFlatSpeedMps: Float,
     val gpxAdvancedEtaEnabled: Boolean,
     val gpxStaminaAdjustmentEnabled: Boolean,
@@ -176,14 +171,6 @@ internal fun collectNavigateSettingsState(settingsViewModel: SettingsViewModel):
     val recordingDashboardMetricSlots by settingsViewModel.recordingDashboardMetricSlots.collectAsState()
     val turnByTurnDashboardMetricSlots by settingsViewModel.turnByTurnDashboardMetricSlots.collectAsState()
     val activityProfile by settingsViewModel.activityProfile.collectAsState()
-    val gpxToolRouteStyle by settingsViewModel.gpxToolRouteStyle.collectAsState()
-    val gpxToolUseElevation by settingsViewModel.gpxToolUseElevation.collectAsState()
-    val gpxToolAllowFerries by settingsViewModel.gpxToolAllowFerries.collectAsState()
-    val gpxToolHikeHikingRoutesPreference by settingsViewModel.gpxToolHikeHikingRoutesPreference.collectAsState()
-    val gpxToolHikePathPreference by settingsViewModel.gpxToolHikePathPreference.collectAsState()
-    val gpxToolHikeSacScaleLimit by settingsViewModel.gpxToolHikeSacScaleLimit.collectAsState()
-    val gpxToolHikeSacScalePreferred by settingsViewModel.gpxToolHikeSacScalePreferred.collectAsState()
-    val gpxToolHikeConsiderForest by settingsViewModel.gpxToolHikeConsiderForest.collectAsState()
     val gpxFlatSpeedMps by settingsViewModel.gpxFlatSpeedMps.collectAsState()
     val gpxAdvancedEtaEnabled by settingsViewModel.gpxAdvancedEtaEnabled.collectAsState()
     val gpxStaminaAdjustmentEnabled by settingsViewModel.gpxStaminaAdjustmentEnabled.collectAsState()
@@ -252,17 +239,6 @@ internal fun collectNavigateSettingsState(settingsViewModel: SettingsViewModel):
         recordingDashboardMetricSlots = recordingDashboardMetricSlots,
         turnByTurnDashboardMetricSlots = turnByTurnDashboardMetricSlots,
         activityProfile = activityProfile,
-        gpxToolRouteStyle = gpxToolRouteStyle,
-        gpxToolUseElevation = gpxToolUseElevation,
-        gpxToolAllowFerries = gpxToolAllowFerries,
-        gpxToolCustomHikeParams =
-            HikeRouteProfileParams(
-                hikingRoutesPreference = gpxToolHikeHikingRoutesPreference,
-                pathPreference = gpxToolHikePathPreference,
-                sacScaleLimit = gpxToolHikeSacScaleLimit,
-                sacScalePreferred = gpxToolHikeSacScalePreferred,
-                considerForest = gpxToolHikeConsiderForest,
-            ),
         gpxFlatSpeedMps = gpxFlatSpeedMps,
         gpxAdvancedEtaEnabled = gpxAdvancedEtaEnabled,
         gpxStaminaAdjustmentEnabled = gpxStaminaAdjustmentEnabled,

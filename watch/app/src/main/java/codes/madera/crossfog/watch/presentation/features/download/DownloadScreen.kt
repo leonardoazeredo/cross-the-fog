@@ -1074,7 +1074,6 @@ private fun installedBundleSubtitle(
         resources.getString(R.string.download_map).takeIf { bundle.mapFileName != null },
         resources.getString(R.string.common_poi).takeIf { bundle.poiFileName != null },
         resources.getString(R.string.download_refuges_info).takeIf { bundle.refugesInfoFileName != null },
-        resources.getString(R.string.download_routing).takeIf { bundle.routingFileNames.isNotEmpty() },
         resources.getString(R.string.download_elevation, resources.getString(bundle.demSource.shortLabelRes)).takeIf {
             bundle.demTileIds.isNotEmpty()
         },
@@ -1118,7 +1117,7 @@ private fun List<OamDownloadArea>.fileCountLabel(
                 (if (selection.includeMap) 1 else 0) +
                     (if (selection.includePoi) 1 else 0)
             )
-    val hasUnknownCount = selection.includeRouting || selection.includeDem || selection.includeRefugesInfo
+    val hasUnknownCount = selection.includeDem || selection.includeRefugesInfo
     return when {
         hasUnknownCount && knownCount == 0 -> resources.getString(R.string.download_bundle_files)
         hasUnknownCount -> resources.getString(R.string.download_at_least_file_count, knownCount)
@@ -1132,7 +1131,6 @@ private fun Long.toSizeLabel(
 ): String =
     buildList {
         if (this@toSizeLabel > 0L) add(formatBytes(this@toSizeLabel, resources = resources))
-        if (selection.includeRouting) add(resources.getString(R.string.download_routing_2))
         if (selection.includeDem) {
             add(
                 resources.getString(

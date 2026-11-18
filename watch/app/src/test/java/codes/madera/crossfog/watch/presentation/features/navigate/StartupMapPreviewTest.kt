@@ -3,10 +3,8 @@ package codes.madera.crossfog.watch.presentation.features.navigate
 import codes.madera.crossfog.watch.core.service.location.model.GpsEnvironmentWarning
 import codes.madera.crossfog.watch.core.service.location.model.GpsSignalSnapshot
 import codes.madera.crossfog.watch.core.service.location.policy.LocationSourceMode
-import codes.madera.crossfog.watch.data.repository.PoiType
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.WakeAnchorSeed
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.shouldReleaseWakeReacquireHold
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -23,8 +21,6 @@ class StartupMapPreviewTest {
             retainedLocationAnchor = null,
             lastKnownLocation = null,
             startupMapFallbackState = StartupMapFallbackState.WAITING,
-            navigateTarget = null,
-            pendingPoiFocusTarget = null,
         )
     private val fix =
         WakeAnchorSeed(
@@ -87,11 +83,8 @@ class StartupMapPreviewTest {
     }
 
     @Test
-    fun userPanAndPoiFocusKeepPriority() {
+    fun userPanKeepsPriority() {
         assertNull(preview(input = startup.copy(shouldFollowPosition = false)))
-        val target = PoiNavigateTarget(lat = 49.0, lon = 12.0, label = "test", type = PoiType.GENERIC)
-        assertNull(preview(input = startup.copy(navigateTarget = target)))
-        assertNull(preview(input = startup.copy(pendingPoiFocusTarget = target)))
     }
 
     @Test

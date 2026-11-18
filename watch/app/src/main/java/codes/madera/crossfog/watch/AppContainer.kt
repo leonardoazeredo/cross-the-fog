@@ -4,8 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import codes.madera.crossfog.watch.core.maps.theme.validateExternalRenderTheme
-import codes.madera.crossfog.watch.core.routing.BRouterRoutePlanner
-import codes.madera.crossfog.watch.core.routing.RoutePlanner
 import codes.madera.crossfog.watch.data.repository.*
 import codes.madera.crossfog.watch.data.repository.maps.theme.ExternalThemeStore
 import codes.madera.crossfog.watch.data.repository.maps.theme.ThemeRepository
@@ -22,7 +20,6 @@ import codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.MapViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.theme.ThemeViewModel
 import codes.madera.crossfog.watch.presentation.features.navigate.LocationViewModel
-import codes.madera.crossfog.watch.presentation.features.poi.PoiViewModel
 import codes.madera.crossfog.watch.presentation.features.recording.RecordingElevationProvider
 import codes.madera.crossfog.watch.presentation.features.recording.RecordingRuntimeDependencies
 import codes.madera.crossfog.watch.presentation.features.recording.TraceRecordingDraftStore
@@ -62,20 +59,8 @@ class AppContainer(
         GpxRepositoryImpl(applicationContext)
     }
 
-    val gpxExportRepository: GpxExportRepository by lazy {
-        GpxExportRepositoryImpl(applicationContext)
-    }
-
     val mapRepository: MapRepositoryImpl by lazy {
         MapRepositoryImpl(applicationContext)
-    }
-
-    val poiRepository: PoiRepository by lazy {
-        PoiRepositoryImpl(applicationContext)
-    }
-
-    val userPoiRepository: UserPoiRepository by lazy {
-        UserPoiRepository(applicationContext)
     }
 
     val externalThemeStore: ExternalThemeStore by lazy {
@@ -94,21 +79,14 @@ class AppContainer(
         CompassViewModel(applicationContext as Application)
     }
 
-    private val routePlanner: RoutePlanner by lazy {
-        BRouterRoutePlanner(applicationContext)
-    }
-
     val gpxViewModel: GpxViewModel by lazy {
         GpxViewModel(
             resources = applicationContext.resources,
             gpxRepository = gpxRepository,
-            gpxExportRepository = gpxExportRepository,
             syncManager = syncManager,
             settingsRepository = settingsRepository,
-            poiRepository = poiRepository,
             routeServices =
                 GpxRouteServices(
-                    planner = routePlanner,
                     elevationProvider = RecordingElevationProvider(applicationContext),
                 ),
         )
@@ -125,16 +103,6 @@ class AppContainer(
         )
     }
 
-    val poiViewModel: PoiViewModel by lazy {
-        PoiViewModel(
-            resources = applicationContext.resources,
-            poiRepository = poiRepository,
-            userPoiRepository = userPoiRepository,
-            settingsRepository = settingsRepository,
-            syncManager = syncManager,
-        )
-    }
-
     val downloadViewModel: DownloadViewModel by lazy {
         DownloadViewModel(
             resources = applicationContext.resources,
@@ -142,7 +110,6 @@ class AppContainer(
                 OamBundleDownloader(
                     context = applicationContext,
                     mapRepository = mapRepository,
-                    poiRepository = poiRepository,
                 ),
             notificationController = OamDownloadNotificationController(applicationContext),
             networkMonitor = OamDownloadNetworkMonitor(applicationContext),

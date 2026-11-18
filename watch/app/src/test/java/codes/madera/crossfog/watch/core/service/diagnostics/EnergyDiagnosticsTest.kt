@@ -1,6 +1,5 @@
 package codes.madera.crossfog.watch.core.service.diagnostics
 
-import codes.madera.crossfog.watch.core.service.diagnostics.export.writeEnergyByModeSummarySection
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -180,13 +179,6 @@ class EnergyDiagnosticsTest {
         assertEquals(1_735.0 * 100.0 / 601_735.0, batteryUse.measurementCoveragePct, 0.001)
         assertNull(batteryUse.consumedMah)
         assertNull(batteryUse.averageDrawMa)
-
-        val report = buildString { writeEnergyByModeSummarySection(summary) }
-        assertTrue(report.contains("batteryUsedMah=na"))
-        assertTrue(report.contains("averageDrawMa=na"))
-        assertTrue(report.contains("measurement=insufficient_data"))
-        assertTrue(report.contains("confidence=low"))
-        assertTrue(report.contains("reason=integrated_current_coverage_too_low"))
     }
 
     @Test

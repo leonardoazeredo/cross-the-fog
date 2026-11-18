@@ -1,7 +1,6 @@
 [versions]
 agp = "9.5.1"
 kotlin = "2.4.21"
-playServicesWearable = "20.0.1"
 composeBom = "2026.09.00"
 activityCompose = "1.13.0"
 coreSplashscreen = "1.2.0"
@@ -63,7 +62,6 @@ wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-mate
 wear-compose-navigation = { group = "androidx.wear.compose", name = "compose-navigation", version.ref = "wearCompose" }
 
 # Google Services & Coroutines
-play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation"}
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }

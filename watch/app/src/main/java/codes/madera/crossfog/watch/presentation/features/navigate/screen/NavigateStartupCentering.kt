@@ -14,7 +14,6 @@ import codes.madera.crossfog.watch.presentation.features.maps.MapViewModel
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.WakeAnchorSeed
 import codes.madera.crossfog.watch.presentation.features.navigate.effects.resolveWakeAnchorSeedOrNull
 import codes.madera.crossfog.watch.presentation.features.offline.OfflineStartCenteringEffect
-import codes.madera.crossfog.watch.presentation.features.poi.PoiNavigateTarget
 import kotlinx.coroutines.delay
 import org.mapsforge.core.model.LatLong
 import org.mapsforge.map.android.view.MapView
@@ -38,8 +37,6 @@ internal fun NavigateStartupCenteringEffects(
     retainedLocationAnchor: RetainedLocationAnchor?,
     startupMapFallbackState: StartupMapFallbackState,
     onStartupMapFallbackEvent: (StartupMapFallbackEvent) -> Unit,
-    navigateTarget: PoiNavigateTarget?,
-    pendingPoiFocusTarget: PoiNavigateTarget?,
     mapView: MapView,
     mapViewModel: MapViewModel,
     selectedMapPath: String?,
@@ -53,8 +50,6 @@ internal fun NavigateStartupCenteringEffects(
             retainedLocationAnchor = retainedLocationAnchor,
             lastKnownLocation = lastKnownLocation,
             startupMapFallbackState = startupMapFallbackState,
-            navigateTarget = navigateTarget,
-            pendingPoiFocusTarget = pendingPoiFocusTarget,
             shouldFollowPosition = shouldFollowPosition,
         )
     navigateStartupMapPreviewEffect(
@@ -77,7 +72,6 @@ internal fun NavigateStartupCenteringEffects(
         mapViewModel = mapViewModel,
         selectedMapPath = selectedMapPath,
         activeGpxDetails = activeGpxDetails,
-        skipInitialCentering = navigateTarget != null || pendingPoiFocusTarget != null,
         enabled = offlineMode || gpsStartupMapCenteringActive,
         onInitialCenteringApplied =
             if (!offlineMode && gpsStartupMapCenteringActive) {
@@ -113,11 +107,6 @@ private fun navigateStartupMapFallbackTimer(
         if (!pending) return@LaunchedEffect
         delay(NORMAL_STARTUP_MAP_FALLBACK_GRACE_MS)
         onEvent(StartupMapFallbackEvent.TIMER_EXPIRED)
-    }
-    LaunchedEffect(input.navigateTarget, input.pendingPoiFocusTarget) {
-        if (input.navigateTarget != null || input.pendingPoiFocusTarget != null) {
-            onEvent(StartupMapFallbackEvent.CANCELLED)
-        }
     }
 }
 
@@ -201,8 +190,6 @@ internal data class OnlineStartupMapFallbackInput(
     val retainedLocationAnchor: RetainedLocationAnchor?,
     val lastKnownLocation: LatLong?,
     val startupMapFallbackState: StartupMapFallbackState,
-    val navigateTarget: PoiNavigateTarget?,
-    val pendingPoiFocusTarget: PoiNavigateTarget?,
     val shouldFollowPosition: Boolean = true,
 )
 
@@ -214,9 +201,7 @@ internal fun shouldWaitForOnlineStartupMapFallback(
         input.startupMapFallbackState == StartupMapFallbackState.WAITING &&
         input.locationMarkerLatLong == null &&
         input.retainedLocationAnchor == null &&
-        input.lastKnownLocation == null &&
-        input.navigateTarget == null &&
-        input.pendingPoiFocusTarget == null
+        input.lastKnownLocation == null
 
 internal fun shouldStartOnlineStartupMapCentering(
     input: OnlineStartupMapFallbackInput,
@@ -226,6 +211,4 @@ internal fun shouldStartOnlineStartupMapCentering(
         input.startupMapFallbackState == StartupMapFallbackState.READY &&
         input.locationMarkerLatLong == null &&
         input.retainedLocationAnchor == null &&
-        input.lastKnownLocation == null &&
-        input.navigateTarget == null &&
-        input.pendingPoiFocusTarget == null
+        input.lastKnownLocation == null

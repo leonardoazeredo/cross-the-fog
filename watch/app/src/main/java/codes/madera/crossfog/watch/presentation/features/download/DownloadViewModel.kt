@@ -201,21 +201,6 @@ class DownloadViewModel(
         }
     }
 
-    fun setIncludeRouting(includeRouting: Boolean) {
-        if (_uiState.value.isDownloading) return
-        downloadServiceClient.discardPausedPlan()
-        _uiState.update { state ->
-            state.copy(
-                selection = state.selection.copy(includeRouting = includeRouting),
-                isPausedDownload = false,
-                pausedOperation = null,
-                statusMessage = null,
-                errorMessage = null,
-                networkWarningMessage = null,
-            )
-        }
-    }
-
     fun setIncludeDem(includeDem: Boolean) {
         if (_uiState.value.isDownloading) return
         downloadServiceClient.discardPausedPlan()
@@ -323,7 +308,7 @@ class DownloadViewModel(
             OAM_DOWNLOAD_TELEMETRY_TAG,
             "event=download_request allowNonWifi=$allowNonWifi " +
                 "areas=${areas.size} bundle=${selection.toBundleChoice().name} " +
-                "map=${selection.includeMap} poi=${selection.includePoi} routing=${selection.includeRouting} " +
+                "map=${selection.includeMap} poi=${selection.includePoi} " +
                 "dem=${selection.includeDem} demSource=${selection.demSource.id} " +
                 "refuges=${selection.includeRefugesInfo} ${networkState.telemetryFields}",
         )
@@ -743,7 +728,6 @@ class DownloadViewModel(
                             forceMap = target.forces.forceMap,
                             forcePoi = target.forces.forcePoi,
                             forceRefugesInfo = target.forces.forceRefugesInfo,
-                            forceRoutingFileNames = target.forces.forceRoutingFileNames,
                             forceDemTileIds = target.forces.forceDemTileIds,
                             onExtractionRunningChanged = { isExtracting ->
                                 refreshProgressPublisher.publishExtractionState(
@@ -1126,7 +1110,6 @@ internal fun OamInstalledBundle.toDownloadSelection(currentSelection: OamDownloa
     OamDownloadSelection(
         includeMap = mapFileName != null || currentSelection.includeMap,
         includePoi = poiFileName != null || currentSelection.includePoi,
-        includeRouting = routingFileNames.isNotEmpty() || currentSelection.includeRouting,
         includeDem = demTileIds.isNotEmpty() || currentSelection.includeDem,
         demSource = if (demTileIds.isNotEmpty()) demSource else currentSelection.demSource,
         includeRefugesInfo = refugesInfoFileName != null || currentSelection.includeRefugesInfo,

@@ -26,7 +26,6 @@ import codes.madera.crossfog.watch.core.service.location.adapters.LocationUpdate
 import codes.madera.crossfog.watch.core.service.location.adapters.PassiveExternalLocationGateway
 import codes.madera.crossfog.watch.core.service.location.adapters.WatchGpsAvailabilityReason
 import codes.madera.crossfog.watch.core.service.location.adapters.WatchGpsLocationGateway
-import codes.madera.crossfog.watch.core.service.location.adapters.WearPhoneConnectionProbe
 import codes.madera.crossfog.watch.core.service.location.config.AUTO_PAUSE_GPS_INTERVAL_MS
 import codes.madera.crossfog.watch.core.service.location.config.AUTO_PAUSE_PROLONGED_AFTER_MS
 import codes.madera.crossfog.watch.core.service.location.config.AUTO_PAUSE_PROLONGED_GPS_INTERVAL_MS
@@ -71,7 +70,6 @@ import codes.madera.crossfog.watch.core.service.location.policy.locationKeepAliv
 import codes.madera.crossfog.watch.core.service.location.telemetry.LocationServiceTelemetry
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,7 +90,6 @@ class LocationService : Service() {
     private lateinit var passiveExternalLocationGateway: PassiveExternalLocationGateway
     private lateinit var watchGpsLocationGateway: WatchGpsLocationGateway
     private lateinit var locationSettingsPreflight: LocationSettingsPreflight
-    private lateinit var phoneConnectionProbe: WearPhoneConnectionProbe
     private lateinit var locationUpdateSink: LocationUpdateSink
     private lateinit var callbackProcessor: LocationCallbackProcessor
     private lateinit var immediateLocationCoordinator: ImmediateLocationCoordinator
@@ -228,8 +225,11 @@ class LocationService : Service() {
             watchGpsAvailable = {
                 watchGpsLocationGateway.availabilityReason() == WatchGpsAvailabilityReason.AVAILABLE
             },
+            // Nothing in the app reports whether a phone is near, so the phone is always unknown. A
+            // failover to the watch GPS therefore ends only when the watch-GPS or passive-experiment
+            // setting changes or the service stops: no phone reconnect can undo it.
             checkPhoneConnection = {
-                phoneConnectionProbe.isPhoneConnected()?.also { latestPhoneConnected = it }
+                null
             },
             lastAnyAcceptedFixAtElapsedMs = { lastAnyAcceptedFixAtElapsedMs },
             lastCallbackAcceptedFixAtElapsedMs = { lastCallbackAcceptedFixAtElapsedMs },
@@ -280,7 +280,6 @@ class LocationService : Service() {
                 callbackExecutor = locationCallbackExecutor,
             )
         locationSettingsPreflight = LocationSettingsPreflight(LocationServices.getSettingsClient(this))
-        phoneConnectionProbe = WearPhoneConnectionProbe(Wearable.getNodeClient(this))
         watchGpsLocationGateway =
             WatchGpsLocationGateway(
                 locationManager = requireNotNull(locationManager) { "location_manager_unavailable" },
@@ -944,7 +943,7 @@ class LocationService : Service() {
                 (requestSpec.sourceMode == LocationSourceMode.WATCH_GPS && !state.watchOnlyRequested)
         val phoneConnected =
             if (shouldCheckPhone) {
-                phoneConnectionProbe.isPhoneConnected()
+                null
             } else {
                 null
             }

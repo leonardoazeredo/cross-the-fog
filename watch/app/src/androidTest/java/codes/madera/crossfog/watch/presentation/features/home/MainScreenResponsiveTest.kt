@@ -169,7 +169,6 @@ private fun mainScreenTestHost(
         composable(WatchRoutes.MAIN_MENU) {
             MainScreen(navController = navController, onNavigateClick = navigateViaSwipeLeft)
         }
-        composableDestination(route = WatchRoutes.POI, label = "POI destination")
         composableDestination(route = WatchRoutes.GPX, label = "GPX destination")
         composableDestination(route = WatchRoutes.MAPS, label = "Maps destination")
         composableDestination(route = WatchRoutes.SETTINGS, label = "Settings destination")

@@ -53,12 +53,9 @@ import codes.madera.crossfog.watch.presentation.features.download.DownloadSettin
 import codes.madera.crossfog.watch.presentation.features.gpx.GpxScreen
 import codes.madera.crossfog.watch.presentation.features.home.MainScreen
 import codes.madera.crossfog.watch.presentation.features.maps.MapsScreen
-import codes.madera.crossfog.watch.presentation.features.maps.terrain3d.RunWatchWorldWind
-import codes.madera.crossfog.watch.presentation.features.maps.terrain3d.WatchWorldWindRuntime
 import codes.madera.crossfog.watch.presentation.features.navigate.AmbientScreen
 import codes.madera.crossfog.watch.presentation.features.navigate.NavigateScreen
 import codes.madera.crossfog.watch.presentation.features.navigate.UI_RECORDING_START_REACQUIRE_SOURCE
-import codes.madera.crossfog.watch.presentation.features.poi.PoiScreen
 import codes.madera.crossfog.watch.presentation.features.recording.RecordingLocationStartWarning
 import codes.madera.crossfog.watch.presentation.features.recording.health.RecordingHealthMetric
 import codes.madera.crossfog.watch.presentation.features.recording.isPausedForAutoResumeMonitoring
@@ -69,13 +66,11 @@ import codes.madera.crossfog.watch.presentation.features.settings.GpsAdvancedSet
 import codes.madera.crossfog.watch.presentation.features.settings.GpsSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.GpxAppearanceSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.GpxSettingsScreen
-import codes.madera.crossfog.watch.presentation.features.settings.GpxToolsSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.LicensesScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapDisplaySettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapFocusSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.MapZoomSettingsScreen
-import codes.madera.crossfog.watch.presentation.features.settings.PoiSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.RecordingAdvancedSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.RecordingBikeSensorSettingsScreen
 import codes.madera.crossfog.watch.presentation.features.settings.RecordingDashboardSettingsScreen
@@ -428,10 +423,6 @@ class MainActivity : ComponentActivity() {
                     recordingActionPromptRequestToken += 1L
                 }
 
-                // Hosted above the routes and the ambient screen so the 3D session survives leaving the map.
-                val terrainRuntime = remember { WatchWorldWindRuntime() }
-                RunWatchWorldWind(terrainRuntime)
-
                 if (isAmbient) {
                     AmbientScreen(
                         ambientTick = ambientTickMs,
@@ -467,7 +458,6 @@ class MainActivity : ComponentActivity() {
                             NavigateScreen(
                                 mapViewModel = appContainer.mapViewModel,
                                 gpxViewModel = appContainer.gpxViewModel,
-                                poiViewModel = appContainer.poiViewModel,
                                 compassViewModel = appContainer.compassViewModel,
                                 settingsViewModel = appContainer.settingsViewModel,
                                 locationViewModel = appContainer.locationViewModel,
@@ -493,11 +483,6 @@ class MainActivity : ComponentActivity() {
                                         restoreState = true
                                     }
                                 },
-                                onOpenGpxToolsSettings = {
-                                    navController.navigate(WatchRoutes.GPX_TOOLS_SETTINGS) {
-                                        launchSingleTop = true
-                                    }
-                                },
                                 onOpenMapBundles = { location ->
                                     appContainer.downloadViewModel.suggestAreasForLocation(
                                         latitude = location.latitude,
@@ -507,7 +492,6 @@ class MainActivity : ComponentActivity() {
                                         launchSingleTop = true
                                     }
                                 },
-                                terrainRuntime = terrainRuntime,
                             )
                         }
 
@@ -543,18 +527,6 @@ class MainActivity : ComponentActivity() {
                                     autoStartRecordingWithGuidance = recordingStartWithTurnByTurn,
                                     recordingActiveOrSaving = traceRecordingState.active || traceRecordingState.saving,
                                     onStartRecording = appContainer.traceRecordingViewModel::startRecording,
-                                )
-                            }
-                        }
-
-                        composable(WatchRoutes.POI) {
-                            DismissableScreen(
-                                onDismiss = { navController.popBackStack() },
-                                onSwipeLeftNavigate = navigateViaSwipeLeft,
-                            ) {
-                                PoiScreen(
-                                    navController = navController,
-                                    poiViewModel = appContainer.poiViewModel,
                                 )
                             }
                         }
@@ -611,8 +583,6 @@ class MainActivity : ComponentActivity() {
                                     onAreaSearchQueryChange = { downloadAreaSearchQuery = it },
                                     onLibraryChanged = {
                                         appContainer.mapViewModel.loadMapFiles(preserveExistingCoverage = false)
-                                        appContainer.mapViewModel.loadRoutingPackFiles()
-                                        appContainer.poiViewModel.loadPoiFiles(forceRefresh = true)
                                     },
                                     onOpenSettings = {
                                         navController.navigate(WatchRoutes.DOWNLOAD_SETTINGS)
@@ -682,7 +652,6 @@ class MainActivity : ComponentActivity() {
                                             appContainer.settingsViewModel.resetToDefaultsAndWait()
                                             appContainer.themeViewModel.resetToDefaultsAndWait()
                                             appContainer.gpxViewModel.resetActiveGpxFilesAndWait()
-                                            appContainer.poiViewModel.resetPoiVisibilityAndWait()
                                             navController.navigate(WatchRoutes.SETTINGS) {
                                                 popUpTo(WatchRoutes.SETTINGS) { inclusive = false }
                                                 launchSingleTop = true
@@ -1000,9 +969,6 @@ class MainActivity : ComponentActivity() {
                                     onOpenTurnByTurnSettings = {
                                         navController.navigate(WatchRoutes.TURN_BY_TURN_SETTINGS)
                                     },
-                                    onOpenGpxToolsSettings = {
-                                        navController.navigate(WatchRoutes.GPX_TOOLS_SETTINGS)
-                                    },
                                     onOpenGpxAppearanceSettings = {
                                         navController.navigate(WatchRoutes.GPX_APPEARANCE_SETTINGS)
                                     },
@@ -1020,42 +986,6 @@ class MainActivity : ComponentActivity() {
                                     onOpenGpxSettings = {
                                         navController.navigate(WatchRoutes.GPX_SETTINGS) {
                                             popUpTo(WatchRoutes.GPX_SETTINGS) { inclusive = false }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                )
-                            }
-                        }
-
-                        composable(WatchRoutes.GPX_TOOLS_SETTINGS) {
-                            DismissableScreen(
-                                onDismiss = { navController.popBackStack() },
-                                onSwipeLeftNavigate = navigateViaSwipeLeft,
-                            ) {
-                                GpxToolsSettingsScreen(
-                                    viewModel = appContainer.settingsViewModel,
-                                    onOpenGpxSettings = {
-                                        navController.navigate(WatchRoutes.GPX_SETTINGS) {
-                                            popUpTo(WatchRoutes.GPX_SETTINGS) { inclusive = false }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                )
-                            }
-                        }
-
-                        composable(WatchRoutes.POI_SETTINGS) {
-                            DismissableScreen(
-                                onDismiss = { navController.popBackStack() },
-                                onSwipeLeftNavigate = navigateViaSwipeLeft,
-                            ) {
-                                PoiSettingsScreen(
-                                    viewModel = appContainer.settingsViewModel,
-                                    onOpenGeneralSettings = {
-                                        navController.navigate(WatchRoutes.SETTINGS) {
-                                            popUpTo(WatchRoutes.SETTINGS) { inclusive = false }
                                             launchSingleTop = true
                                             restoreState = true
                                         }

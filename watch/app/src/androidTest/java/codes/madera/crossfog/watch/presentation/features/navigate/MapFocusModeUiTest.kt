@@ -61,13 +61,11 @@ class MapFocusModeUiTest {
     private val focus = NavigateMapFocusState()
     private var expanded by mutableStateOf(true)
     private var dashboardFullscreen by mutableStateOf(false)
-    private var routeToolsOpen by mutableStateOf(false)
     private var compatBack by mutableStateOf(false)
     private lateinit var backDispatcher: OnBackPressedDispatcher
     private var menuCalls = 0
     private var closeAppCalls = 0
     private var closeAppBack by mutableStateOf(false)
-    private var routeDismissCalls = 0
     private lateinit var mapView: MapView
     private var mapCreations = 0
     private var mapTouches = 0
@@ -131,51 +129,32 @@ class MapFocusModeUiTest {
     }
 
     @Test
-    fun backExitsFocusBeforeWorkflowsOrMenuForBothCompatibilitySettings() {
+    fun backExitsFocusBeforeMenuForBothCompatibilitySettings() {
         launch()
         listOf(false, true).forEach { compat ->
             composeRule.runOnIdle {
                 compatBack = compat
-                routeToolsOpen = false
                 expanded = true
             }
             enterFocus()
-            composeRule.runOnIdle {
-                routeToolsOpen = true
-                backDispatcher.onBackPressed()
-            }
+            composeRule.runOnIdle { backDispatcher.onBackPressed() }
             composeRule.runOnIdle {
                 assertFalse(focus.mapFocusMode)
-                assertTrue(routeToolsOpen)
                 assertEquals(0, menuCalls)
-                backDispatcher.onBackPressed()
-            }
-            composeRule.runOnIdle {
-                assertFalse(routeToolsOpen)
                 backDispatcher.onBackPressed()
             }
             composeRule.runOnIdle { assertEquals(if (compat) 1 else 0, menuCalls) }
         }
-        assertEquals(2, routeDismissCalls)
     }
 
     @Test
-    fun closeAppBackExitsFocusAndClosesWorkflowsBeforeClosingApp() {
+    fun closeAppBackExitsFocusBeforeClosingApp() {
         launch()
         composeRule.runOnIdle { closeAppBack = true }
         enterFocus()
-        composeRule.runOnIdle {
-            routeToolsOpen = true
-            backDispatcher.onBackPressed()
-        }
+        composeRule.runOnIdle { backDispatcher.onBackPressed() }
         composeRule.runOnIdle {
             assertFalse(focus.mapFocusMode)
-            assertTrue(routeToolsOpen)
-            assertEquals(0, closeAppCalls)
-            backDispatcher.onBackPressed()
-        }
-        composeRule.runOnIdle {
-            assertFalse(routeToolsOpen)
             assertEquals(0, closeAppCalls)
             backDispatcher.onBackPressed()
         }
@@ -430,8 +409,6 @@ class MapFocusModeUiTest {
                                 headingReferenceTestActive = false,
                                 onToggleExpanded = { expanded = !expanded },
                                 onKeepAppOpenClick = {},
-                                onGpxToolsClick = {},
-                                onCreatePoiClick = {},
                                 onRecordingClick = {},
                                 onHeadingReferenceMark = {},
                                 onMapFocusClick = {
@@ -463,30 +440,10 @@ class MapFocusModeUiTest {
                 expanded = false
                 focus.exit()
             },
-            createdPoiCreateInProgress = false,
-            completedRouteToolDraftActive = false,
-            routeToolExecutionInProgress = false,
-            routeToolSessionActive = false,
-            showPoiCreationChoiceDialog = false,
-            showPoiCoordinateEntryDialog = false,
-            showCreatedPoiRenameDialog = false,
-            createdPoiRenameInProgress = false,
-            poiCreationSelectionActive = false,
-            showRouteToolsPanel = routeToolsOpen,
             shortcutTrayExpanded = expanded,
             backButtonExitsNavigation = compatBack,
             backButtonClosesApp = closeAppBack,
             onCloseApp = { closeAppCalls++ },
-            onDismissCompletedRouteToolDraft = {},
-            onCancelRouteToolSession = {},
-            onDismissPoiCreationChoiceDialog = {},
-            onDismissPoiCoordinateEntryDialog = {},
-            onDismissCreatedPoiRename = {},
-            onCancelPoiCreation = {},
-            onDismissRouteToolsPanel = {
-                routeToolsOpen = false
-                routeDismissCalls++
-            },
             onDismissShortcutTray = { expanded = false },
             onMenuClick = { menuCalls++ },
         )

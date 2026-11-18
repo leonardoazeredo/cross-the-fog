@@ -60,7 +60,6 @@ fun GpxSettingsScreen(
     viewModel: SettingsViewModel,
     onOpenGeneralSettings: () -> Unit,
     onOpenTurnByTurnSettings: () -> Unit,
-    onOpenGpxToolsSettings: () -> Unit,
     onOpenGpxAppearanceSettings: () -> Unit,
 ) {
     val resources = LocalResources.current
@@ -88,14 +87,6 @@ fun GpxSettingsScreen(
                 label = stringResource(R.string.settings_turn_by_turn_settings),
                 secondaryLabel = stringResource(R.string.settings_guidance_alerts_and_dashboard),
                 onClick = onOpenTurnByTurnSettings,
-            )
-        }
-
-        item {
-            SettingsSectionChip(
-                label = stringResource(R.string.gpx_gpx_tools_settings),
-                secondaryLabel = stringResource(R.string.settings_route_creation_defaults),
-                onClick = onOpenGpxToolsSettings,
             )
         }
 

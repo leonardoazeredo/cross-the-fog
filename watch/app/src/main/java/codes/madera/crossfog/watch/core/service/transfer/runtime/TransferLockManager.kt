@@ -1,7 +1,5 @@
 package codes.madera.crossfog.watch.core.service.transfer.runtime
 import android.content.Context
-import android.net.wifi.WifiManager
-import android.os.Build
 import android.os.PowerManager
 import codes.madera.crossfog.watch.core.service.diagnostics.EnergyDiagnostics
 import java.util.IdentityHashMap
@@ -11,7 +9,6 @@ internal class TransferLockManager(
 ) {
     private val appContext = context.applicationContext
     private val powerManager by lazy { appContext.getSystemService(Context.POWER_SERVICE) as PowerManager }
-    private val wifiManager by lazy { appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     private val wakeLockIds = IdentityHashMap<PowerManager.WakeLock, Int>()
 
     fun acquireWakeLock(
@@ -44,20 +41,5 @@ internal class TransferLockManager(
                 wakeLockIds.remove(wakeLock)
             }
         lockId?.let(EnergyDiagnostics::recordPartialWakeLockReleased)
-    }
-
-    fun acquireWifiLock(tag: String): WifiManager.WifiLock =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, tag)
-        } else {
-            @Suppress("DEPRECATION")
-            wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, tag)
-        }.apply {
-            setReferenceCounted(false)
-            acquire()
-        }
-
-    fun releaseWifiLock(wifiLock: WifiManager.WifiLock) {
-        if (wifiLock.isHeld) wifiLock.release()
     }
 }

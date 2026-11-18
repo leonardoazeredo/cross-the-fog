@@ -89,7 +89,6 @@ internal fun startupLocationWaitReason(
         !isScreenInteractive -> "screen_inactive"
         hasRestoredViewport -> "viewport_restored"
         !input.shouldFollowPosition -> "panning"
-        input.navigateTarget != null || input.pendingPoiFocusTarget != null -> "poi_focus"
         !canSearchForStartupLocation(environmentWarning) -> "gps_unavailable"
         else -> startupFallbackWaitReason(input.startupMapFallbackState)
     }

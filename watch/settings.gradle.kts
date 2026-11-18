@@ -30,18 +30,3 @@ dependencyResolutionManagement {
 rootProject.name = "GlanceMap"
 include(":app")
 include(":transfercontract")
-include(":brouter-util")
-project(":brouter-util").projectDir = file("third_party/brouter/brouter-util")
-project(":brouter-util").buildFileName = "build.gradle.kts"
-include(":brouter-codec")
-project(":brouter-codec").projectDir = file("third_party/brouter/brouter-codec")
-project(":brouter-codec").buildFileName = "build.gradle.kts"
-include(":brouter-expressions")
-project(":brouter-expressions").projectDir = file("third_party/brouter/brouter-expressions")
-project(":brouter-expressions").buildFileName = "build.gradle.kts"
-include(":brouter-mapaccess")
-project(":brouter-mapaccess").projectDir = file("third_party/brouter/brouter-mapaccess")
-project(":brouter-mapaccess").buildFileName = "build.gradle.kts"
-include(":brouter-core")
-project(":brouter-core").projectDir = file("third_party/brouter/brouter-core")
-project(":brouter-core").buildFileName = "build.gradle.kts"
