@@ -630,6 +630,8 @@ function racing(opts: {
   current: "saved" | "none";
   /** What the store answers to `beginImport` for a file; the default begins it. */
   begin?: (name: string) => Promise<CopyMeta>;
+  /** What `releaseSource` does for a uri after it is recorded; the default returns at once. */
+  release?: (uri: string) => Promise<void>;
 }) {
   const begun: string[] = [];
   const released: string[] = [];
@@ -667,6 +669,7 @@ function racing(opts: {
     notify: () => undefined,
     releaseSource: async (uri) => {
       released.push(uri);
+      await opts.release?.(uri);
     },
     setBusy: () => undefined,
     queueNotice: () => undefined,
@@ -942,5 +945,144 @@ describe("a share that waits while a pick starts", () => {
     expect(t.begun).toEqual(["b.zip"]);
     expect(t.asked).toEqual(["b.zip"]);
     expect(t.flow.active()).toBe(true);
+  });
+});
+
+// The share intent names its cache copy after the file, so two shares of one file have one path and one release
+// would delete the other's copy: the file goes only when the last share holding it is done with it.
+describe("one file shared twice", () => {
+  const B = "file:///cache/b.zip";
+  const gate = () => {
+    let open: () => void = () => undefined;
+    let refuse: (e: Error) => void = () => undefined;
+    const promise = new Promise<void>((r, j) => {
+      open = r;
+      refuse = j;
+    });
+    return { promise, open, refuse };
+  };
+
+  it("keeps the copy for the queued share when the running import has taken its own", async () => {
+    const held = gate();
+    let calls = 0;
+    const releasedAtBegin: number[] = [];
+    // eslint-disable-next-line prefer-const
+    let t: ReturnType<typeof racing>;
+    t = racing({
+      current: "none",
+      begin: async () => {
+        releasedAtBegin.push(t.released.length);
+        if (calls++ === 0) await held.promise;
+        return META;
+      },
+    });
+    const first = t.share("b.zip");
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    const second = t.share("b.zip");
+    await t.tick();
+    held.open();
+    await first;
+    expect(t.released).toEqual([]);
+
+    const ended = t.flow.loaded(LOADED_OK);
+    await t.tick();
+    t.reads.shift()?.();
+    await Promise.all([ended, second]);
+
+    expect(releasedAtBegin).toEqual([0, 0]);
+    expect(t.released).toEqual([B]);
+  });
+
+  it("keeps the copy for the queued share when the replace question is cancelled", async () => {
+    const t = racing({ current: "saved" });
+    const first = t.share("b.zip");
+    await t.readSaved();
+    const picking = t.startPick();
+    await t.share("b.zip");
+
+    t.answers[0]?.(false);
+    await first;
+    expect(t.released).toEqual([]);
+
+    t.cancelPick();
+    await t.askAgain(picking);
+
+    expect(t.begun).toEqual(["b.zip"]);
+    expect(t.released).toEqual([B]);
+  });
+
+  it("keeps the copy for the queued share when the running import cannot begin", async () => {
+    const held = gate();
+    let calls = 0;
+    const t = racing({
+      current: "none",
+      begin: async () => {
+        if (calls++ === 0) {
+          await held.promise;
+          throw new Error("disk full");
+        }
+        return META;
+      },
+    });
+    const first = t.share("b.zip");
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    const second = t.share("b.zip");
+    await t.tick();
+    held.open();
+    await t.tick();
+    expect(t.released).toEqual([]);
+
+    t.reads.shift()?.();
+    await Promise.all([first, second]);
+
+    expect(t.begun).toEqual(["b.zip", "b.zip"]);
+    expect(t.released).toEqual([B]);
+  });
+
+  it("keeps the file a running import is still reading when the page dies with the same file queued", async () => {
+    const held = gate();
+    const t = racing({ current: "none", begin: async () => (await held.promise, META) });
+    const first = t.share("b.zip");
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    await t.share("b.zip");
+
+    await t.flow.processGone();
+    expect(t.released).toEqual([]);
+
+    held.open();
+    await first;
+    expect(t.released).toEqual([B]);
+  });
+
+  it("asks about the newer share next while the older queued share's release is still pending", async () => {
+    const releasing = gate();
+    const t = racing({
+      current: "saved",
+      release: (uri) => (uri.endsWith("b.zip") ? releasing.promise : Promise.resolve()),
+    });
+    const first = t.share("b.zip");
+    await t.readSaved();
+    await t.pickA();
+    t.answers[0]?.(true);
+    await first;
+    const second = t.share("c.zip");
+    await t.tick();
+
+    const ended = t.flow.loaded(LOADED_OK);
+    await t.tick();
+    t.reads.shift()?.();
+    await t.tick();
+    expect(t.asked).toEqual(["b.zip", "c.zip"]);
+
+    releasing.open();
+    t.answers[1]?.(true);
+    await Promise.all([ended, second]);
+    expect(t.begun).toEqual(["a.zip", "c.zip"]);
   });
 });

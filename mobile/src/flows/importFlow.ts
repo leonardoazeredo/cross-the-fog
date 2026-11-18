@@ -43,6 +43,10 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
 
   let importActive = false;
   let pendingShare: SourceFile | null = null;
+  // The share intent names its cache copy after the file, so two shares of one file are one path and one release
+  // would delete the other's copy (a queued share's, or the one a running import is still reading). Every share the
+  // flow has taken in holds its uri until it is done with it, and the file goes with the last holder.
+  const holders = new Map<string, Set<SourceFile>>();
   // The copy is staged and the page has it; only from here can the controller's store reads fail the import.
   let awaitingVerdict = false;
 
@@ -86,11 +90,23 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     await endImport();
   }
 
+  function hold(file: SourceFile): void {
+    const set = holders.get(file.uri) ?? new Set<SourceFile>();
+    set.add(file);
+    holders.set(file.uri, set);
+  }
+
   // The cached source is a copy of the user's location history; a failed release leaves only that copy behind,
   // so it is logged and the outcome the user was told stands.
-  async function release(uri: string): Promise<void> {
+  async function release(file: SourceFile): Promise<void> {
+    const others = holders.get(file.uri);
+    if (others) {
+      others.delete(file);
+      if (others.size > 0) return;
+      holders.delete(file.uri);
+    }
     try {
-      await deps.releaseSource(uri);
+      await deps.releaseSource(file.uri);
     } catch (e) {
       warnClass("import", "could not release a source file", e);
     }
@@ -98,16 +114,17 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
 
   // A failure is a toast (`notify`): a queued notice would wait for some later `ready` and show a stale failure then.
   async function doImport(file: SourceFile, source: "picker" | "share"): Promise<boolean> {
+    hold(file);
     deps.setBusy(true);
     try {
       await store.beginImport(file, source);
     } catch (e) {
       warnClass("import", "could not begin an import", e);
-      await release(file.uri);
+      await release(file);
       deps.notify(COPY.importFailed);
       return false;
     }
-    await release(file.uri);
+    await release(file);
     awaitingVerdict = true;
     try {
       await deps.remount();
@@ -131,18 +148,18 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
   async function queueShare(file: SourceFile): Promise<void> {
     const replaced = pendingShare;
     pendingShare = file;
-    // Two shares of one file share a cache path, so releasing the replaced copy would delete the one just queued.
-    if (replaced && replaced.uri !== file.uri) await release(replaced.uri);
+    if (replaced && replaced !== file) await release(replaced);
   }
 
   async function handleIncoming(file: SourceFile): Promise<void> {
+    hold(file);
     try {
       await incoming(file);
     } catch (e) {
       warnClass("import", "could not take a shared file", e);
       // Nothing is cleared: a throw comes before this share takes the import (`doImport` catches its own),
       // so any import active now belongs to a pick or an earlier share.
-      await release(file.uri);
+      await release(file);
       deps.notify(COPY.importFailed);
     }
   }
@@ -150,7 +167,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
   async function incoming(file: SourceFile): Promise<void> {
     if (!acceptIncoming(file.name)) {
       deps.notify(COPY.zipOnly);
-      await release(file.uri);
+      await release(file);
       return;
     }
     if (importActive) {
@@ -161,7 +178,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     if (current) {
       const confirmed = await deps.confirmReplace(file.name);
       if (!confirmed) {
-        await release(file.uri);
+        await release(file);
         return;
       }
     }
@@ -286,7 +303,7 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
       // is released like every other dropped share (`release` logs a failure by class and carries on).
       const queued = pendingShare;
       pendingShare = null;
-      if (queued) await release(queued.uri);
+      if (queued) await release(queued);
     },
   };
 }
