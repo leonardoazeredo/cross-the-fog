@@ -106,7 +106,8 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
   async function queueShare(file: SourceFile): Promise<void> {
     const replaced = pendingShare;
     pendingShare = file;
-    if (replaced) await release(replaced.uri);
+    // Two shares of one file share a cache path, so releasing the replaced copy would delete the one just queued.
+    if (replaced && replaced.uri !== file.uri) await release(replaced.uri);
   }
 
   async function handleIncoming(file: SourceFile): Promise<void> {

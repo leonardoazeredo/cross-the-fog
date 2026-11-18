@@ -599,6 +599,33 @@ describe("a share that waits while a pick starts", () => {
     expect(t.begun).toEqual(["a.zip", "b.zip"]);
   });
 
+  it("keeps the cached copy when the same file is shared twice while a pick runs", async () => {
+    const t = racing({ current: "saved" });
+    const { picking } = await t.queueBehindPick(); // b.zip is queued
+    await t.share("b.zip"); // the same file again: the same cache path
+
+    expect(t.released).toEqual([]);
+    t.cancelPick();
+    await t.askAgain(picking);
+
+    expect(t.begun).toEqual(["b.zip"]);
+  });
+
+  it("does not hand a share over a second time when its own import's verdict arrives", async () => {
+    const t = racing({ current: "saved" });
+    const { picking } = await t.queueBehindPick();
+    t.cancelPick();
+    await t.askAgain(picking);
+    expect(t.begun).toEqual(["b.zip"]);
+
+    await t.flow.loaded(LOADED_OK);
+    await t.tick();
+
+    expect(t.asked).toEqual(["b.zip", "b.zip"]);
+    expect(t.begun).toEqual(["b.zip"]);
+    expect(t.flow.active()).toBe(false);
+  });
+
   it("imports the share at once when no pick starts meanwhile", async () => {
     const t = racing({ current: "saved" });
     const sharing = t.share("b.zip");
