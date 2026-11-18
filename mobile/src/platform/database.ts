@@ -25,8 +25,13 @@ let opened: Promise<HistoryDatabase> | undefined;
 // Only the first open of the process keeps, puts back or discards a replaced copy; a missing live file is recovered on every open.
 let recovered = false;
 
-// SQLite's words for a file whose pages are damaged: no later open reads it either.
-const CORRUPT_FILE = /database disk image is malformed|SQLITE_CORRUPT/i;
+// What a file whose pages are damaged is rejected with: no later open reads it either. expo-sqlite
+// words every SQLite failure as "Error code <n>: <text>" under one generic code, so only the text tells.
+// A page that fails SQLCipher's check comes back on some reads as SQLITE_ERROR with SQLite's default
+// text and nothing more; a statement that is wrong carries its own text ("no such column: ..."), so
+// only the bare default counts.
+const CORRUPT_FILE =
+  /database disk image is malformed|SQLITE_CORRUPT|^Error code 1: SQL logic error$/i;
 
 /**
  * Whether a failure of the first open (the driver's open or the migration) proves this build can

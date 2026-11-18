@@ -188,6 +188,10 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     "database is locked",
     "an activity vanished while its GPX was deflated",
     "Cannot read properties of undefined",
+    // SQLITE_ERROR with a text of its own is a statement that is wrong, not a file that is damaged.
+    "Error code 1: no such column: gpx",
+    'Error code 1: near "DROP": syntax error',
+    "Error code 1: SQL logic error: while deflating a GPX",
   ])(
     "keeps both files when the migration fails for a reason that is no proof (%s)",
     async (message) => {
@@ -204,6 +208,15 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     ["is from a newer app", () => new NewerSchemaError(9)],
     ["is corrupt", () => new Error("database disk image is malformed")],
     ["is corrupt (by code)", () => new Error("SQLITE_CORRUPT: database corrupt")],
+    // What expo-sqlite on Android rejects with, read on an emulator from a SQLCipher file with damaged pages.
+    [
+      "is corrupt (as expo-sqlite words it)",
+      () => new Error("Error code 11: database disk image is malformed"),
+    ],
+    [
+      "has a page that fails SQLCipher's check (as expo-sqlite words it)",
+      () => new Error("Error code 1: SQL logic error"),
+    ],
   ])("puts the replaced copy back when the restored file %s", async (_, error) => {
     migrateFile = async (contents) => {
       if (contents === "restored") throw error();
