@@ -26,7 +26,7 @@ const nameOf = (id) => "test" + String(id).split("").map((d) => "olhwjsktri"[Num
 const { status } = ImportMessages;
 
 // ---- the wording
-{ // a fully good import says what it always said
+{ // a fully good import reports the tile count and nothing else
   assert.equal(status({ source: "folder", tiles: 5, added: 5, corrupt: 0, readErr: 0 }), "5 tiles loaded ✓");
   assert.equal(status({ source: "zip", tiles: 5, added: 5, corrupt: 0, readErr: 0 }), "5 tiles loaded ✓");
   assert.equal(status({ source: "folder", tiles: 5, added: 5, corrupt: 0, readErr: 2 }),
@@ -48,7 +48,7 @@ const { status } = ImportMessages;
   assert.equal(status({ source: "folder", tiles: 0, added: 0, corrupt: 2, readErr: 1 }),
     "None of the fog tiles could be read: 2 damaged files. Also 1 file couldn't be read (files kept only in the cloud aren't downloaded, so try the .zip instead). Try copying your Sync folder again.");
 }
-{ // nothing decoded and nothing damaged: the old texts
+{ // nothing decoded and nothing damaged: the not-found texts, and the read-error text when a file could not be read
   assert.equal(status({ source: "folder", tiles: 0, added: 0, corrupt: 0, readErr: 0 }), "No fog tiles found. Did you pick the Sync folder?");
   assert.equal(status({ source: "zip", tiles: 0, added: 0, corrupt: 0, readErr: 0 }), "No fog tiles found in that .zip. Make sure it contains your Sync folder.");
   assert.equal(status({ source: "folder", tiles: 0, added: 0, corrupt: 0, readErr: 3 }),
@@ -151,7 +151,7 @@ const last = (r) => r.shown[r.shown.length - 1];
       assert.equal(r.fogMap.tileCount, 0);
       assert.equal(r.calls.fog, 0);
     }
-    { // none present: the old text, no log
+    { // none present: the not-found text, no log
       const r = await run([{ name: "notes.txt", bytes: Buffer.from("hello") }]);
       assert.equal(last(r), source === "folder" ? "No fog tiles found. Did you pick the Sync folder?" : "No fog tiles found in that .zip. Make sure it contains your Sync folder.");
       assert.deepEqual(r.warns, []);
