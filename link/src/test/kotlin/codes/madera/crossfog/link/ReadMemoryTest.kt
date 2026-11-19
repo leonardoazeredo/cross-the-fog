@@ -70,10 +70,14 @@ class ReadMemoryTest {
   fun theRevisionOfAnyTextIsTheSha256OfItsUtf8Bytes() {
     val random = Random(479)
     fun expected(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    // Long enough to cross the hash's chunk boundary at every offset of a four-byte character.
+    // Long enough to cross the hash's slice boundary (16 Ki chars) at every offset of a four-byte character,
+    // and of an unpaired surrogate on either side of it.
     for (pad in 0..4) {
-      val text = "a".repeat(64 * 1024 - 2 + pad) + "😀" + "b".repeat(70_000) + "é€"
-      assertEquals("pad $pad", expected(text), Revision.of(text))
+      val head = "a".repeat(16 * 1024 - 2 + pad)
+      for (middle in listOf("\ud83d\ude00", "\ud83d", "\ude00", "\ud83dx", "x\ude00")) {
+        val text = head + middle + "b".repeat(40_000) + "\u00e9\u20ac"
+        assertEquals("pad $pad middle ${middle.length}", expected(text), Revision.of(text))
+      }
     }
     repeat(100) {
       val text = randomText(random, 3000)
@@ -113,19 +117,25 @@ class ReadMemoryTest {
   private fun bigItem(kind: String): ByteArray {
     val unit = "<trkpt lat=\"1\" lon=\"2\"/>"
     val cap = Framing.MAX_FRAME_BYTES
-    val shell = if (kind == "route") """{"routeId":"$routeId","name":"n","createdAt":"2026-01-02T03:04:05Z","gpx":""}""" else """{"activityId":"$id","encoderVersion":"1","gpx":""}"""
+    // A queued route has no revision; a received one always carries it, which is hashed against the gpx when read.
+    val shell = if (kind == "activity") {
+      """{"activityId":"$id","encoderVersion":"1","gpx":""}"""
+    } else {
+      """{"routeId":"$routeId","name":"n","createdAt":"2026-01-02T03:04:05Z",@REVISION@"gpx":""}"""
+    }
     // The framed form carries an envelope and, for a route, a revision: keep the item under the cap once framed.
     val room = cap - shell.length - 300
     val gpx = StringBuilder(room + unit.length).apply { while (length < room) append(unit) }.toString().replace("\"", "'")
-    return shell.replace("\"gpx\":\"\"", "\"gpx\":\"$gpx\"").toByteArray(Charsets.UTF_8)
+    val revision = if (kind == "route with revision") "\"revision\":\"${Revision.of(gpx)}\"," else ""
+    return shell.replace("@REVISION@", revision).replace("\"gpx\":\"\"", "\"gpx\":\"$gpx\"").toByteArray(Charsets.UTF_8)
   }
 
   @Test
   fun readingAMaximumSizeItemAllocatesAtMostFiveCopiesOfItOnTheJvm() {
-    for (kind in listOf("activity", "route")) {
+    for (kind in listOf("activity", "route", "route with revision")) {
       val bytes = bigItem(kind)
       assertTrue(kind, bytes.size > Framing.MAX_FRAME_BYTES - 1024)
-      val bytesAllocated = allocated { if (kind == "route") Items.routeOffer(bytes) else Items.activityOffer(bytes) }
+      val bytesAllocated = allocated { if (kind == "activity") Items.activityOffer(bytes) else Items.routeOffer(bytes) }
       val copies = bytesAllocated.toDouble() / bytes.size
       assertTrue("$kind: read allocated ${"%.1f".format(copies)} copies of the item", copies <= MAX_COPIES)
     }

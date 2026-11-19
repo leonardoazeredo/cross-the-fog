@@ -183,9 +183,8 @@ object Messages {
         c < ' ' -> 6
         c.code < 0x80 -> 1
         c.code < 0x800 -> 2
-        Character.isHighSurrogate(c) && i + 1 < text.length && Character.isLowSurrogate(text[i + 1]) -> { i++; 4 }
-        // Written as "?" by the UTF-8 encoder.
-        Character.isSurrogate(c) -> 1
+        // An unpaired surrogate cannot be in an offer (Fields.text refuses it), so a high one always has its low one.
+        Character.isHighSurrogate(c) -> { i++; 4 }
         else -> 3
       }
       i++
