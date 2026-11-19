@@ -63,6 +63,21 @@ class DecoderTest {
   }
 
   @Test
+  fun aSmallerCapRefusesFromTheLengthAloneAndAcceptsExactlyTheCap() {
+    val cap = 512
+    val over = Framing.Decoder(cap)
+    val prefix = Framing.prefix(cap) .copyOf()
+    prefix[3] = (prefix[3] + 1).toByte() // 513, the body not sent
+    val e = assertThrows(ProtocolException::class.java) { over.feed(prefix, 0, 4) { true } }
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, e.error)
+    val frames = mutableListOf<Int>()
+    val at = Framing.Decoder(cap)
+    val exact = Framing.encode(ByteArray(cap) { 1 })
+    at.feed(exact, 0, exact.size) { frames += it.size; true }
+    assertEquals(listOf(cap), frames)
+  }
+
+  @Test
   fun aLengthClaimCostsNoMoreThanWhatArrived() {
     val decoder = Framing.Decoder()
     decoder.feed(byteArrayOf(0x00, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), 0, 4) { true }

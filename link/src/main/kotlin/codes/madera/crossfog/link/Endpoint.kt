@@ -24,11 +24,12 @@ abstract class Endpoint(
   private val clock: Clock,
   private val events: LinkEvents,
   private val config: LinkConfig,
+  maxFrameBytes: Int = Framing.MAX_FRAME_BYTES,
 ) {
   private enum class Phase { NEW, AWAITING_HELLO, READY, CLOSED }
 
   private var phase = Phase.NEW
-  private val decoder = Framing.Decoder()
+  private val decoder = Framing.Decoder(maxFrameBytes)
   private var helloDeadline = 0L
   private var confirmDeadline: Long? = null
 
@@ -78,6 +79,9 @@ abstract class Endpoint(
   }
 
   fun close() = close(CloseReason.LOCAL)
+
+  /** Ends the session for a reason only the layer below can see (TLS). */
+  fun closeWith(reason: CloseReason) = close(reason)
 
   val isClosed: Boolean get() = phase == Phase.CLOSED
 
