@@ -50,6 +50,22 @@ class MemoryStream : ByteStream {
   }
 }
 
+/** Records what an endpoint reports through [LinkEvents.closedWith]. */
+class InfoEvents : LinkEvents {
+  val infos = mutableListOf<CloseInfo>()
+  var ready = 0
+
+  override fun ready() {
+    ready++
+  }
+
+  override fun closed(reason: CloseReason, itemId: String?) = error("closedWith is what an endpoint calls")
+
+  override fun closedWith(info: CloseInfo) {
+    infos += info
+  }
+}
+
 class RecordingEvents : LinkEvents {
   val closed = mutableListOf<CloseReason>()
   val itemIds = mutableListOf<String?>()
@@ -94,9 +110,10 @@ class FakeSink : ActivitySink {
   val stored = linkedMapOf<String, ActivityOffer>()
   var writes = 0
   var fail = false
+  val failIds = mutableSetOf<String>()
 
   override fun store(offer: ActivityOffer): SaveResult {
-    if (fail) throw IllegalStateException("sink failed")
+    if (fail || offer.activityId in failIds) throw IllegalStateException("sink failed")
     if (offer.activityId in stored) return SaveResult.ALREADY_HELD
     writes++
     stored[offer.activityId] = offer
@@ -108,9 +125,10 @@ class FakeWatchRoutes : WatchRouteStore {
   val saved = linkedMapOf<String, RouteOffer>()
   var writes = 0
   var fail = false
+  val failIds = mutableSetOf<String>()
 
   override fun save(offer: RouteOffer): SaveResult {
-    if (fail) throw IllegalStateException("store failed")
+    if (fail || offer.routeId in failIds) throw IllegalStateException("store failed")
     val held = saved[offer.routeId]
     if (held != null && held.revision == offer.revision) return SaveResult.ALREADY_HELD
     writes++

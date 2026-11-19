@@ -19,6 +19,8 @@ class WatchEndpoint(
   // Only the id is kept; the activity is read from the outbox again for any resend.
   private var offeredActivityId: String? = null
 
+  override fun inFlight(): ItemRef? = offeredActivityId?.let { ItemRef(ItemKind.ACTIVITY, it) }
+
   override fun pump() {
     if (offeredActivityId != null) return
     val activity = try {
@@ -46,7 +48,7 @@ class WatchEndpoint(
     try {
       routes.save(offer)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED, offer.routeId)
+      return close(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, offer.routeId))
     }
     send(RouteSaved(offer.routeId, offer.revision))
   }
@@ -56,7 +58,7 @@ class WatchEndpoint(
     try {
       outbox.delete(stored.activityId)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED, stored.activityId)
+      return close(CloseReason.STORE_FAILED, ItemRef(ItemKind.ACTIVITY, stored.activityId))
     }
     offeredActivityId = null
     disarmConfirm()

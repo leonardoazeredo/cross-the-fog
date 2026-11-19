@@ -108,6 +108,19 @@ Commit points: the **watch** replaces its pin when `pairConfirm` arrives, and th
 
 Not proven here: Conscrypt's engine and Keystore-backed keys behave as the JVM's do (Keystore keys need the `NONE` digest to sign for TLS). #483 runs these tests on Android.
 
+## Sessions and failing items
+
+`Sessions` builds the four sessions (`pairingWatch`, `pairingPhone`, `normalPhone`, `normalWatch`): TLS and the endpoint above it as one `SecureSession` an app drives with `onBytes`, `onTransportClosed`, `tick`, `nextDeadline` and `wake`. The endpoint is created only once the handshake is done and TLS 1.3 is confirmed; a session that ends sooner reports its TLS reason through `closedWith` and never `ready`. Each call makes a new trust manager and engine.
+
+`LinkEvents.closedWith(CloseInfo)` is what an endpoint calls when it stops; `closed(reason, itemId)` remains and is what its default forwards to. `CloseInfo.failed` is the item a store threw on or that could not be framed (it may be the peer's); `CloseInfo.inFlight` is this end's own item that was offered and not confirmed, whatever ended the session.
+
+`ItemLedger` keeps a queue moving past an item that fails every session, with ids and counts only (bounded, persisted through a `LedgerStore`):
+
+- A definite local failure of an own item (`STORE_FAILED`, `UNSENDABLE_ITEM`) three sessions in a row gives `SetAside`: the app takes the item out of the queue without deleting it and tells the user.
+- An unconfirmed end with an own item in flight (timeout, closed peer, cut frame, truncated TLS: all things a weak radio does) three times in a row gives `Demoted`: `prefer(queued)` offers every other item first. The item is still retried and nothing is parked; a confirmation (`confirmed`) resets it.
+
+The apps' queues call `prefer` with the queued ids in order and offer the id it returns.
+
 ## JSON
 
 `org.json`, `compileOnly` plus the real artifact in `testImplementation`. Android provides `org.json` at runtime in both apps, so no library ships, no compiler plugin is tied to a Kotlin version and no licence notice is needed; the stub in the Android SDK does not run on the JVM, hence the artifact for tests.
