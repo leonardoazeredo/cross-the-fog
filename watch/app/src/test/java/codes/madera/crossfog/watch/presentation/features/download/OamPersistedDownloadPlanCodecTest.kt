@@ -36,8 +36,42 @@ class OamPersistedDownloadPlanCodecTest {
     }
 
     @Test
+    fun `decode reads a plan an earlier build wrote with a routing flag in the kept slot`() {
+        val expected =
+            OamPersistedDownloadPlan(
+                areaIds = listOf("europe-france", "europe-germany"),
+                selection =
+                    OamDownloadSelection(
+                        includeMap = true,
+                        includePoi = true,
+                        includeDem = true,
+                        demSource = DemSource.MAPSFORGE_DEM3,
+                        includeRefugesInfo = false,
+                    ),
+                nextAreaIndex = 1,
+                status = OamPersistedDownloadStatus.PAUSED,
+            )
+
+        assertEquals(
+            expected,
+            OamPersistedDownloadPlanCodec.decode("1|PAUSED|1|mapsforge_dem3|1|1|1|1|0|europe-france,europe-germany"),
+        )
+        assertEquals(
+            expected,
+            OamPersistedDownloadPlanCodec.decode("1|PAUSED|1|mapsforge_dem3|1|1|0|1|0|europe-france,europe-germany"),
+        )
+    }
+
+    @Test
+    fun `decode rejects a value that is not a flag in the kept slot`() {
+        assertNull(OamPersistedDownloadPlanCodec.decode("1|PAUSED|1|mapsforge_dem3|1|1|2|1|0|europe-france"))
+        assertNull(OamPersistedDownloadPlanCodec.decode("1|PAUSED|1|mapsforge_dem3|1|1||1|0|europe-france"))
+        assertNull(OamPersistedDownloadPlanCodec.decode("1|PAUSED|1|mapsforge_dem3|1|1|yes|1|0|europe-france"))
+    }
+
+    @Test
     fun `unchanged pause resumes at completed area but changed settings start a new plan`() {
-        val originalSelection = OamDownloadSelection(includePoi = true)
+        val originalSelection = OamDownloadSelection(includeDem = true)
         val paused =
             OamPersistedDownloadPlan(
                 areaIds = listOf("europe-france", "europe-germany"),
@@ -51,7 +85,7 @@ class OamPersistedDownloadPlanCodecTest {
             resumedOrNewDownloadPlan(
                 paused,
                 paused.areaIds,
-                originalSelection.copy(includePoi = false),
+                originalSelection.copy(includeDem = false),
             )
 
         assertEquals(1, resumed.nextAreaIndex)
