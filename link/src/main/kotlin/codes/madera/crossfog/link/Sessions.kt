@@ -22,6 +22,7 @@ class SecureSession internal constructor(
   private val makeEndpoint: (ByteStream, LinkEvents) -> Endpoint,
 ) {
   private var endpoint: Endpoint? = null
+  private var reported = false
   private val tls: TlsSession = TlsSession(raw, engine, trust, clock, config, object : TlsListener {
     override fun onSecure() {
       endpoint = makeEndpoint(tls, events).also { it.open() }
@@ -34,7 +35,10 @@ class SecureSession internal constructor(
     override fun onEnd(end: TlsEnd) {
       val e = endpoint
       when {
-        e == null -> events.closedWith(CloseInfo(end.reason, null, null))
+        e == null -> {
+          reported = true
+          events.closedWith(CloseInfo(end.reason, null, null))
+        }
         end == TlsEnd.CLEAN -> e.onClosed()
         else -> e.closeWith(end.reason)
       }
@@ -62,10 +66,16 @@ class SecureSession internal constructor(
     endpoint?.wake()
   }
 
-  /** Ends the session: the endpoint closes it with [CloseReason.LOCAL] once there is one, else the transport is closed. */
+  /** Ends the session with [CloseReason.LOCAL]: through the endpoint once there is one, else by closing the transport and reporting it here, once, unless TLS already reported an end. */
   fun close() {
     val e = endpoint
-    if (e != null) e.close() else tls.close()
+    if (e != null) return e.close()
+    // TLS closes silently, and an app that frees its slot on the close event must hear about a cancel too.
+    tls.close()
+    if (!reported) {
+      reported = true
+      events.closedWith(CloseInfo(CloseReason.LOCAL, null, null))
+    }
   }
 }
 

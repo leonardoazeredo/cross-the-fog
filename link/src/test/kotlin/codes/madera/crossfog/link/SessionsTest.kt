@@ -77,6 +77,73 @@ class SessionsTest {
     assertTrue(s.routes.delivered.isEmpty())
     for (info in s.phoneEvents.infos + s.watchEvents.infos) assertNull(info.inFlight)
     assertTrue(s.watchEvents.infos.single().reason in setOf(CloseReason.TLS_FAILED, CloseReason.TLS_REFUSED))
+    assertEquals(1, s.phoneEvents.infos.size)
+  }
+
+  @Test
+  fun aPhoneThatDoesNotPinTheWatchRefusesAfterTheWatchHasAlreadyOpenedItsEndpoint() {
+    // a TLS 1.3 client has finished its handshake before the server checks its certificate
+    val s = normal(MemoryPins(TestKeys.attacker.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.outbox.queue(activity(ACT_1))
+    s.rig.run()
+    assertEquals(0, s.phoneEvents.ready)
+    assertTrue(s.sink.stored.isEmpty())
+    assertEquals(1, s.phoneEvents.infos.size)
+    val watchEnd = s.watchEvents.infos.single()
+    assertTrue(watchEnd.reason in setOf(CloseReason.TLS_REFUSED, CloseReason.TLS_FAILED))
+    assertNull(watchEnd.failed)
+  }
+
+  @Test
+  fun aHandshakeThatStallsTimesOutOnTick() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.watch.open()
+    clock.now += config.handshakeTimeoutMs + 1
+    s.watch.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), s.watchEvents.infos.map { it.reason })
+    assertEquals(0, s.watchEvents.ready)
+    assertNull(s.watch.nextDeadline())
+  }
+
+  @Test
+  fun anAnswerThatNeverComesTimesOutTheReadySessionWithTheRouteInFlight() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.rig.run()
+    // the watch hears the offer but its answers no longer reach the phone
+    s.rig.toServer = { null }
+    s.routes.queue(route(ROUTE_A))
+    s.phone.wake()
+    s.rig.settle()
+    assertEquals(clock.nowMillis() + config.confirmTimeoutMs, s.phone.nextDeadline())
+    clock.now += config.confirmTimeoutMs
+    s.phone.tick()
+    val info = s.phoneEvents.infos.single()
+    assertEquals(CloseReason.TIMEOUT, info.reason)
+    assertEquals(ItemRef(ItemKind.ROUTE, ROUTE_A), info.inFlight)
+  }
+
+  @Test
+  fun thePhoneIsTheTlsServerAndTheWatchTheClientInANormalSession() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.phone.open()
+    s.watch.open()
+    // a server waits for the client's hello; the client speaks first
+    assertTrue(s.phoneOut.queue.isEmpty())
+    assertTrue(s.watchOut.queue.isNotEmpty())
+  }
+
+  @Test
+  fun theWatchIsTheTlsServerAndThePhoneTheClientInAPairingSession() {
+    val offer = PairingOffer(clock, config)
+    val qr = offer.payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val watchOut = QueueStream()
+    val phoneOut = QueueStream()
+    val watch = Sessions.pairingWatch(watchOut, TestKeys.watch, offer, MemoryPins(), clock, config, InfoEvents())
+    val phone = Sessions.pairingPhone(phoneOut, TestKeys.phone, qr, MemoryPins(), clock, config, InfoEvents())
+    watch.open()
+    phone.open()
+    assertTrue(watchOut.queue.isEmpty())
+    assertTrue(phoneOut.queue.isNotEmpty())
   }
 
   @Test
@@ -84,7 +151,10 @@ class SessionsTest {
     val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
     s.phone.open()
     s.phone.onTransportClosed()
-    assertEquals(1, s.phoneEvents.infos.size)
+    val info = s.phoneEvents.infos.single()
+    assertNull(info.failed)
+    assertNull(info.inFlight)
+    assertTrue(info.reason != CloseReason.LOCAL)
     assertEquals(0, s.phoneEvents.ready)
   }
 
@@ -112,6 +182,37 @@ class SessionsTest {
     s.rig.run(open = false)
     // the sink threw, so the session is over and no timer runs
     assertNull(s.watch.nextDeadline())
+  }
+
+  @Test
+  fun closingBeforeTheHandshakeReportsLocalOnce() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.watch.open()
+    s.watch.close()
+    s.watch.close()
+    s.watch.onTransportClosed()
+    val info = s.watchEvents.infos.single()
+    assertEquals(CloseReason.LOCAL, info.reason)
+    assertEquals(0, s.watchEvents.ready)
+  }
+
+  @Test
+  fun closingAfterTlsAlreadyReportedAnEndReportsNothingMore() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.watch.open()
+    s.watch.onTransportClosed()
+    assertEquals(1, s.watchEvents.infos.size)
+    s.watch.close()
+    assertEquals(1, s.watchEvents.infos.size)
+  }
+
+  @Test
+  fun closingAReadySessionReportsLocalThroughTheEndpoint() {
+    val s = normal(MemoryPins(TestKeys.watch.spkiHash()), MemoryPins(TestKeys.phone.spkiHash()))
+    s.rig.run()
+    s.watch.close()
+    s.watch.close()
+    assertEquals(listOf(CloseReason.LOCAL), s.watchEvents.infos.map { it.reason })
   }
 
   @Test

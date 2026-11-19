@@ -28,9 +28,9 @@ class WatchEndpoint(
     } catch (e: Exception) {
       return close(CloseReason.STORE_FAILED)
     } ?: return
-    val id = activity.activityId
+    // In flight from before the write: a write that fails halfway still leaves the peer holding part of this item.
+    offeredActivityId = activity.activityId
     if (send(activity)) {
-      offeredActivityId = id
       armConfirm()
     }
   }

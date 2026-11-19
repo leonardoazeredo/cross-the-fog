@@ -160,8 +160,36 @@ class ItemLedgerTest {
     assertEquals(listOf<LedgerAction>(LedgerAction.Demoted(route(a))), second.onClosed(unconfirmed(a)))
     assertEquals(listOf<LedgerAction>(LedgerAction.SetAside(route(c))), second.onClosed(storeFailed(route(c))))
     assertEquals(c, second.prefer(listOf(b, c)))
-    // the demotion sequence continues instead of restarting, so a later demotion still goes behind an older one
-    assertEquals(a.takeIf { false } ?: c, ledger(store).prefer(listOf(b, c)))
+    // the demotion sequence continues instead of restarting: b was demoted before a, so b is offered first
+    assertEquals(b, ledger(store).prefer(listOf(a, b)))
+  }
+
+  @Test
+  fun aLongerStoredLedgerIsTrimmedToTheBoundOldestFirst() {
+    val store = MemoryLedgerStore()
+    val big = ledger(store)
+    for (id in listOf(a, b, c, d)) big.onClosed(storeFailed(route(id)))
+    val keepsC = ledger(MemoryLedgerStore(store.text), max = 2)
+    // c kept its one failure: two more reach three
+    assertTrue(keepsC.onClosed(storeFailed(route(c))).isEmpty())
+    assertEquals(listOf<LedgerAction>(LedgerAction.SetAside(route(c))), keepsC.onClosed(storeFailed(route(c))))
+    val forgetsA = ledger(MemoryLedgerStore(store.text), max = 2)
+    // a was the oldest and is forgotten: a kept failure would make the second one here the third
+    forgetsA.onClosed(storeFailed(route(a)))
+    assertTrue(forgetsA.onClosed(storeFailed(route(a))).isEmpty())
+  }
+
+  @Test
+  fun aDifferentThresholdIsHonoured() {
+    val l = ItemLedger(MemoryLedgerStore(), ItemKind.ROUTE, threshold = 1)
+    assertEquals(listOf<LedgerAction>(LedgerAction.Demoted(route(a))), l.onClosed(unconfirmed(a)))
+    assertEquals(listOf<LedgerAction>(LedgerAction.SetAside(route(b))), l.onClosed(storeFailed(route(b))))
+  }
+
+  @Test
+  fun badLimitsAreRefused() {
+    org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { ItemLedger(MemoryLedgerStore(), ItemKind.ROUTE, maxEntries = 0) }
+    org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { ItemLedger(MemoryLedgerStore(), ItemKind.ROUTE, threshold = 0) }
   }
 
   @Test
@@ -198,7 +226,8 @@ class ItemLedgerTest {
     )
     for (text in bad) {
       val l = ledger(MemoryLedgerStore(text))
-      assertEquals(text, a, l.prefer(listOf(a)))
+      // with two queued ids a loaded demotion of a would put b first, so only an ignored text keeps a first
+      assertEquals(text, a, l.prefer(listOf(a, b)))
     }
     assertEquals(b, ledger(MemoryLedgerStore(good)).prefer(listOf(a, b)))
   }

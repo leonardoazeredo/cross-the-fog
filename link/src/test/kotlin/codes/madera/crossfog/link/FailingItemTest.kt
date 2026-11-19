@@ -14,14 +14,19 @@ class LedgerRoutes(private val inner: FakePhoneRoutes, private val ledger: () ->
 
   override fun markDelivered(routeId: String, revision: String): Boolean {
     if (routeId in failMarkFor) throw IllegalStateException("store failed")
-    return inner.markDelivered(routeId, revision)
+    return inner.markDelivered(routeId, revision).also { if (it) ledger().confirmed(routeId) }
   }
 }
 
 class LedgerOutbox(private val inner: FakeOutbox, private val ledger: () -> ItemLedger) : ActivityOutbox {
+  val failDeleteFor = mutableSetOf<String>()
+
   override fun next(): ActivityOffer? = ledger().prefer(inner.queued.keys.toList())?.let { inner.queued[it] }
 
-  override fun delete(activityId: String) = inner.delete(activityId)
+  override fun delete(activityId: String) {
+    if (activityId in failDeleteFor) throw IllegalStateException("store failed")
+    inner.delete(activityId)
+  }
 }
 
 /** Runs sessions between one phone and one watch, the way each app's loop would, over stores that outlive a session. */
@@ -181,7 +186,7 @@ class FailingItemTest {
   }
 
   @Test
-  fun anOwnItemThatFailsLocallyTwiceAndIsThenFixedIsKept() {
+  fun anOwnItemThatFailsLocallyTwiceAndIsThenFixedIsKeptAndItsCountsAreReset() {
     val s = Sessions2()
     s.queueRoutes()
     s.phoneRoutes.failMarkFor += ROUTE_A
@@ -190,6 +195,26 @@ class FailingItemTest {
     s.session()
     assertTrue(s.phoneAside.isEmpty())
     assertEquals(setOf(ROUTE_A, ROUTE_B), s.phoneQueue.delivered.map { it.first }.toSet())
+    // the delivery cleared the two failures: a fresh route with the same id needs three new ones
+    s.phoneQueue.queue(route(ROUTE_A, gpx = "<gpx>new</gpx>"))
+    s.phoneRoutes.failMarkFor += ROUTE_A
+    repeat(2) { s.session() }
+    assertTrue(s.phoneAside.isEmpty())
+    s.session()
+    assertEquals(listOf(ROUTE_A), s.phoneAside)
+  }
+
+  @Test
+  fun anActivityTheWatchCannotDeleteAfterTheConfirmationIsSetAsideOnTheThirdSession() {
+    val s = Sessions2()
+    s.outboxQueue.queue(activity(ACT_1))
+    s.outboxQueue.queue(activity(ACT_2))
+    s.outbox.failDeleteFor += ACT_1
+    repeat(3) { s.session() }
+    assertEquals(listOf(ACT_1), s.watchAside)
+    assertTrue(s.watchEnds.all { it.failed == ItemRef(ItemKind.ACTIVITY, ACT_1) && it.inFlight == ItemRef(ItemKind.ACTIVITY, ACT_1) })
+    s.session()
+    assertTrue(ACT_2 !in s.outboxQueue.queued)
   }
 
   @Test
@@ -293,6 +318,41 @@ class CloseInfoTest {
   }
 
   @Test
+  fun anUnsendableRouteNamesItsKindAndId() {
+    val events = InfoEvents()
+    val big = RouteOffer(ROUTE_A, "big", "t", "a".repeat(Framing.MAX_FRAME_BYTES))
+    val phone = PhoneEndpoint(MemoryStream(), FakeClock(), FakePhoneRoutes().also { it.queue(big) }, FakeSink(), events)
+    phone.open()
+    phone.feed(Hello(listOf(1)))
+    val info = events.infos.single()
+    assertEquals(CloseReason.UNSENDABLE_ITEM, info.reason)
+    assertEquals(ItemRef(ItemKind.ROUTE, ROUTE_A), info.failed)
+  }
+
+  @Test
+  fun anUnsendableActivityNamesItsKindAndId() {
+    val events = InfoEvents()
+    val outbox = FakeOutbox().also { it.queue(activity(ACT_1, gpx = "a".repeat(Framing.MAX_FRAME_BYTES))) }
+    val watch = WatchEndpoint(MemoryStream(), FakeClock(), FakeWatchRoutes(), outbox, events)
+    watch.open()
+    watch.feed(Hello(listOf(1)))
+    val info = events.infos.single()
+    assertEquals(CloseReason.UNSENDABLE_ITEM, info.reason)
+    assertEquals(ItemRef(ItemKind.ACTIVITY, ACT_1), info.failed)
+  }
+
+  @Test
+  fun aConfirmedActivityIsNotInFlightOnTheWatchAnyMore() {
+    val events = InfoEvents()
+    val outbox = FakeOutbox().also { it.queue(activity(ACT_1)) }
+    val watch = WatchEndpoint(MemoryStream(), FakeClock(), FakeWatchRoutes(), outbox, events)
+    watch.open()
+    watch.feed(Hello(listOf(1)), ActivityStored(ACT_1))
+    watch.onClosed()
+    assertNull(events.infos.single().inFlight)
+  }
+
+  @Test
   fun aQueueReadThatThrowsNamesNoItem() {
     val events = InfoEvents()
     val outbox = FakeOutbox().also { it.failNext = true }
@@ -303,6 +363,47 @@ class CloseInfoTest {
     assertEquals(CloseReason.STORE_FAILED, info.reason)
     assertNull(info.failed)
     assertNull(info.inFlight)
+  }
+
+  @Test
+  fun aRouteWhoseWriteFailsIsStillTheItemInFlight() {
+    val events = InfoEvents()
+    val stream = MemoryStream()
+    val phone = PhoneEndpoint(stream, FakeClock(), FakePhoneRoutes().also { it.queue(route(ROUTE_A)) }, FakeSink(), events)
+    phone.open()
+    stream.failWrites = true
+    phone.feed(Hello(listOf(1)))
+    val info = events.infos.single()
+    assertEquals(CloseReason.WRITE_FAILED, info.reason)
+    assertEquals(ItemRef(ItemKind.ROUTE, ROUTE_A), info.inFlight)
+  }
+
+  @Test
+  fun anActivityWhoseWriteFailsIsStillTheItemInFlight() {
+    val events = InfoEvents()
+    val stream = MemoryStream()
+    val outbox = FakeOutbox().also { it.queue(activity(ACT_1)) }
+    val watch = WatchEndpoint(stream, FakeClock(), FakeWatchRoutes(), outbox, events)
+    watch.open()
+    stream.failWrites = true
+    watch.feed(Hello(listOf(1)))
+    assertEquals(ItemRef(ItemKind.ACTIVITY, ACT_1), events.infos.single().inFlight)
+  }
+
+  @Test
+  fun threeFailedWritesDemoteTheItemSoTheOneBehindGoesFirst() {
+    val ledger = ItemLedger(MemoryLedgerStore(), ItemKind.ROUTE)
+    val queue = FakePhoneRoutes().also { it.queue(route(ROUTE_A)); it.queue(route(ROUTE_B)) }
+    repeat(3) {
+      val events = InfoEvents()
+      val stream = MemoryStream()
+      val phone = PhoneEndpoint(stream, FakeClock(), queue, FakeSink(), events)
+      phone.open()
+      stream.failWrites = true
+      phone.feed(Hello(listOf(1)))
+      ledger.onClosed(events.infos.single())
+    }
+    assertEquals(ROUTE_B, ledger.prefer(queue.queued.keys.toList()))
   }
 
   @Test
