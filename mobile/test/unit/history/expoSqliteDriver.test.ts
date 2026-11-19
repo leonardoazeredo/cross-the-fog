@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NotADatabaseError } from "../../../src/db/driver.js";
 import { checkedKeyHex, type DatabaseKeyHex } from "../../../src/db/keyHex.js";
 import {
+  checkFileIntegrity,
   createExpoSqliteDriver,
   createOpenBackup,
   type ExpoDb,
@@ -441,5 +442,127 @@ describe("expo sqlite driver plain queries beside a transaction", () => {
     await expect(late).rejects.toThrow(/closed/);
     await closing;
     expect(events).toEqual(["close"]);
+  });
+});
+
+// Answers each statement by its text; an Error value is thrown.
+function checkDb(answers: Record<string, unknown[] | Error>, log: string[] = []): ExpoDb {
+  const unused = async () => {
+    throw new Error("not used by the check");
+  };
+  return {
+    async execAsync(sql) {
+      log.push(sql);
+    },
+    async getAllAsync<T>(sql: string) {
+      log.push(sql);
+      const answer = answers[sql] ?? [];
+      if (answer instanceof Error) throw answer;
+      return answer as T[];
+    },
+    async closeAsync() {
+      log.push("close");
+    },
+    runAsync: unused,
+    withExclusiveTransactionAsync: unused,
+  };
+}
+
+describe("checkFileIntegrity", () => {
+  const OK = [{ integrity_check: "ok" }];
+  const check = (answers: Record<string, unknown[] | Error>, log: string[] = []) =>
+    checkFileIntegrity({ name: "x.db", keyHex: KEY, open: async () => checkDb(answers, log) });
+
+  it("keys the connection first, reads nothing but the pragmas and closes it", async () => {
+    const log: string[] = [];
+    await check({ "PRAGMA integrity_check": OK }, log);
+    expect(log).toEqual([
+      PRAGMA,
+      "PRAGMA schema_version",
+      "PRAGMA cipher_integrity_check",
+      "PRAGMA integrity_check",
+      "close",
+    ]);
+  });
+
+  it("calls a file intact when no page fails and integrity_check says ok", async () => {
+    await expect(check({ "PRAGMA integrity_check": OK })).resolves.toBe("intact");
+  });
+
+  it("calls a file damaged when SQLCipher names a page, without asking SQLite", async () => {
+    const log: string[] = [];
+    const pages = [{ cipher_integrity_check: "HMAC verification failed for page 41" }];
+    await expect(check({ "PRAGMA cipher_integrity_check": pages }, log)).resolves.toBe("damaged");
+    expect(log).not.toContain("PRAGMA integrity_check");
+  });
+
+  it("calls a file damaged when integrity_check reports a problem instead of ok", async () => {
+    const report = [
+      {
+        integrity_check:
+          "*** in database main ***\nTree 2 page 201: btreeInitPage() returns error code 11",
+      },
+    ];
+    await expect(check({ "PRAGMA integrity_check": report })).resolves.toBe("damaged");
+    await expect(check({ "PRAGMA integrity_check": [] })).resolves.toBe("damaged");
+    await expect(
+      check({ "PRAGMA integrity_check": [{ integrity_check: "ok" }, { integrity_check: "ok" }] }),
+    ).resolves.toBe("damaged");
+  });
+
+  it("gives no verdict when page 1 does not read with the key, even though SQLCipher then lists every page", async () => {
+    const everyPage = [{ cipher_integrity_check: "HMAC verification failed for page 1" }];
+    const log: string[] = [];
+    await expect(
+      check(
+        {
+          "PRAGMA schema_version": new Error("Error code 26: file is not a database"),
+          "PRAGMA cipher_integrity_check": everyPage,
+        },
+        log,
+      ),
+    ).rejects.toBeInstanceOf(NotADatabaseError);
+    expect(log).not.toContain("PRAGMA cipher_integrity_check");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("goes on to the checks when page 1 fails to read for another reason (a file cut inside a page)", async () => {
+    const cut = [
+      {
+        cipher_integrity_check: "page 101 has an invalid size of 1000 bytes (expected 4096 bytes)",
+      },
+    ];
+    await expect(
+      check({
+        "PRAGMA schema_version": new Error("Error code 11: database disk image is malformed"),
+        "PRAGMA cipher_integrity_check": cut,
+      }),
+    ).resolves.toBe("damaged");
+  });
+
+  it("gives no verdict, and closes, when integrity_check throws", async () => {
+    const log: string[] = [];
+    await expect(
+      check(
+        { "PRAGMA integrity_check": new Error("Error code 11: database disk image is malformed") },
+        log,
+      ),
+    ).rejects.toThrow("malformed");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("refuses a key that is not 64 hex digits before it opens anything", async () => {
+    let opened = false;
+    await expect(
+      checkFileIntegrity({
+        name: "x.db",
+        keyHex: "zz" as DatabaseKeyHex,
+        open: async () => {
+          opened = true;
+          return checkDb({});
+        },
+      }),
+    ).rejects.toThrow("64 hex digits");
+    expect(opened).toBe(false);
   });
 });
