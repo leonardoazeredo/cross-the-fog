@@ -81,7 +81,7 @@ internal object B64Url {
 /**
  * What the watch shows as a QR: `crossfog:1:<watch key hash>:<code>:<hint>`, at most [MAX_CHARS]
  * characters (a QR of version 6 fits a round screen). The hint says how to reach the watch
- * (`rfcomm` or `tcp:<ipv4>:<port>`); `link/` only bounds it. The code is never printed.
+ * (`rfcomm` or `tcp:<ipv4>:<port>`); `link/` checks the shape and the radio adapter acts on it. The code is never printed.
  */
 class QrPayload(watchHash: ByteArray, code: ByteArray, val hint: String) {
   val watchHash: ByteArray = watchHash.copyOf()
@@ -101,7 +101,7 @@ class QrPayload(watchHash: ByteArray, code: ByteArray, val hint: String) {
   companion object {
     const val MAX_CHARS = 110
     private const val PREFIX = "crossfog:1:"
-    private val HINT = Regex("[a-z0-9.:]{1,32}")
+    private val HINT = Regex("rfcomm|tcp:[0-9]{1,3}(\\.[0-9]{1,3}){3}:[0-9]{1,5}")
 
     /** Null for anything that is not exactly this format, whatever is wrong with it. */
     fun parse(text: String): QrPayload? {

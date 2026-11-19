@@ -61,6 +61,13 @@ class Rig(val server: Peer, val client: Peer) {
   private var serverEof = false
   private var clientEof = false
 
+  private var cutting = false
+
+  /** Drops what is in flight and ends both transports without a close_notify, as a lost connection does. */
+  fun cut() {
+    cutting = true
+  }
+
   /** Opens both ends and moves bytes until nothing is left to move. */
   fun run(open: Boolean = true, rounds: Int = 500) {
     if (open) {
@@ -72,26 +79,34 @@ class Rig(val server: Peer, val client: Peer) {
 
   fun settle(rounds: Int = 500) {
     repeat(rounds) {
+      if (cutting) {
+        cutting = false
+        client.out.queue.clear()
+        server.out.queue.clear()
+        server.session.onTransportClosed()
+        client.session.onTransportClosed()
+        return
+      }
       var moved = false
-      while (client.out.queue.isNotEmpty()) {
+      while (!cutting && client.out.queue.isNotEmpty()) {
         moved = true
         toServer(client.out.queue.removeFirst())?.let { server.session.onBytes(it, 0, it.size) }
       }
-      while (server.out.queue.isNotEmpty()) {
+      while (!cutting && server.out.queue.isNotEmpty()) {
         moved = true
         toClient(server.out.queue.removeFirst())?.let { client.session.onBytes(it, 0, it.size) }
       }
-      if (client.out.closed && client.out.queue.isEmpty() && !serverEof) {
+      if (!cutting && client.out.closed && client.out.queue.isEmpty() && !serverEof) {
         serverEof = true
         moved = true
         server.session.onTransportClosed()
       }
-      if (server.out.closed && server.out.queue.isEmpty() && !clientEof) {
+      if (!cutting && server.out.closed && server.out.queue.isEmpty() && !clientEof) {
         clientEof = true
         moved = true
         client.session.onTransportClosed()
       }
-      if (!moved) return
+      if (!moved && !cutting) return
     }
     error("did not settle")
   }
@@ -141,14 +156,36 @@ class PairRig(
   val phonePins: PinStore = MemoryPins(),
   val qr: QrPayload = offer.payload(watchId.spkiHash(), "tcp:192.168.1.5:4242"),
   phoneTrustExpects: ByteArray = qr.watchHash,
+  /** Cut the connection right after the watch (true) or the phone (false) wrote the message of this class name. */
+  private val cutAfter: Pair<Boolean, String>? = null,
 ) {
+  private fun tap(stream: ByteStream, watchSide: Boolean): ByteStream =
+    if (cutAfter != null && cutAfter.first == watchSide) Tap(stream, cutAfter.second) { rig.cut() } else stream
+
   private val watchTrust = PinningTrustManager.acceptingAnyKey()
   val watch = Peer(watchId, false, watchTrust, clock, config, { s, e ->
-    WatchPairingEndpoint(s, clock, e, config, offer, watchId.spkiHash(), { watchTrust.peerHash }, watchPins)
+    WatchPairingEndpoint(tap(s, true), clock, e, config, offer, watchId.spkiHash(), { watchTrust.peerHash }, watchPins)
   })
   lateinit var phoneEndpoint: PhonePairingEndpoint
   val phone = Peer(phoneId, true, PinningTrustManager.expecting(phoneTrustExpects), clock, config, { s, e ->
-    PhonePairingEndpoint(s, clock, e, config, qr, phoneId.spkiHash(), phonePins).also { phoneEndpoint = it }
+    PhonePairingEndpoint(tap(s, false), clock, e, config, qr, phoneId.spkiHash(), phonePins).also { phoneEndpoint = it }
   })
   val rig = Rig(watch, phone)
+}
+
+/** Passes writes through and calls [onSent] after the frame of the message named [type] has been written. */
+class Tap(private val inner: ByteStream, private val type: String, private val onSent: () -> Unit) : ByteStream {
+  private var expecting = true
+
+  override fun write(bytes: ByteArray) {
+    inner.write(bytes)
+    if (expecting) {
+      expecting = false
+      return
+    }
+    expecting = true
+    if (Messages.parse(bytes)::class.simpleName == type) onSent()
+  }
+
+  override fun close() = inner.close()
 }

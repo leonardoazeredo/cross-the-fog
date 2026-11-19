@@ -94,6 +94,9 @@ class TlsSession(
     )
   }
 
+  /** The protocol the engine negotiated, for tests. */
+  internal fun protocolForTest(): String = engine.session.protocol
+
   fun tick() {
     if (!ended && !secured && started && clock.nowMillis() >= deadline) end(TlsEnd.TIMEOUT)
   }
