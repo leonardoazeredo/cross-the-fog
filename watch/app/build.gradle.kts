@@ -77,7 +77,7 @@ android {
 
     defaultConfig {
         applicationId = "codes.madera.crossfog.watch"
-        minSdk = 28
+        minSdk = 29
         targetSdk = 36
         versionCode = glanceMapWearVersionCode
         versionName = glanceMapVersionName
