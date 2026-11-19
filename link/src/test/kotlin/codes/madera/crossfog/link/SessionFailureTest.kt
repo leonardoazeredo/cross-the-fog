@@ -33,7 +33,6 @@ class SessionFailureTest {
     val first = Pair2()
     first.phoneRoutes.queue(a)
     first.open()
-    // hellos cross, then the offer reaches the watch
     first.phoneStream.take()
     first.phone.feed(HELLO)
     val offer = first.phoneStream.take()

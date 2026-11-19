@@ -17,7 +17,7 @@ class FakeClock(var now: Long = 0) : Clock {
   override fun nowMillis() = now
 }
 
-/** One end of an in-memory stream: what an endpoint writes is kept as frames and raw bytes for the test to move. */
+/** One end of an in-memory stream: what an endpoint writes is kept as raw bytes, which the test takes as bytes to move or as decoded messages. */
 class MemoryStream : ByteStream {
   private val written = java.io.ByteArrayOutputStream()
   var closed = false
