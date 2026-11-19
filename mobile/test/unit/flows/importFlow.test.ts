@@ -11,6 +11,14 @@ const META: CopyMeta = {
   source: "picker",
 };
 
+// The fog saved before the import under test: not the staged copy, which `META` is.
+const PREVIOUS: CopyMeta = {
+  ...META,
+  name: "Before.zip",
+  sha256: "c".repeat(64),
+  savedAt: "2026-09-01T09:00:00.000Z",
+};
+
 // The error message carries a path; `onlyNamesLogged` checks that only the error class reaches the log.
 const fail = () => Promise.reject(new Error("disk at /data/user/0 is full"));
 
@@ -141,6 +149,95 @@ describe("import flow failures", () => {
     expect(notified).toEqual([]);
     expect(remounts()).toBe(2);
     onlyNamesLogged();
+  });
+
+  describe("when the promote fails after the new copy became the saved fog", () => {
+    const LOADED = { v: 1, type: "loaded", fingerprint: META.sha256, ok: true, tiles: 1 } as const;
+
+    it("reports the import as done: the page keeps the new fog and nothing is said", async () => {
+      const discarded: string[] = [];
+      const { flow, busy, notified, queued, remounts } = setup({
+        promotePending: fail,
+        current: async () => META,
+        discardPending: async () => void discarded.push("d"),
+      });
+      await flow.pick();
+
+      await expect(flow.loaded(LOADED)).resolves.toBeUndefined();
+
+      expect(notified).toEqual([]);
+      expect(queued).toEqual([]);
+      expect(remounts()).toBe(1);
+      expect(flow.active()).toBe(false);
+      expect(busy.at(-1)).toBe(false);
+      // What the promote left behind is cleared once, not the copy the saved fog is.
+      expect(discarded).toEqual(["d"]);
+      onlyNamesLogged();
+    });
+
+    it("still ends the import as done when what the promote left cannot be cleared", async () => {
+      const { flow, busy, notified, queued, remounts } = setup({
+        promotePending: fail,
+        current: async () => META,
+        discardPending: fail,
+      });
+      await flow.pick();
+
+      await flow.loaded(LOADED);
+
+      expect(notified).toEqual([]);
+      expect(queued).toEqual([]);
+      expect(remounts()).toBe(1);
+      expect(flow.active()).toBe(false);
+      expect(busy.at(-1)).toBe(false);
+      onlyNamesLogged();
+    });
+
+    it.each([
+      ["an older fog", { ...META, sha256: "b".repeat(64) }],
+      ["an older copy of the same file", { ...META, savedAt: "2026-09-01T09:00:00.000Z" }],
+      ["no fog", null],
+    ])("does not, when the saved fog is %s", async (_, saved) => {
+      const { flow, queued, remounts } = setup({
+        promotePending: fail,
+        current: async () => saved,
+      });
+      await flow.pick();
+
+      await flow.loaded(LOADED);
+
+      expect(queued).toEqual([COPY.importFailed]);
+      expect(remounts()).toBe(2);
+      onlyNamesLogged();
+    });
+
+    it("does not take an unreadable saved fog for the new copy", async () => {
+      const { flow, queued, remounts } = setup({ promotePending: fail, current: fail });
+      await flow.pick();
+
+      await flow.loaded(LOADED);
+
+      expect(queued).toEqual([COPY.importFailed]);
+      expect(remounts()).toBe(2);
+      onlyNamesLogged();
+    });
+
+    it("does not when the staged copy could not be read before the promote", async () => {
+      const { flow, queued, remounts } = setup({
+        pending: fail,
+        promotePending: async () => {
+          throw new Error("no pending import");
+        },
+        current: async () => META,
+      });
+      await flow.pick();
+
+      await flow.loaded(LOADED);
+
+      expect(queued).toEqual([COPY.importFailed]);
+      expect(remounts()).toBe(2);
+      onlyNamesLogged();
+    });
   });
 
   it("tells the user now and leaves the page alone when the unkept copy cannot be dropped either", async () => {
@@ -274,7 +371,7 @@ describe("import flow failures", () => {
     const { flow, confirms } = setup({
       promotePending: fail,
       discardPending: fail,
-      current: async () => META,
+      current: async () => PREVIOUS,
       beginImport: async (file) => {
         begun.push(file.name);
         return META;
@@ -297,7 +394,7 @@ describe("import flow failures", () => {
     const { flow } = setup(
       {
         promotePending: fail,
-        current: async () => META,
+        current: async () => PREVIOUS,
         discardPending: async () => void calls.push("discard"),
         beginImport: async () => {
           calls.push("begin");
@@ -330,7 +427,10 @@ describe("import flow failures", () => {
   });
 
   it("takes a share queued behind an import whose copy could not be kept, once", async () => {
-    const { flow, confirms, remounts } = setup({ promotePending: fail, current: async () => META });
+    const { flow, confirms, remounts } = setup({
+      promotePending: fail,
+      current: async () => PREVIOUS,
+    });
     await flow.pick();
     await flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
     expect(confirms).toEqual([]);

@@ -1041,6 +1041,54 @@ it("a failed promote drops the copy, puts the previous fog back and says so once
   expect(await h.store.recover()).toEqual({ discardedPending: false });
 });
 
+// Returns the working remove, for the next start's recover, which runs on a store that works again.
+const failRemovingOldPointer = (h: Harness): (() => void) => {
+  const real = h.fs.remove.bind(h.fs);
+  h.fs.remove = async (name) => {
+    if (name.startsWith("current-")) throw new Error("path detail");
+    return real(name);
+  };
+  return () => {
+    h.fs.remove = real;
+  };
+};
+
+it("a promote that fails removing the old pointer has still saved the new fog, so the import is done", async () => {
+  const h = await savedThenImportingB();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const repair = failRemovingOldPointer(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.current())?.sha256).toBe(sha(B));
+  expect(await h.store.pending()).toBeNull();
+  expect(h.remounts.count).toBe(1);
+  expect(h.notified).toEqual([]);
+  expect(h.busy.at(-1)).toBe(false);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("path detail");
+
+  await h.c.onWebMessage(ready);
+  expect(noNotice(h)).toEqual([]);
+  repair();
+  expect(await h.store.recover()).toEqual({ discardedPending: false });
+});
+
+it("a promote that fails removing pending.json has still saved the new fog, and the copy it cannot clear is dropped at the next start", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  failRemovingPending(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+
+  expect((await h.store.current())?.sha256).toBe(sha(B));
+  expect(h.remounts.count).toBe(1);
+  expect(h.notified).toEqual([]);
+  expect(h.busy.at(-1)).toBe(false);
+  expect(noNotice(h)).toEqual([]);
+});
+
 it("a failed promote with nothing saved before leaves no fog and says so once", async () => {
   const h = createHarness();
   h.picks.push({ uri: bSrc, name: "b.zip" });
