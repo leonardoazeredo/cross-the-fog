@@ -5,7 +5,13 @@ package codes.madera.crossfog.link
  * endpoint (see [Endpoint]), one at a time, and none may call back into that endpoint before it returns.
  */
 
-/** One end of a link's connection. [write] takes all of [bytes] or throws; [close] never throws and may be called twice. */
+/**
+ * One end of a link's connection. [write] takes all of [bytes] or throws, and must not wait for the
+ * peer to read: if both ends sat in a blocking write of an item bigger than the buffers between them,
+ * neither could read and no [Endpoint.tick] could run, so the session would hang. A stream that
+ * queues the bytes for a writer of its own (the caller drains it beside its reads) is fine, and the
+ * confirmation wait then covers the transfer. [close] never throws and may be called twice.
+ */
 interface ByteStream {
   fun write(bytes: ByteArray)
   fun close()
@@ -80,8 +86,14 @@ interface LinkEvents {
   /** Hello exchanged and a version agreed; items flow from here on. */
   fun ready()
 
-  /** Called once, when the endpoint stops for any reason; the caller opens a new stream and a new endpoint to try again. */
-  fun closed(reason: CloseReason)
+  /**
+   * Called once, when the endpoint stops for any reason; the caller opens a new stream and a new
+   * endpoint to try again. [itemId] is the route or activity id the endpoint was working on when a
+   * store or sink threw ([CloseReason.STORE_FAILED]) or the item could not be put on the wire
+   * ([CloseReason.UNSENDABLE_ITEM]), else null. The same item is first in the queue next session, so a
+   * caller that sees the same id fail every time must set it aside, or nothing behind it is ever sent.
+   */
+  fun closed(reason: CloseReason, itemId: String?)
 }
 
 /** How long an endpoint waits. */

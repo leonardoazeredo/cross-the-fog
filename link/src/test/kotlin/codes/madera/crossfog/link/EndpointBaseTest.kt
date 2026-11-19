@@ -185,6 +185,64 @@ class EndpointBaseTest {
   }
 
   @Test
+  fun theLinkIsReportedClosedExactlyOnceWhateverHappensAfter() {
+    val ways = listOf<Pair<CloseReason, (Endpoint, Solo) -> Unit>>(
+      CloseReason.TIMEOUT to { e, s -> s.clock.now = 1_000_000; e.tick() },
+      CloseReason.PEER_CLOSED to { e, _ -> e.onClosed() },
+      CloseReason.BAD_FRAME to { e, _ -> e.onBytes(ByteArray(4), 0, 4) },
+      CloseReason.LOCAL to { e, _ -> e.close() },
+    )
+    for ((reason, way) in ways) {
+      each(config = LinkConfig(helloTimeoutMs = 10, confirmTimeoutMs = 10)) { solo, endpoint ->
+        endpoint.open()
+        way(endpoint, solo)
+        endpoint.close()
+        endpoint.tick()
+        endpoint.onClosed()
+        endpoint.onBytes(ByteArray(4), 0, 4)
+        assertEquals(listOf(reason), solo.events.closed)
+        assertEquals(1, solo.stream.closeCalls)
+      }
+    }
+  }
+
+  @Test
+  fun aStreamThatThrowsOnCloseStillGetsTheLinkReportedClosed() {
+    val solo = Solo()
+    val stream = object : ByteStream {
+      override fun write(bytes: ByteArray) = Unit
+      override fun close() = throw IllegalStateException("already gone")
+    }
+    val phone = PhoneEndpoint(stream, solo.clock, solo.phoneRoutes, solo.sink, solo.events, solo.config)
+    phone.open()
+    phone.onClosed()
+    assertEquals(listOf(CloseReason.PEER_CLOSED), solo.events.closed)
+  }
+
+  @Test
+  fun aHelloAndTheFirstOfferInOneReadAreBothHandled() {
+    val solo = Solo()
+    solo.outbox.queue(activity(ACT_1))
+    val watch = solo.watch()
+    watch.open()
+    solo.stream.take()
+    val bytes = frame(HELLO) + frame(route(ROUTE_A))
+    watch.onBytes(bytes, 0, bytes.size)
+    assertEquals(1, solo.events.ready)
+    assertEquals(setOf(ROUTE_A), solo.watchRoutes.saved.keys)
+    assertEquals(
+      listOf<Message>(activity(ACT_1), RouteSaved(ROUTE_A, route(ROUTE_A).revision)),
+      solo.stream.takeMessages(),
+    )
+  }
+
+  @Test
+  fun timeoutsMustBePositive() {
+    assertFalse(runCatching { LinkConfig(helloTimeoutMs = 0) }.isSuccess)
+    assertFalse(runCatching { LinkConfig(confirmTimeoutMs = -1) }.isSuccess)
+  }
+
+  @Test
   fun aStreamThatEndsBetweenFramesAndInsideOneAreTold() {
     each { solo, endpoint ->
       solo.ready(endpoint)

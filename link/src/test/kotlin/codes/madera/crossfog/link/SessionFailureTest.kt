@@ -14,7 +14,7 @@ class SessionFailureTest {
     Pair2(old.clock, old.phoneRoutes, old.sink, old.watchRoutes, old.outbox, old.config)
 
   @Test
-  fun aLinkThatDropsBeforeTheRouteArrivesLeavesItQueuedAndTheNextSessionDeliversIt() {
+  fun aLinkThatDropsBeforeTheWatchsHelloLeavesTheRouteQueuedAndTheNextSessionDeliversIt() {
     val first = Pair2()
     first.phoneRoutes.queue(a)
     first.open()

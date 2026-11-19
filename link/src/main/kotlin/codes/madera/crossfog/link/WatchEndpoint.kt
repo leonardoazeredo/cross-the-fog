@@ -46,7 +46,7 @@ class WatchEndpoint(
     try {
       routes.save(offer)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED)
+      return close(CloseReason.STORE_FAILED, offer.routeId)
     }
     send(RouteSaved(offer.routeId, offer.revision))
   }
@@ -56,7 +56,7 @@ class WatchEndpoint(
     try {
       outbox.delete(stored.activityId)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED)
+      return close(CloseReason.STORE_FAILED, stored.activityId)
     }
     offeredActivityId = null
     disarmConfirm()

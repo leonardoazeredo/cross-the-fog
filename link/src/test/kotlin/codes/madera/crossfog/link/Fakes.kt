@@ -21,6 +21,7 @@ class FakeClock(var now: Long = 0) : Clock {
 class MemoryStream : ByteStream {
   private val written = java.io.ByteArrayOutputStream()
   var closed = false
+  var closeCalls = 0
   var failWrites = false
 
   override fun write(bytes: ByteArray) {
@@ -30,6 +31,7 @@ class MemoryStream : ByteStream {
 
   override fun close() {
     closed = true
+    closeCalls++
   }
 
   /** Everything written since the last call. */
@@ -50,14 +52,16 @@ class MemoryStream : ByteStream {
 
 class RecordingEvents : LinkEvents {
   val closed = mutableListOf<CloseReason>()
+  val itemIds = mutableListOf<String?>()
   var ready = 0
 
   override fun ready() {
     ready++
   }
 
-  override fun closed(reason: CloseReason) {
+  override fun closed(reason: CloseReason, itemId: String?) {
     closed += reason
+    itemIds += itemId
   }
 }
 

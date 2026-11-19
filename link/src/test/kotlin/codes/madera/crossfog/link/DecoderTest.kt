@@ -53,6 +53,16 @@ class DecoderTest {
   }
 
   @Test
+  fun aDecoderThatRefusedALengthRefusesTheSameAgain() {
+    val decoder = Framing.Decoder()
+    val big = byteArrayOf(0x7F, 0, 0, 0)
+    repeat(2) {
+      assertEquals(ProtocolError.FRAME_TOO_LARGE, assertThrows(ProtocolException::class.java) { decoder.feed(big, 0, 4) { true } }.error)
+    }
+    assertEquals(ProtocolError.FRAME_TOO_LARGE, assertThrows(ProtocolException::class.java) { decoder.feed(ByteArray(3), 0, 3) { true } }.error)
+  }
+
+  @Test
   fun aLengthClaimCostsNoMoreThanWhatArrived() {
     val decoder = Framing.Decoder()
     decoder.feed(byteArrayOf(0x00, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), 0, 4) { true }

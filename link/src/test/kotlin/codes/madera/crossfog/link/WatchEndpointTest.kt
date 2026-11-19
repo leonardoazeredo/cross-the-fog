@@ -36,6 +36,7 @@ class WatchEndpointTest {
     watch.feed(a)
     assertEquals(emptyList<Message>(), solo.stream.takeMessages())
     assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
   }
 
   @Test
@@ -44,7 +45,10 @@ class WatchEndpointTest {
     val watch = solo.ready(solo.watch())
     watch.feed(a, a)
     assertEquals(1, solo.watchRoutes.writes)
-    assertEquals(2, solo.stream.takeMessages().size)
+    assertEquals(
+      listOf<Message>(RouteSaved(ROUTE_A, a.revision), RouteSaved(ROUTE_A, a.revision)),
+      solo.stream.takeMessages(),
+    )
   }
 
   @Test
@@ -146,6 +150,7 @@ class WatchEndpointTest {
     watch.feed(ActivityStored(ACT_1))
     assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
     assertEquals(setOf(ACT_1), solo.outbox.queued.keys)
+    assertEquals(listOf<String?>(ACT_1), solo.events.itemIds)
   }
 
   @Test
@@ -178,6 +183,33 @@ class WatchEndpointTest {
     watch.tick()
     assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
     assertEquals(setOf(ACT_1), solo.outbox.queued.keys)
+  }
+
+  @Test
+  fun theWaitIsRearmedForTheNextActivityAndEndsWhenNothingIsOutstanding() {
+    val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    solo.outbox.queue(act1)
+    solo.outbox.queue(activity(ACT_2))
+    val watch = solo.ready(solo.watch())
+    solo.clock.now = 900
+    watch.feed(ActivityStored(ACT_1))
+    assertEquals(listOf<Message>(activity(ACT_2)), solo.stream.takeMessages())
+    assertEquals(1900L, watch.nextDeadline())
+    solo.clock.now = 1899
+    watch.tick()
+    assertTrue(solo.events.closed.isEmpty())
+    solo.clock.now = 1900
+    watch.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+
+    val last = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    last.outbox.queue(act1)
+    val only = last.ready(last.watch())
+    only.feed(ActivityStored(ACT_1))
+    assertEquals(null, only.nextDeadline())
+    last.clock.now = 5000
+    only.tick()
+    assertTrue(last.events.closed.isEmpty())
   }
 
   @Test

@@ -125,6 +125,7 @@ class PhoneEndpointTest {
     val phone = solo.ready(solo.phone())
     phone.feed(RouteSaved(ROUTE_A, a.revision))
     assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
     assertTrue(solo.phoneRoutes.delivered.isEmpty())
   }
@@ -140,6 +141,61 @@ class PhoneEndpointTest {
     phone.open()
     phone.feed(HELLO)
     assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+  }
+
+  @Test
+  fun theWaitIsRearmedForTheNextRouteAndEndsWhenNothingIsOutstanding() {
+    val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    solo.phoneRoutes.queue(a)
+    solo.phoneRoutes.queue(route(ROUTE_B))
+    val phone = solo.ready(solo.phone())
+    solo.clock.now = 900
+    phone.feed(RouteSaved(ROUTE_A, a.revision))
+    assertEquals(listOf<Message>(route(ROUTE_B)), solo.stream.takeMessages())
+    assertEquals(1900L, phone.nextDeadline())
+    solo.clock.now = 1000
+    phone.tick()
+    solo.clock.now = 1899
+    phone.tick()
+    assertTrue(solo.events.closed.isEmpty())
+    solo.clock.now = 1900
+    phone.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+
+    val last = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    last.phoneRoutes.queue(a)
+    val only = last.ready(last.phone())
+    only.feed(RouteSaved(ROUTE_A, a.revision))
+    assertEquals(null, only.nextDeadline())
+    last.clock.now = 5000
+    only.tick()
+    assertTrue(last.events.closed.isEmpty())
+  }
+
+  @Test
+  fun aHelloAndAnActivityInOneReadAreBothHandled() {
+    val solo = Solo()
+    val phone = solo.phone()
+    phone.open()
+    solo.stream.take()
+    val bytes = frame(HELLO) + frame(activity(ACT_1))
+    phone.onBytes(bytes, 0, bytes.size)
+    assertEquals(1, solo.events.ready)
+    assertEquals(setOf(ACT_1), solo.sink.stored.keys)
+    assertEquals(listOf<Message>(ActivityStored(ACT_1)), solo.stream.takeMessages())
+  }
+
+  @Test
+  fun aFrameThatClosesTheLinkDropsTheFramesBehindItInTheSameRead() {
+    val solo = Solo()
+    val phone = solo.phone()
+    phone.open()
+    solo.stream.take()
+    val bytes = frame(Hello(listOf(2))) + frame(HELLO) + frame(activity(ACT_1))
+    phone.onBytes(bytes, 0, bytes.size)
+    assertEquals(listOf(CloseReason.NO_COMMON_VERSION), solo.events.closed)
+    assertTrue(solo.sink.stored.isEmpty())
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
   }
 
   @Test
@@ -215,6 +271,7 @@ class PhoneEndpointTest {
     phone.feed(activity(ACT_1))
     assertEquals(emptyList<Message>(), solo.stream.takeMessages())
     assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ACT_1), solo.events.itemIds)
     assertTrue(solo.sink.stored.isEmpty())
   }
 
@@ -269,6 +326,7 @@ class PhoneEndpointTest {
     solo.phoneRoutes.queue(RouteOffer(ROUTE_A, "big", "t", "a".repeat(Framing.MAX_FRAME_BYTES)))
     val phone = solo.ready(solo.phone())
     assertEquals(listOf(CloseReason.UNSENDABLE_ITEM), solo.events.closed)
+    assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
     assertEquals(null, phone.nextDeadline())
   }

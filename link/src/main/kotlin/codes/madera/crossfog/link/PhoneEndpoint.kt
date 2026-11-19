@@ -52,7 +52,7 @@ class PhoneEndpoint(
     try {
       routes.markDelivered(saved.routeId, saved.revision)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED)
+      return close(CloseReason.STORE_FAILED, saved.routeId)
     }
     offered = null
     disarmConfirm()
@@ -63,7 +63,7 @@ class PhoneEndpoint(
     try {
       sink.store(offer)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED)
+      return close(CloseReason.STORE_FAILED, offer.activityId)
     }
     send(ActivityStored(offer.activityId))
   }
