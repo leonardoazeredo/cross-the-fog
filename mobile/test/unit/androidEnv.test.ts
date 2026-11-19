@@ -62,6 +62,7 @@ describe("pnpm verify", () => {
 
   it("runs the watch tests, after the phone's", () => {
     const steps = (scripts.verify ?? "").split(" && ");
+    expect(steps).toContain("pnpm test:android");
     expect(steps).toContain("pnpm test:watch");
     expect(steps.indexOf("pnpm test:watch")).toBeGreaterThan(steps.indexOf("pnpm test:android"));
   });
