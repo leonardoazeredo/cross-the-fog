@@ -7,7 +7,8 @@ import org.junit.Test
 
 /**
  * The watch app talks to no app store. A store host is a network host the app would name in its audit, and the
- * rating prompt that used it pointed at an upstream listing, so nothing under `src/main` may mention one again.
+ * rating prompt that used it pointed at an upstream listing, so no Kotlin source or `strings.xml` under `src/main` may
+ * mention one again. The manifest and assets are not read: the theme assets hold unrelated `vending` rules.
  */
 class NoStoreLinkTest {
     // Lower case: hosts and schemes ignore case, so the text is lowered before it is searched.
