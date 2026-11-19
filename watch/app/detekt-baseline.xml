@@ -930,7 +930,7 @@
     <ID>ReturnCount:BRouterRoutePlanner.kt$BRouterRoutePlanner.RoutedAttemptResult$override fun hasUsableTrack(): Boolean</ID>
     <ID>ReturnCount:BundledAssetThemeComposer.kt$BundledAssetThemeComposer$fun createDynamicThemeFileOrNull( themeId: String, styleId: String, enabledOverlayLayerIds: List&lt;String&gt;, hillShadingEnabled: Boolean, ): File?</ID>
     <ID>ReturnCount:BundledRenderThemeAssetLocator.kt$BundledRenderThemeAssetLocator$fun isThemeAvailable( assets: AssetManager, themeId: String, ): Boolean</ID>
-    <ID>ReturnCount:BundledRenderThemeAssetLocator.kt$BundledRenderThemeAssetLocator$fun resolveThemeRootPath( assets: AssetManager, themeId: String = MapsforgeThemeCatalog.ELEVATE_THEME_ID, ): String?</ID>
+    <ID>ReturnCount:BundledRenderThemeAssetLocator.kt$BundledRenderThemeAssetLocator$fun resolveThemeRootPath( assets: AssetManager, themeId: String = MapsforgeThemeCatalog.OPENHIKING_THEME_ID, ): String?</ID>
     <ID>ReturnCount:CompassAlgorithms.kt$internal fun deadbandConvergenceAlpha( diffDeg: Float, minDeltaDeg: Float, isFastTurn: Boolean, isModerateTurn: Boolean, isNoisy: Boolean, ): Float</ID>
     <ID>ReturnCount:CompassAlgorithms.kt$internal fun remapHeadingForNorthReferenceSwitch( currentHeadingDeg: Float, fromMode: NorthReferenceMode, toMode: NorthReferenceMode, declinationDeg: Float?, ): Float</ID>
     <ID>ReturnCount:CompassAlgorithms.kt$internal fun resolveHeadingSensor(sensorManager: SensorManager): Sensor?</ID>

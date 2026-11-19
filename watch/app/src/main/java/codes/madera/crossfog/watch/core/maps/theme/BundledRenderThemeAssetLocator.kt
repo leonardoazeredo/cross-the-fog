@@ -13,57 +13,10 @@ object BundledRenderThemeAssetLocator {
 
     private val specs: Map<String, ThemeSpec> =
         mapOf(
-            MapsforgeThemeCatalog.ELEVATE_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/elevate",
-                    xmlFileName = "Elevate.xml",
-                    legacyXmlPath = "Elevate.xml",
-                    legacyResourceRoot = "ele-res",
-                ),
-            MapsforgeThemeCatalog.ELEVATE_WINTER_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/elevate-winter",
-                    xmlFileName = "Elevate.xml",
-                ),
-            MapsforgeThemeCatalog.ELEVATE_WINTER_WHITE_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/elevate-winter-white",
-                    xmlFileName = "Elevate.xml",
-                ),
             MapsforgeThemeCatalog.OPENHIKING_THEME_ID to
                 ThemeSpec(
                     generatedRoot = "theme/openhiking",
                     xmlFileName = "OpenHiking.xml",
-                ),
-            MapsforgeThemeCatalog.FRENCH_KISS_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/frenchkiss",
-                    xmlFileName = "frenchkiss.xml",
-                ),
-            MapsforgeThemeCatalog.TIRAMISU_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/tiramisu",
-                    xmlFileName = "Tiramisu.xml",
-                ),
-            MapsforgeThemeCatalog.HIKE_RIDE_SIGHT_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/hike-ride-sight",
-                    xmlFileName = "HikeRideSight.xml",
-                ),
-            MapsforgeThemeCatalog.VOLUNTARY_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/voluntary",
-                    xmlFileName = "Voluntary V5.xml",
-                ),
-            MapsforgeThemeCatalog.OS_MAP_DAY_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/os-map",
-                    xmlFileName = "OS Map V4 Day.xml",
-                ),
-            MapsforgeThemeCatalog.OS_MAP_NIGHT_THEME_ID to
-                ThemeSpec(
-                    generatedRoot = "theme/os-map",
-                    xmlFileName = "OS Map V4 Night.xml",
                 ),
             MapsforgeThemeCatalog.HIKING_3D_THEME_ID to
                 ThemeSpec(
@@ -92,7 +45,7 @@ object BundledRenderThemeAssetLocator {
 
     fun resolveThemeXmlPath(
         assets: AssetManager,
-        themeId: String = MapsforgeThemeCatalog.ELEVATE_THEME_ID,
+        themeId: String = MapsforgeThemeCatalog.OPENHIKING_THEME_ID,
     ): String {
         val normalizedThemeId = requireKnownThemeId(themeId)
         val spec = specs.getValue(normalizedThemeId)
@@ -103,7 +56,7 @@ object BundledRenderThemeAssetLocator {
 
     fun resolveThemeRootPath(
         assets: AssetManager,
-        themeId: String = MapsforgeThemeCatalog.ELEVATE_THEME_ID,
+        themeId: String = MapsforgeThemeCatalog.OPENHIKING_THEME_ID,
     ): String? {
         val normalizedThemeId = requireKnownThemeId(themeId)
         val spec = specs.getValue(normalizedThemeId)
@@ -119,17 +72,8 @@ object BundledRenderThemeAssetLocator {
         when (themeId?.trim()) {
             null,
             "",
-            MapsforgeThemeCatalog.ELEVATE_THEME_ID,
-            -> MapsforgeThemeCatalog.ELEVATE_THEME_ID
-            MapsforgeThemeCatalog.ELEVATE_WINTER_THEME_ID -> MapsforgeThemeCatalog.ELEVATE_WINTER_THEME_ID
-            MapsforgeThemeCatalog.ELEVATE_WINTER_WHITE_THEME_ID -> MapsforgeThemeCatalog.ELEVATE_WINTER_WHITE_THEME_ID
-            MapsforgeThemeCatalog.OPENHIKING_THEME_ID -> MapsforgeThemeCatalog.OPENHIKING_THEME_ID
-            MapsforgeThemeCatalog.FRENCH_KISS_THEME_ID -> MapsforgeThemeCatalog.FRENCH_KISS_THEME_ID
-            MapsforgeThemeCatalog.TIRAMISU_THEME_ID -> MapsforgeThemeCatalog.TIRAMISU_THEME_ID
-            MapsforgeThemeCatalog.HIKE_RIDE_SIGHT_THEME_ID -> MapsforgeThemeCatalog.HIKE_RIDE_SIGHT_THEME_ID
-            MapsforgeThemeCatalog.VOLUNTARY_THEME_ID -> MapsforgeThemeCatalog.VOLUNTARY_THEME_ID
-            MapsforgeThemeCatalog.OS_MAP_DAY_THEME_ID -> MapsforgeThemeCatalog.OS_MAP_DAY_THEME_ID
-            MapsforgeThemeCatalog.OS_MAP_NIGHT_THEME_ID -> MapsforgeThemeCatalog.OS_MAP_NIGHT_THEME_ID
+            MapsforgeThemeCatalog.OPENHIKING_THEME_ID,
+            -> MapsforgeThemeCatalog.OPENHIKING_THEME_ID
             MapsforgeThemeCatalog.HIKING_3D_THEME_ID -> MapsforgeThemeCatalog.HIKING_3D_THEME_ID
             else -> null
         }

@@ -1737,7 +1737,7 @@ fun MapThemeEffect(
         renderer.setThemeConfig(
             themeFile = themeFile,
             mapsforgeThemeName = null,
-            bundledThemeId = MapsforgeThemeCatalog.ELEVATE_THEME_ID,
+            bundledThemeId = MapsforgeThemeCatalog.OPENHIKING_THEME_ID,
             hillShadingEnabled = false,
             reliefOverlayEnabled = false,
         )

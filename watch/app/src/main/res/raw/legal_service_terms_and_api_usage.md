@@ -4,26 +4,18 @@ Last reviewed: 2026-05-06
 
 This document captures non-library legal/usage constraints for external services and providers referenced by the app/build pipeline.
 
-## 1) OpenAndroMaps and Elevate
+## 1) OpenAndroMaps
 
 Used for:
 - Map download recommendations in companion app.
-- Elevate theme download and local fallback assets in watch build/runtime.
 
 References:
 - https://www.openandromaps.org/en/license
-- https://www.openandromaps.org/en/legend/elevate-mountain-hike-theme
 
 Important term notes (from upstream license page):
 - Direct map links are stated as forbidden.
 - Selling maps or bundling maps with an app requires written permission from the map provider.
 - Integrating "andromaps_" themes is generally allowed for free update services.
-- Integrating Tobias themes (including Elevate) requires written permission from Tobias.
-
-Project status:
-- Permission for GlanceMap's OpenAndroMaps/Elevate use/integration has been reported by the project owner as received from OpenAndroMaps and Tobias Kuehn.
-- Keep the original agreement messages outside the public repository.
-- Before switching GitHub visibility, record request/response dates and approved scope in private release notes or an internal issue.
 
 ## 2) OpenHiking Mapsforge theme
 
@@ -46,29 +38,7 @@ Project status:
 - Keep attribution and share-alike obligations with the project docs.
 - Track current bundled snapshot details in `licenses/OPENHIKING_THEME.md`.
 
-## 3) Voluntary Mapsforge theme
-
-Used for:
-- Voluntary local embedded theme assets in the watch app.
-- Voluntary theme website and legend references in the companion app.
-
-References:
-- https://voluntary.nichesite.org/
-- https://voluntary.nichesite.org/downloads.html
-- https://voluntary.nichesite.org/key.html
-- https://voluntary.nichesite.org/credits.html
-
-Term notes:
-- The public site exposes direct manual download and legend links, but no documented general-purpose API was found.
-- The downloaded theme ZIP observed on 2026-04-29 did not contain an obvious standalone license/readme file.
-- The XML header and credits page identify the theme license as CC BY-NC-SA 3.0.
-
-Project status:
-- Project owner confirmed on 2026-04-29 that approval was received from the creator for GlanceMap integration.
-- Keep attribution and share-alike obligations with the project docs.
-- Track current bundled snapshot details in `licenses/VOLUNTARY_THEME.md`.
-
-## 4) Refuges.info API and data
+## 3) Refuges.info API and data
 
 Used for:
 - Companion API calls to:
@@ -83,7 +53,7 @@ Term notes:
 - Refuges.info point-page content is published under Creative Commons BY-SA.
 - Refuges.info also reuses OpenStreetMap data under ODbL where applicable.
 
-## 5) OpenStreetMap and Overpass
+## 4) OpenStreetMap and Overpass
 
 Used for:
 - OSM attribution in app.
@@ -105,7 +75,7 @@ Usage policy note:
   - less than 10,000 queries/day
   - less than 1 GB downloaded/day
 
-## 6) BRouter routing engine and routing segments
+## 5) BRouter routing engine and routing segments
 
 Used for:
 - Offline route calculation in the watch app through vendored BRouter modules.
@@ -126,7 +96,7 @@ Project note:
 - No separate public service-policy or rate-limit page was identified in the reviewed BRouter upstream pages on 2026-03-20.
 - Project inference: keep companion downloads conservative and re-check upstream terms before any large-scale automated usage.
 
-## 7) DEM and terrain sources
+## 6) DEM and terrain sources
 
 Used for:
 - DEM3 downloads from:
@@ -141,7 +111,7 @@ References:
 - https://www.mapzen.com/blog/terrain-tile-service/
 - https://www.mapzen.com/rights/
 
-## 8) Build-time POI icon source
+## 7) Build-time POI icon source
 
 Used for:
 - Maki SVG icon download during build.
@@ -150,7 +120,7 @@ References:
 - https://github.com/mapbox/maki
 - License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
 
-## 9) Google Play services terms context
+## 8) Google Play services terms context
 
 Used for:
 - `play-services-wearable`, `play-services-location` runtime dependencies.
@@ -162,6 +132,6 @@ References:
 Note:
 - These are Google SDK/service terms, not standard OSS licenses like Apache/LGPL.
 
-## 10) Non-affiliation statement
+## 9) Non-affiliation statement
 
 The app references external providers and websites for user convenience. Unless explicitly stated by those providers, GlanceMap is not officially affiliated with or endorsed by them.
