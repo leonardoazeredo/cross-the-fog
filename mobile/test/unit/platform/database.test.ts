@@ -48,10 +48,12 @@ vi.mock("../../../src/platform/platformModule.js", () => ({
 }));
 let checkFile: (contents: string) => Promise<"intact" | "damaged">;
 const checked: string[] = [];
+const checkedKeys: string[] = [];
 vi.mock("../../../src/platform/expoSqliteDriver.js", () => ({
-  checkFileIntegrity: async ({ name }: { name: string }) => {
+  checkFileIntegrity: async ({ name, keyHex }: { name: string; keyHex: string }) => {
     const contents = disk.get(name) ?? "";
     checked.push(contents);
+    checkedKeys.push(keyHex);
     return checkFile(contents);
   },
   createExpoSqliteDriver: async ({ name }: { name: string }) => {
@@ -100,6 +102,7 @@ beforeEach(() => {
   disk.clear();
   opened.length = 0;
   checked.length = 0;
+  checkedKeys.length = 0;
 });
 
 describe("createDatabase with a key that does not open the file", () => {
@@ -122,6 +125,7 @@ describe("createDatabase with a key that does not open the file", () => {
     expect((await createDatabase()).kind).toBe("ready");
     expect(opened).toEqual(["restored", "old"]);
     expect(disk.get(LIVE_DB)).toBe("old");
+    expect(checked).toEqual([]);
   });
 
   it("reports key-lost when the put-back copy does not open either", async () => {
@@ -284,6 +288,29 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("runs the check with the device key", async () => {
+    checkFile = async () => "damaged";
+    migrateFile = async (contents) => {
+      if (contents === "restored") throw new Error("anything");
+      return 1;
+    };
+    readKey = async () => checkedKeyHex("12".repeat(32));
+    await createDatabase();
+    expect(checkedKeys).toEqual(["12".repeat(32)]);
+  });
+
+  it("keeps both files when the check finds no verdict because the key does not open the file", async () => {
+    checkFile = async () => {
+      throw new NotADb("page 1 does not verify with this key");
+    };
+    migrateFile = async () => {
+      throw new Error("Error code 1: SQL logic error");
+    };
+    await expect(createDatabase()).rejects.toThrow("SQL logic error");
+    expect(disk.get(LIVE_DB)).toBe("restored");
+    expect(disk.get(REPLACED_DB)).toBe("old");
   });
 
   it("keeps both files when the key cannot be read again for the check", async () => {

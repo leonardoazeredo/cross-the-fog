@@ -32,8 +32,9 @@ let recovered = false;
  * as they are: a key that does not open it (NotADatabaseError; the key is the same on every open,
  * and a Keystore that cannot answer throws KeyUnavailableError instead) and a schema from a newer
  * app. Anything else is decided by the database's own integrity check of the file, never by the
- * error's wording: only "damaged" counts. A check that cannot run (no key, a read it throws on)
- * is no verdict, so both files stay and the next open decides again, as for a full disk or a bug.
+ * error's wording: only "damaged" counts. A check that cannot run or that reports no page failure
+ * of the file (no key, a wrong key, a failed read inside it, a file it cannot read at all) is no
+ * verdict, so both files stay and the next open decides again, as for a full disk or a bug.
  */
 async function restoredFileUnusable(e: unknown): Promise<boolean> {
   if (e instanceof NotADatabaseError || e instanceof NewerSchemaError) return true;
