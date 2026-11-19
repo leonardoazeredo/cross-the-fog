@@ -2,6 +2,7 @@ package codes.madera.crossfog.watch.presentation
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -9,20 +10,23 @@ import org.junit.Test
  * rating prompt that used it pointed at an upstream listing, so nothing under `src/main` may mention one again.
  */
 class NoStoreLinkTest {
-    private val forbidden = listOf("play.google.com", "com.android.vending")
+    // Lower case: hosts and schemes ignore case, so the text is lowered before it is searched.
+    private val forbidden = listOf("play.google.com", "com.android.vending", "market://")
 
     @Test
     fun noSourceOrStringNamesAnAppStore() {
         val main = File("src/main")
-        assertEquals("run from the app module: ${main.absolutePath}", true, main.isDirectory)
+        assertTrue("run from the app module: ${main.absolutePath}", main.isDirectory)
+        val scanned =
+            main.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.name == "strings.xml") }.toList()
+        // A filter that matches nothing would pass every hit-free check below.
+        assertTrue("no .kt file was scanned", scanned.any { it.extension == "kt" })
+        assertTrue("no strings.xml was scanned", scanned.any { it.name == "strings.xml" })
         val hits =
-            main
-                .walkTopDown()
-                .filter { it.isFile && (it.extension == "kt" || it.name == "strings.xml") }
-                .filter { file -> file.readText().let { text -> forbidden.any { it in text } } }
+            scanned
+                .filter { file -> file.readText().lowercase().let { text -> forbidden.any { it in text } } }
                 .map { it.relativeTo(main).path }
                 .sorted()
-                .toList()
         assertEquals(emptyList<String>(), hits)
     }
 }
