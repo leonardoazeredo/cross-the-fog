@@ -165,13 +165,13 @@ class MapFocusModeUiTest {
     }
 
     @Test
-    fun smallRoundLargeTextKeepsAllFiveActionsAndExitTouchTargetUsable() = checkSmallLayout(SmallRoundWatchLargeText)
+    fun smallRoundLargeTextKeepsAllThreeActionsAndExitTouchTargetUsable() = checkSmallLayout(SmallRoundWatchLargeText)
 
     @Test
-    fun smallRoundMaximumTextKeepsAllFiveActionsAndExitTouchTargetUsable() = checkSmallLayout(SmallRoundWatchMaxText)
+    fun smallRoundMaximumTextKeepsAllThreeActionsAndExitTouchTargetUsable() = checkSmallLayout(SmallRoundWatchMaxText)
 
     @Test
-    fun mediumSquareKeepsAllFiveActionsAndExitTouchTargetUsable() = checkSmallLayout(MediumSquareWatch)
+    fun mediumSquareKeepsAllThreeActionsAndExitTouchTargetUsable() = checkSmallLayout(MediumSquareWatch)
 
     @Test
     fun hintExpiresWithoutLeavingFocusAndDoesNotRepeatOnToggle() {
@@ -310,7 +310,7 @@ class MapFocusModeUiTest {
                 .onNodeWithContentDescription("Close shortcuts", useUnmergedTree = true)
                 .fetchSemanticsNode()
                 .boundsInRoot.center
-        listOf("POI", "Stay", "GPX", "REC", "Full").forEach { label ->
+        listOf("Stay", "REC", "Full").forEach { label ->
             composeRule
                 .onNodeWithText(label)
                 .assertIsDisplayed()
@@ -318,9 +318,7 @@ class MapFocusModeUiTest {
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)
         }
-        val poi = shortcutCenter("POI")
         val stay = shortcutCenter("Stay")
-        val gpx = shortcutCenter("GPX")
         val rec = shortcutCenter("REC")
         val full = shortcutCenter("Full")
         val surface =
@@ -328,14 +326,11 @@ class MapFocusModeUiTest {
                 .onNodeWithTag("map_focus_test_surface")
                 .fetchSemanticsNode()
                 .boundsInRoot.center
-        assertEquals(poi.y, stay.y, 1f)
-        assertEquals(gpx.y, rec.y, 1f)
-        assertEquals(poi.x, gpx.x, 1f)
         assertEquals(stay.x, rec.x, 1f)
-        assertEquals(surface.x, (poi.x + stay.x) / 2f, 1f)
-        assertEquals(toolsCenter.y, (poi.y + gpx.y) / 2f, 1f)
+        assertEquals(surface.x, stay.x, 1f)
+        assertEquals(toolsCenter.y, (stay.y + rec.y) / 2f, 1f)
         assertEquals(surface.x, full.x, 1f)
-        assertTrue(full.y < poi.y)
+        assertTrue(full.y < stay.y)
         enterFocus()
         composeRule
             .onNodeWithContentDescription("Exit full screen")
