@@ -41,7 +41,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -710,13 +709,6 @@ private fun CombinedGuidancePage(
         } else {
             null
         }
-    val showGuideBackShortcut = state.active && state.offRoute && !guideBackToRouteActive && !showGuideBackPrompt
-    var showGuideBackShortcutConfirm by remember(state.trackTitle) { mutableStateOf(false) }
-    LaunchedEffect(state.offRoute, guideBackToRouteActive, showGuideBackPrompt) {
-        if (!state.offRoute || guideBackToRouteActive || showGuideBackPrompt) {
-            showGuideBackShortcutConfirm = false
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         CombinedVoiceToggle(
@@ -730,18 +722,6 @@ private fun CombinedGuidancePage(
                     .align(Alignment.CenterStart)
                     .padding(start = 16.dp),
         )
-        if (showGuideBackShortcut) {
-            CombinedGuideBackShortcut(
-                onClick = {
-                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_click mode=combined")
-                    showGuideBackShortcutConfirm = true
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 16.dp),
-            )
-        }
         cappedFontScale(maxFontScale = 1.15f) {
             Column(
                 modifier =
@@ -840,43 +820,19 @@ private fun CombinedGuidancePage(
                 }
             }
         }
-        if (showGuideBackPrompt || showGuideBackShortcutConfirm) {
+        if (showGuideBackPrompt) {
             GuidanceDecisionPromptCard(
-                title = stringResource(R.string.navigate_route_back),
+                title = stringResource(R.string.navigate_off_route),
                 detail =
                     state.distanceToRouteMeters?.let {
                         stringResource(
                             R.string.navigate_from_gpx,
                             formatLiveDistanceLabel(it, isMetric, resources = resources),
                         )
-                    } ?: stringResource(R.string.navigate_create_route_to_gpx),
-                acceptText = stringResource(R.string.navigate_guide),
-                dismissText =
-                    if (showGuideBackPrompt) {
-                        stringResource(
-                            R.string.navigate_ignore,
-                        )
-                    } else {
-                        stringResource(R.string.common_cancel)
-                    },
-                onAccept = {
-                    showGuideBackShortcutConfirm = false
-                    DebugTelemetry.log(
-                        "TurnByTurn",
-                        "event=guide_back_dashboard_confirm mode=combined prompt=$showGuideBackPrompt",
-                    )
-                    onGuideBackToRoute()
-                },
-                onDismiss = {
-                    showGuideBackShortcutConfirm = false
-                    DebugTelemetry.log(
-                        "TurnByTurn",
-                        "event=guide_back_dashboard_cancel mode=combined prompt=$showGuideBackPrompt",
-                    )
-                    if (showGuideBackPrompt) {
-                        onDismissGuideBackPrompt()
-                    }
-                },
+                    } ?: "",
+                acceptText = null,
+                dismissText = stringResource(R.string.navigate_ignore),
+                onDismiss = onDismissGuideBackPrompt,
                 modifier =
                     Modifier
                         .align(Alignment.BottomCenter)
@@ -1086,27 +1042,6 @@ private fun CombinedGuidanceIcon(
         modifier = modifier,
         tint = tint,
     )
-}
-
-@Composable
-private fun CombinedGuideBackShortcut(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier =
-            modifier
-                .size(48.dp)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Route,
-            contentDescription = stringResource(R.string.navigate_route_back_to_gpx),
-            tint = COMBINED_OFF_ROUTE_AMBER,
-            modifier = Modifier.size(18.dp),
-        )
-    }
 }
 
 @Composable
