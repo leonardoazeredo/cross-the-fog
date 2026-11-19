@@ -108,7 +108,7 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     answered.tap();
     answered.ctl.routeStatus({ routeId: "r1", state: "waiting" });
     fire();
-    assert.equal(answered.chip.textContent, "Waiting for watch", "an answered send is never timed out");
+    assert.equal(answered.chip.textContent, "Queued for the watch", "an answered send is never timed out");
 
     // routes the phone had to drop: the line shows when no route state does, outranks "Not paired" and is
     // outranked by the status of a route that was sent; sending again clears it
@@ -124,9 +124,9 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     lost.tap();
     assert.equal(lost.chip.textContent, "", "sending again clears the line");
     lost.ctl.routeStatus({ routeId: "r1", state: "waiting" });
-    assert.equal(lost.chip.textContent, "Waiting for watch");
+    assert.equal(lost.chip.textContent, "Queued for the watch");
     lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: 1 });
-    assert.equal(lost.chip.textContent, "Waiting for watch", "a route's own status outranks the line");
+    assert.equal(lost.chip.textContent, "Queued for the watch", "a route's own status outranks the line");
     lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: 0 });
     lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: -4 });
     lost.ctl.linkStatus({ paired: true, reachable: false, unsentRoutes: "2" });
@@ -141,7 +141,7 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     assert.equal(sendTwice.sentRecords[0].revision, "hash:<gpx/>", "the record carries the hash of its GPX");
     assert.equal(sendTwice.sentRecords[0].gpx, "<gpx/>");
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: "hash:<gpx/>" });
-    assert.equal(sendTwice.chip.textContent, "Waiting for watch");
+    assert.equal(sendTwice.chip.textContent, "Queued for the watch");
     sendTwice.route.gpx = "<gpx v='2'/>"; sendTwice.route.revision++;
     sendTwice.ctl.update();
     assert.equal(sendTwice.chip.textContent, "", "an edit blanks the chip");
@@ -151,9 +151,9 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     assert.equal(sendTwice.chip.textContent, "", "a late answer for v1 before the phone has answered v2 is ignored");
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: "hash:<gpx v='2'/>" });
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx/>" });
-    assert.equal(sendTwice.chip.textContent, "Waiting for watch", "a late onWatch for v1 does not say On the watch once v2 is waiting");
+    assert.equal(sendTwice.chip.textContent, "Queued for the watch", "a late onWatch for v1 does not say On the watch once v2 is waiting");
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "failed", revision: "hash:<gpx/>" });
-    assert.equal(sendTwice.chip.textContent, "Waiting for watch", "nor does a late failure of v1");
+    assert.equal(sendTwice.chip.textContent, "Queued for the watch", "nor does a late failure of v1");
     sendTwice.ctl.routeStatus({ routeId: "r1", state: "onWatch", revision: "hash:<gpx v='2'/>" });
     assert.equal(sendTwice.chip.textContent, "On the watch", "the answer for v2 does");
 
@@ -182,7 +182,7 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     ok.ctl.routeStatus({ routeId: "r1", state: "onWatch", why: WHY, revision: ok.sentRecords[0].revision });
     assert.equal(ok.chip.textContent, "On the watch", "only a failure shows a reason");
     why.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: why.sentRecords[0].revision });
-    assert.equal(why.chip.textContent, "Waiting for watch", "a later status drops the reason");
+    assert.equal(why.chip.textContent, "Queued for the watch", "a later status drops the reason");
     why.ctl.routeStatus({ routeId: "r1", state: "failed", revision: why.sentRecords[0].revision });
     assert.equal(why.chip.textContent, "Could not send", "a later failure without a reason does not bring the old one back");
     // A reason belongs to the send it answered: a new tap that then gets no answer reads as the general line.

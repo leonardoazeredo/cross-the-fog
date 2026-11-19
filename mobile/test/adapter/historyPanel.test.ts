@@ -436,7 +436,7 @@ describe("Send to watch", () => {
     click(sendBtn());
     const v1 = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route;
     send.routeStatus({ routeId: v1.id, state: "waiting", revision: v1.revision });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
 
     route._applyRoute([...COORDS, [13.72, 51.002, 118]], STATS);
     send.update();
@@ -450,7 +450,7 @@ describe("Send to watch", () => {
     expect(chip()).toBe("");
     send.routeStatus({ routeId: v2.id, state: "waiting", revision: v2.revision });
     send.routeStatus({ routeId: v1.id, state: "onWatch", revision: v1.revision });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
     send.routeStatus({ routeId: v2.id, state: "onWatch", revision: v2.revision });
     expect(chip()).toBe("On the watch");
   });
@@ -472,7 +472,7 @@ describe("Send to watch", () => {
     expect(chip()).toBe("");
 
     send.routeStatus({ routeId: id, state: "waiting" });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
     send.routeStatus({ routeId: id, state: "onWatch" });
     expect(chip()).toBe("On the watch");
     send.routeStatus({ routeId: id, state: "failed" });
@@ -487,7 +487,7 @@ describe("Send to watch", () => {
     expect(chip()).toBe("");
   });
 
-  it("says Not paired when the link is not, and Waiting for watch once a route is sent", () => {
+  it("says Not paired when the link is not, and Queued for the watch once a route is sent", () => {
     send.linkStatus({ paired: false, reachable: false });
     expect(chip()).toBe("Not paired");
 
@@ -496,10 +496,10 @@ describe("Send to watch", () => {
     click(sendBtn());
     const id = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route.id;
     send.routeStatus({ routeId: id, state: "waiting" });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
 
     send.linkStatus({ paired: true, reachable: false });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
   });
 
   it("says a route could not be sent when the phone dropped some, below a route's own status", () => {
@@ -514,7 +514,7 @@ describe("Send to watch", () => {
     expect(chip()).toBe("Not paired");
     const id = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route.id;
     send.routeStatus({ routeId: id, state: "waiting" });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
   });
 
   it("blanks the status when the route is edited or cleared", () => {
@@ -532,7 +532,7 @@ describe("Send to watch", () => {
 
     click(sendBtn());
     send.routeStatus({ routeId: id, state: "waiting" });
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
     route.clear();
     send.update();
     expect(chip()).toBe("");
@@ -585,7 +585,7 @@ describe("Send to watch", () => {
     expect(chip()).toBe("Could not send");
   });
 
-  it("keeps Waiting for watch once the phone has answered, however long the watch takes", () => {
+  it("keeps Queued for the watch once the phone has answered, however long the watch takes", () => {
     vi.useFakeTimers();
     route.setFixedRoute(PINS(), COORDS, STATS);
     send.update();
@@ -593,7 +593,7 @@ describe("Send to watch", () => {
     const id = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route.id;
     send.routeStatus({ routeId: id, state: "waiting" });
     vi.advanceTimersByTime(replyTimeoutMs() * 10);
-    expect(chip()).toBe("Waiting for watch");
+    expect(chip()).toBe("Queued for the watch");
   });
 
   it("gives a second send its own wait", () => {

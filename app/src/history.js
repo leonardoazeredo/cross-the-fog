@@ -252,7 +252,7 @@
   }
 
   // ----- Send to watch -------------------------------------------------------------
-  const STATUS_TEXT = { waiting: "Waiting for watch", onWatch: "On the watch", failed: "Could not send" };
+  const STATUS_TEXT = { waiting: "Queued for the watch", onWatch: "On the watch", failed: "Could not send" };
 
   // opts: { button, chip, getRecord() -> RouteRecord | null, hasRoute() -> boolean, revision() -> number,
   //         contentHash(gpx) -> string, send(record), canSend() }
