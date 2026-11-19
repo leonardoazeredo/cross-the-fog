@@ -50,7 +50,7 @@ object Framing {
 
     fun hasPartial(): Boolean = headLength > 0 || inBody
 
-    /** Bytes held for the frame in progress, allocated rather than arrived. */
+    /** What is held for the frame in progress: the prefix bytes that arrived plus the body array allocated so far, which can be larger than what arrived. */
     fun allocatedBytes(): Int = headLength + body.size
 
     fun feed(bytes: ByteArray, offset: Int, length: Int, onFrame: (ByteArray) -> Boolean) {
