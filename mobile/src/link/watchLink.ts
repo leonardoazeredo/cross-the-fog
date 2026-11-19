@@ -14,6 +14,7 @@ import {
 const eventSchemas: { [E in keyof WatchLinkEvents]: z.ZodType<WatchLinkEvents[E]> } = {
   activityStaged: z.object({ activityId: z.uuid() }),
   linkStatus: linkStatusSchema,
+  routeSetAside: z.object({ routeId: z.uuid() }),
   routeSaved: z.object({
     routeId: z.uuid(),
     revision: z
@@ -22,6 +23,29 @@ const eventSchemas: { [E in keyof WatchLinkEvents]: z.ZodType<WatchLinkEvents[E]
       .optional(),
   }),
 };
+
+export type PairFailure = "no-transport" | "invalid-qr" | "failed";
+
+const PAIR_TEXT: Record<PairFailure, string> = {
+  "no-transport": "no transport",
+  "invalid-qr": "invalid pairing code",
+  failed: "pairing failed",
+};
+
+/** A failed pairing. The text is fixed: neither the scanned code nor the native message is repeated. */
+export class PairError extends Error {
+  override name = "PairError";
+  constructor(readonly reason: PairFailure) {
+    super(PAIR_TEXT[reason]);
+  }
+}
+
+function pairFailure(e: unknown): PairFailure {
+  const code = e instanceof Error ? (e as { code?: unknown }).code : undefined;
+  if (code === "ERR_NO_TRANSPORT") return "no-transport";
+  if (code === "ERR_INVALID_QR") return "invalid-qr";
+  return "failed";
+}
 
 // The watch lists a saved route under this name; a route has none of its own. Local time, as the
 // day the rider lived it, while createdAt stays UTC on the wire. `timeZone` lets a test pin a zone
@@ -36,9 +60,14 @@ export function createNativeWatchLink(): WatchLink {
   // never be handed off, so the unreadable count includes them. The hand-off lists, then counts.
   let malformed = 0;
   return {
-    async pair() {
-      throw new Error("pairing arrives with the watch transport");
+    async pair(qrPayload) {
+      try {
+        await native.pairWatch(qrPayload);
+      } catch (e) {
+        throw new PairError(pairFailure(e));
+      }
     },
+    unpair: () => native.unpairWatch(),
     async status() {
       return linkStatusSchema.parse(await native.linkStatus());
     },

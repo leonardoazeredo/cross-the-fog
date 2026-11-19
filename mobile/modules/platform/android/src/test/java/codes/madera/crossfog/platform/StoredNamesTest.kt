@@ -8,6 +8,7 @@ class StoredNamesTest {
   fun keystoreAliasesKeepTheirValues() {
     assertEquals("crossfog.kek.v1", Keys.KEK_ALIAS)
     assertEquals("crossfog.staging.v1", Keys.STAGING_ALIAS)
+    assertEquals("crossfog.link.identity.v1", Keys.LINK_IDENTITY_ALIAS)
   }
 
   @Test
@@ -17,5 +18,9 @@ class StoredNamesTest {
     assertEquals("db.key.v1", StoredNames.DATABASE_KEY_FILE)
     assertEquals("staging", StoredNames.STAGING_DIR)
     assertEquals("outbox", StoredNames.OUTBOX_DIR)
+    assertEquals("aside", StoredNames.ASIDE_DIR)
+    assertEquals("link", StoredNames.LINK_DIR)
+    assertEquals("pin.v1", StoredNames.LINK_PIN_FILE)
+    assertEquals("ledger.v1", StoredNames.LINK_LEDGER_FILE)
   }
 }

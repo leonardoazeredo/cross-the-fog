@@ -24,10 +24,15 @@ export interface WatchLinkEvents {
   linkStatus: LinkStatus;
   /** `revision` is the one the watch saved; absent from a watch that sends none. */
   routeSaved: { routeId: string; revision?: string | undefined };
+  /** The route failed on the phone every time and left the queue without being deleted; the user sends it again. */
+  routeSetAside: { routeId: string };
 }
 
 export interface WatchLink {
+  /** Rejects with a `PairError` (`no-transport` while no radio adapter exists). Never resolves for a link that is not paired. */
   pair(qrPayload: string): Promise<void>;
+  /** Forgets the paired watch; a link that is not paired stays so. */
+  unpair(): Promise<void>;
   status(): Promise<LinkStatus>;
   /** Persists the route on the phone, across the app closing, until the watch confirms it with `routeSaved`. Nothing delivers it yet. */
   queueRoute(route: RouteRecord): Promise<void>;

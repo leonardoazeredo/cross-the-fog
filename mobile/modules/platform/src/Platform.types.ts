@@ -5,5 +5,8 @@ export type KeyState = "fresh" | "existing" | "lost" | "unreadable";
 export type PlatformNativeEvents = {
   activityStaged(event: { activityId: string }): void;
   linkStatus(event: { paired: boolean; reachable: boolean }): void;
-  routeSaved(event: { routeId: string }): void;
+  /** `revision` is the one of the route the watch saved, as the 64 hex characters the wire carries. */
+  routeSaved(event: { routeId: string; revision: string }): void;
+  /** A route that failed on the phone every time and was moved out of the queue, not deleted. */
+  routeSetAside(event: { routeId: string }): void;
 };

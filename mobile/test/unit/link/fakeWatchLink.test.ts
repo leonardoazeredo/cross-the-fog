@@ -106,6 +106,16 @@ describe("fake watch link", () => {
     expect(await link.discardUnreadableRoutes()).toBe(0);
   });
 
+  it("unpair marks the link unpaired and emits linkStatus", async () => {
+    const link = createFakeWatchLink();
+    const seen = vi.fn();
+    link.on("linkStatus", seen);
+    await link.pair("qr");
+    await link.unpair();
+    expect(await link.status()).toEqual({ paired: false, reachable: false });
+    expect(seen).toHaveBeenLastCalledWith({ paired: false, reachable: false });
+  });
+
   it("pair marks the link paired but not reachable", async () => {
     const link = createFakeWatchLink();
     await link.pair("qr");

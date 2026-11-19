@@ -40,6 +40,7 @@ export function createFakeWatchLink(): FakeWatchLink {
     activityStaged: new Set(),
     linkStatus: new Set(),
     routeSaved: new Set(),
+    routeSetAside: new Set(),
   };
 
   function emit<E extends keyof WatchLinkEvents>(event: E, payload: WatchLinkEvents[E]) {
@@ -60,6 +61,10 @@ export function createFakeWatchLink(): FakeWatchLink {
   return {
     async pair() {
       currentStatus = { paired: true, reachable: false };
+      emit("linkStatus", { ...currentStatus });
+    },
+    async unpair() {
+      currentStatus = { paired: false, reachable: false };
       emit("linkStatus", { ...currentStatus });
     },
     async status() {
