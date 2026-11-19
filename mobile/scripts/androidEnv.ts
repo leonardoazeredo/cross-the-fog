@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** What `plugins/withLinkProject.cjs` writes into the generated `settings.gradle`; a test keeps the two equal. */
@@ -11,6 +12,13 @@ export function needsPrebuild(settingsGradle: string | null): boolean {
 /** The script's whole prebuild decision: no gradlew means no android/ worth keeping, whatever settings.gradle says. */
 export function shouldPrebuild(hasGradlew: boolean, settingsGradle: string | null): boolean {
   return !hasGradlew || needsPrebuild(settingsGradle);
+}
+
+/** Reads what `shouldPrebuild` decides on from an android/ directory: a gradlew and a settings.gradle with the include. */
+export function prebuildNeeded(androidDir: string): boolean {
+  const settingsFile = join(androidDir, "settings.gradle");
+  const settings = existsSync(settingsFile) ? readFileSync(settingsFile, "utf8") : null;
+  return shouldPrebuild(existsSync(join(androidDir, "gradlew")), settings);
 }
 
 /** Where the generated settings.gradle points `:link`, relative to `android/`; the plugin writes the same path. */

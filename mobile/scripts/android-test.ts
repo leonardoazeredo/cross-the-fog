@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,7 +11,7 @@ import {
   missingTooling,
   noDeviceMessage,
   PLANS,
-  shouldPrebuild,
+  prebuildNeeded,
 } from "./androidEnv.js";
 
 const mode = process.argv[2] as AndroidTestMode | undefined;
@@ -70,9 +70,7 @@ if (!hasGradlew) {
 // Prebuild only when android/ is missing or predates the shared link/ include: an android/ that was
 // prebuilt on purpose with other settings (CROSSFOG_E2E, say) is left as it is. Prebuild applies the
 // config plugins to an existing android/ too, once (plugins/withLinkProject.cjs).
-const settingsFile = join(androidDir, "settings.gradle");
-const settings = existsSync(settingsFile) ? readFileSync(settingsFile, "utf8") : null;
-if (shouldPrebuild(hasGradlew, settings)) {
+if (prebuildNeeded(androidDir)) {
   say("expo prebuild (about 2 s, no install)");
   if (
     run(

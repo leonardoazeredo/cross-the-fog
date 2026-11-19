@@ -1,13 +1,10 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { LINK_MARKER, shouldPrebuild } from "../../scripts/androidEnv.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { LINK_MARKER, prebuildNeeded, shouldPrebuild } from "../../scripts/androidEnv.js";
 
-const SCRIPT = readFileSync(
-  resolve(fileURLToPath(import.meta.url), "../../../scripts/android-test.ts"),
-  "utf8",
-);
 const WITH_LINK = `include ':app'\n${LINK_MARKER}\ninclude ':link'\n`;
 
 describe("shouldPrebuild", () => {
@@ -26,24 +23,61 @@ describe("shouldPrebuild", () => {
   });
 });
 
-// The script runs at import and exits the process, so it cannot be driven from a test; these pin the
-// lines that wire the decision to what is on disk.
-describe("scripts/android-test.ts wiring", () => {
-  it("decides on the gradlew it found and the settings.gradle it read", () => {
-    expect(SCRIPT).toContain('const hasGradlew = existsSync(join(androidDir, "gradlew"));');
-    expect(SCRIPT).toContain('const settingsFile = join(androidDir, "settings.gradle");');
-    expect(SCRIPT).toContain("if (shouldPrebuild(hasGradlew, settings)) {");
+describe("prebuildNeeded reads the android/ directory", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "android-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("needs a prebuild when the directory does not exist", () => {
+    expect(prebuildNeeded(join(dir, "missing"))).toBe(true);
+  });
+
+  it("needs one when there is a gradlew but no settings.gradle", () => {
+    writeFileSync(join(dir, "gradlew"), "");
+    expect(prebuildNeeded(dir)).toBe(true);
+  });
+
+  it("needs one when settings.gradle has the include but there is no gradlew", () => {
+    writeFileSync(join(dir, "settings.gradle"), WITH_LINK);
+    expect(prebuildNeeded(dir)).toBe(true);
+  });
+
+  it("needs one when settings.gradle predates the include", () => {
+    writeFileSync(join(dir, "gradlew"), "");
+    writeFileSync(join(dir, "settings.gradle"), "include ':app'\n");
+    expect(prebuildNeeded(dir)).toBe(true);
+  });
+
+  it("is skipped for a gradlew and a settings.gradle that has the include", () => {
+    writeFileSync(join(dir, "gradlew"), "");
+    writeFileSync(join(dir, "settings.gradle"), WITH_LINK);
+    expect(prebuildNeeded(dir)).toBe(false);
+  });
+
+  it("does not look at settings.gradle.kts or a gradlew in a subdirectory", () => {
+    mkdirSync(join(dir, "app"));
+    writeFileSync(join(dir, "app", "gradlew"), "");
+    writeFileSync(join(dir, "settings.gradle.kts"), WITH_LINK);
+    expect(prebuildNeeded(dir)).toBe(true);
+  });
+});
+
+// The script runs at import and exits the process, so it cannot be driven from a test; these two pin
+// that it asks the function above about its android/ and prebuilds without installing.
+describe("scripts/android-test.ts", () => {
+  const script = readFileSync(
+    resolve(fileURLToPath(import.meta.url), "../../../scripts/android-test.ts"),
+    "utf8",
+  );
+
+  it("asks prebuildNeeded about the android/ it will run gradle in", () => {
+    expect(script).toMatch(/const androidDir = join\(mobile, "android"\);/);
+    expect(script).toMatch(/if \(prebuildNeeded\(androidDir\)\)/);
   });
 
   it("prebuilds android only, without installing", () => {
-    expect(SCRIPT).toContain(
-      '["exec", "expo", "prebuild", "--platform", "android", "--no-install"]',
-    );
-  });
-
-  it("generates the page first when there is no gradlew", () => {
-    expect(SCRIPT).toMatch(
-      /if \(!hasGradlew\) \{\n\s+say\([^\n]+\n\s+if \(run\("pnpm", \["generate"\]/,
-    );
+    expect(script).toMatch(/"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/);
   });
 });
