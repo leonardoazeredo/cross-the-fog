@@ -32,7 +32,7 @@ class OnlyFreeLicenceThemesBundledTest {
     }
 
     @Test
-    fun noLicenceTextOrScreenNamesARemovedThemeAsBundled() {
+    fun noLicenceTextNamesARemovedThemeAsBundled() {
         val removed =
             Regex("""elevate|french.?kiss|tiramisu|voluntary|hike,? ride|os.map theme""", RegexOption.IGNORE_CASE)
         val texts =

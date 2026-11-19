@@ -3,7 +3,9 @@ package codes.madera.crossfog.watch.core.maps.theme
 import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class BundledRenderThemeAssetLocatorTest {
     @Test
@@ -26,6 +28,16 @@ class BundledRenderThemeAssetLocatorTest {
         )
         assertNull(BundledRenderThemeAssetLocator.resolveKnownThemeIdOrNull("mapsforge"))
         assertNull(BundledRenderThemeAssetLocator.resolveKnownThemeIdOrNull("frenchkiss-legacy"))
+    }
+
+    @Test
+    fun everyBundledThemeSpecPointsAtAPackagedXmlFile() {
+        listOf(MapsforgeThemeCatalog.OPENHIKING_THEME_ID, MapsforgeThemeCatalog.HIKING_3D_THEME_ID).forEach { id ->
+            val path = BundledRenderThemeAssetLocator.generatedXmlPathOrNull(id)
+            assertTrue("$id has no spec", path != null)
+            assertTrue("$id: src/main/assets/$path is missing", File("src/main/assets/$path").isFile)
+        }
+        assertNull(BundledRenderThemeAssetLocator.generatedXmlPathOrNull("elevate"))
     }
 
     @Test
