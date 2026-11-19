@@ -164,7 +164,7 @@ class KeystoreIdentityTest {
     run(watchSession, watchOut, phoneSession, phoneOut)
     assertNull(watchPins.pin)
     assertNull(phonePins.pin)
-    // the phone refused the key before any signing was wasted on a pairing that could not finish
+    // neither end completes a pairing the phone refused
     assertTrue(phoneEvents.ends.none { it.reason == CloseReason.PAIRING_COMPLETE })
     assertTrue(watchEvents.ends.none { it.reason == CloseReason.PAIRING_COMPLETE })
     assertEquals(1, phoneEvents.ends.size)

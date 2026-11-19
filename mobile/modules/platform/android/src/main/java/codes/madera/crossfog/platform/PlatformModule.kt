@@ -88,7 +88,7 @@ class PlatformModule : Module() {
 
     AsyncFunction("keyPresence") { keyCall { keys.keyPresence().wire } }
 
-    // No watch transport is built yet, so nothing is ever reachable; "paired" is only what the pin store holds.
+    // No watch transport is built yet, so nothing is ever reachable; "paired" needs a pin and the identity key it was made for.
     AsyncFunction("status") {
       val status = link.state.status()
       mapOf("paired" to status.paired, "reachable" to status.reachable)
