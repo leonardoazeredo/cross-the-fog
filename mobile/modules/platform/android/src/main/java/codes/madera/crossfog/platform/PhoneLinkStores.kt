@@ -81,6 +81,8 @@ internal class OutboxRoutes(
         null
       } catch (e: FrameException) {
         null
+      } catch (e: java.io.IOException) {
+        null
       }
       store.setAside(id)
       ledger.forget(id)

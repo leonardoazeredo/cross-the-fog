@@ -197,10 +197,11 @@ class PhoneLinkStoresTest {
     // the file reads fine, but the release then cannot delete the temporary name: a directory with content
     File(outboxDir, "$a.tmp").mkdir()
     File(outboxDir, "$a.tmp/x").writeText("x")
+    val countsBefore = ledgerStore.text
     assertThrows(java.io.IOException::class.java) { r.markDelivered(a, route.revision) }
     assertTrue(saved.isEmpty())
-    // the failed delivery did not reset a's demotion: b is still offered first
-    assertEquals(b, r.nextQueued()!!.routeId)
+    // a delivery that did not finish resets nothing: a keeps its counts
+    assertEquals(countsBefore, ledgerStore.text)
   }
 
   @Test
@@ -300,6 +301,17 @@ class PhoneLinkStoresTest {
     r.setAside(a)
     File(outboxDir, "aside/$a.bin").writeBytes(ByteArray(40))
     assertThrows(UnreadableItemException::class.java) { outboxStore().readAside(a) }
+  }
+
+  @Test
+  fun aReadErrorWhileReportingTheRevisionDoesNotStopTheSetAside() {
+    val r = routes()
+    r.queue(a, routeJson(a))
+    // reading the file fails with an I/O error, not a parse error
+    File(outboxDir, "$a.bin").delete()
+    File(outboxDir, "$a.bin").mkdir()
+    assertNull(r.setAside(a))
+    assertTrue(File(outboxDir, "aside/$a.bin").exists())
   }
 
   @Test
