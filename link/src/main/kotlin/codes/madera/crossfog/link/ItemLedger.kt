@@ -122,7 +122,7 @@ class ItemLedger(
     }
   }
 
-  /** A text that is not exactly what [save] writes is ignored whole: the ledger starts empty rather than guess. */
+  /** A text with a bad header, a non-UUID id, a field that is not a number or is negative, or a demotion stamp past the header's sequence is ignored whole: the ledger starts empty rather than guess. */
   private fun load() {
     val text = try {
       store.read()
