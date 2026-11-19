@@ -79,7 +79,7 @@ class Rig(val server: Peer, val client: Peer) {
     cutting = true
   }
 
-  /** Opens both ends and moves bytes until nothing is left to move. */
+  /** Opens both ends (unless [open] is false), then moves bytes until nothing is left to move. */
   fun run(open: Boolean = true, rounds: Int = 500) {
     if (open) {
       server.session.open()
