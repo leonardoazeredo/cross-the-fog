@@ -14,7 +14,7 @@ class GpxRouteEditorFileNamesTest {
     }
 
     @Test
-    fun anExistingGpxSuffixIsNotDoubledWhateverItsCase() {
+    fun oneTrailingGpxSuffixIsNotDoubledWhateverItsCase() {
         assertEquals("Trail.gpx", buildRenamedGpxFileName("Trail.gpx"))
         assertEquals("Trail.gpx", buildRenamedGpxFileName("Trail.GPX"))
         assertEquals("Trail.gpx.gpx", buildRenamedGpxFileName("Trail.gpx.gpx"))

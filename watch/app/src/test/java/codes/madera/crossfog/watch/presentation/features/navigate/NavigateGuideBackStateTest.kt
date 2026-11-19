@@ -25,11 +25,11 @@ class NavigateGuideBackStateTest {
             offRoute = false,
         )
 
-    // About 745 m east along latitude 48, so the middle is about 372 m from either end.
-    private val route = listOf(LatLong(48.0, 11.0), LatLong(48.0, 11.01))
+    // Points east along latitude 48: the second is about 186 m along, the third about 22 m past it, the last about 745 m in all.
+    private val route = listOf(LatLong(48.0, 11.0), LatLong(48.0, 11.0025), LatLong(48.0, 11.0028), LatLong(48.0, 11.01))
 
-    // North of the middle of the route by about 55 m.
-    private val here = LatLong(48.0005, 11.005)
+    // North of the route by about 55 m, a quarter of the way along it.
+    private val here = LatLong(48.0005, 11.0025)
 
     @Test
     fun anEmptyRouteReturnsTheBaseStateUnchanged() {
@@ -52,13 +52,13 @@ class NavigateGuideBackStateTest {
     }
 
     @Test
-    fun aRouteAndALocationSetTheDistanceLeftAlongTheRouteAndTheBearingToAPointJustAhead() {
+    fun aRouteAndALocationSetTheDistanceLeftAlongTheRouteAndTheBearingToThePointAhead() {
         val state = buildBrouterGuideBackState(base, active = true, route = route, currentLocation = here)
 
         assertNotNull(state.distanceToRouteMeters)
-        assertEquals(372.0, state.distanceToRouteMeters!!, 8.0)
-        // The target is the end of the route (the lookahead runs past the middle), east and a little south of here.
-        assertEquals(98.4f, state.bearingToRouteDegrees!!, 2f)
+        assertEquals(559.0, state.distanceToRouteMeters!!, 8.0)
+        // The target is the first point at least 20 m past the projection: the third one, not the end of the route.
+        assertEquals(158f, state.bearingToRouteDegrees!!, 2f)
         // Nothing else in the state is touched.
         assertEquals(
             base.copy(distanceToRouteMeters = state.distanceToRouteMeters, bearingToRouteDegrees = state.bearingToRouteDegrees),

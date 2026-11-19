@@ -79,7 +79,7 @@ class SelfHealFailoverPoorAccuracyGuardTest {
     }
 
     @Test
-    fun anUnknownPhoneFailsOverAfterTheRequiredStreakAndTheFailoverStaysSet() {
+    fun anUnknownPhoneFailsOverAfterTheRequiredStreakAndFurtherPoorFixesDoNotRefreshAgain() {
         phone = null
         val c = coordinator()
         c.poorFixes(4)
@@ -87,7 +87,6 @@ class SelfHealFailoverPoorAccuracyGuardTest {
         assertEquals(LocationSourceMode.WATCH_GPS, c.currentLocationSourceMode())
         c.poorFixes(5)
         assertTrue(c.isAutoFusedFallbackToWatchGps())
-        // more poor fixes do not ask for another refresh: the failover is already in place
         assertEquals(1, refreshes)
     }
 
