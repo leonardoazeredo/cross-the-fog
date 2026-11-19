@@ -26,6 +26,7 @@ class OamRemoteFileRequestsTest {
 
         val fileNames = requests.map { it.fileName }
         assertTrue("map.zip" in fileNames)
+        assertFalse("segment.rd5" in fileNames)
         assertFalse("N45E006.hgt.zip" in fileNames)
         assertTrue("N45E007.hgt.zip" in fileNames)
         assertEquals(2, requests.size)

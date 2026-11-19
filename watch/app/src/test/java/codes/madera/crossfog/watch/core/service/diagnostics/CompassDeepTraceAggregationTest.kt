@@ -185,7 +185,7 @@ class CompassDeepTraceAggregationTest {
     }
 
     @Test
-    fun relativeMotionAndConeChangesKeepTheirOwnIdentityInRenderExports() {
+    fun relativeMotionAndConeChangesKeepTheirOwnIdentityInTheEventRing() {
         val provenance = CompassHeadingProvenance(CompassProviderType.GOOGLE_FUSED, 5L)
         val motion = CompassRelativeMotionSample(20f, 0.9f, 1_002L, provenance, displayRotation = 1)
         val render =
@@ -206,7 +206,10 @@ class CompassDeepTraceAggregationTest {
         ring.record(concealed)
         ring.record(concealed.copy(atElapsedMs = 1_007L, relativeMotionSample = motion.copy(atElapsedMs = 1_006L)))
 
-        assertEquals(4, ring.snapshot().size)
+        val renders = ring.snapshot().map { it.event as CompassDeepTraceEvent.Render }
+        assertEquals(4, renders.size)
+        assertEquals(listOf(false, false, true, true), renders.map { it.coneSuppressed })
+        assertEquals(listOf(null, motion, motion, motion.copy(atElapsedMs = 1_006L)), renders.map { it.relativeMotionSample })
     }
 
     @Test
