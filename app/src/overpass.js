@@ -8,7 +8,7 @@
 // so no message or log names the keyed URL. An endpoint that sends no response headers within
 // FIRST_BYTE_MS, or not the whole answer within REQUEST_TIMEOUT_MS, is abandoned (a stall) and held
 // 30 s, ten minutes from the third stall in a row. A 401, 403 or 404 from NextGIS (a revoked or mistyped key) holds it an hour; overpass-api.de has no key, so its 401, 403 or 404 is an ordinary failure. A network failure with no readable status (no
-// connection, or an answer without CORS headers, which can hide a 429) is held 30 s. The rejection
+// connection, or an answer without CORS headers, which can hide a 429) is held 30 s, and NextGIS ten minutes from the third in a row with no finished answer between (a wrong key's 404 has no CORS headers, so it reads as this). The rejection
 // names the kind of failure in `reason`, one of five words, for the page to put into words (or
 // "superseded" when the caller's run was replaced, which the page never words).
 (function (global) {
@@ -34,6 +34,9 @@
   const REQUEST_TIMEOUT_MS = 120000;
   const STALLS_BEFORE_LONG_HOLD = 3;
   const STALL_HOLD_MS = 600000;
+  // NextGIS's answer to a wrong key has no CORS headers, so the WebView's fetch rejects and the status is
+  // hidden; three rejections in a row look like that more than like a flaky network
+  const REJECTS_BEFORE_LONG_HOLD = 3;
   const BAN_HOLD_MS = 3600000;
   const BUSY_STATUS = { 429: true, 502: true, 504: true };
   const STALE_POLL_MS = 1000; // see acquire
@@ -49,11 +52,11 @@
     const key = global.crossfogNextgisKey;
     return typeof key === "string" && key ? "https://overpass.nextgis.com/" + encodeURIComponent(key) + "/api/interpreter" : undefined;
   }
-  let state = {}; // url -> {until: time before which it is not asked again, heldAt: when that hold was set, why: its reason, error: the failure that earned it, stalls: in a row}
+  let state = {}; // url -> {until: time before which it is not asked again, heldAt: when that hold was set, why: its reason, error: the failure that earned it, stalls: in a row, rejects: rejected fetches in a row on NextGIS}
   let warned = {}; // endpoint name -> true once a 401/403/404 from NextGIS was logged; keyed on the name, the URL holds the key
   let slots = {}; // endpoint name -> {open: requests in flight, waiting: resolvers, first come first served}
 
-  const stateOf = (url) => state[url] || (state[url] = { until: 0, heldAt: -Infinity, why: null, error: null, stalls: 0 });
+  const stateOf = (url) => state[url] || (state[url] = { until: 0, heldAt: -Infinity, why: null, error: null, stalls: 0, rejects: 0 });
   const slotOf = (name) => slots[name] || (slots[name] = { open: 0, waiting: [] });
   // A post waiting for a slot checks its caller's stale() every STALE_POLL_MS and leaves the queue once
   // it is true (rejecting with superseded(), or with what stale() threw): its run hears of it without
@@ -187,14 +190,23 @@
       let r;
       try { r = await attempt(url, body); } finally { release(name); }
       // a body stall carries its 200, but only an answer that ended proves the endpoint alive
-      if (r.status !== undefined) { anyStatus = true; if (r.kind !== "stall") s.stalls = 0; }
+      if (r.status !== undefined) { anyStatus = true; if (r.kind !== "stall") { s.stalls = 0; s.rejects = 0; if (name === "nextgis") warned.rejects = false; } }
       if (r.json !== undefined) return r.json;
       let why, holdMs = 0;
       // a stall of a request already open when the endpoint's last hold was set adds nothing to the
       // count: requests open together that stall together are one stall in a row (a later one can
       // still lengthen the hold)
       if (r.kind === "stall") { if (s.heldAt < sent) s.stalls++; why = "stalled"; holdMs = s.stalls >= STALLS_BEFORE_LONG_HOLD ? STALL_HOLD_MS : MIN_BACKOFF_MS; }
-      else if (r.kind === "network") { why = "offline"; holdMs = MIN_BACKOFF_MS; }
+      else if (r.kind === "network") {
+        why = "offline"; holdMs = MIN_BACKOFF_MS;
+        // counted like stalls: requests open together that are rejected together are one rejection
+        if (name === "nextgis" && s.heldAt < sent) s.rejects++;
+        if (name === "nextgis" && s.rejects >= REJECTS_BEFORE_LONG_HOLD) {
+          holdMs = STALL_HOLD_MS;
+          // one line per streak; no key, and no URL since it holds the key
+          if (!warned.rejects) { warned.rejects = true; console.warn("[overpass] endpoint rejected", name, s.rejects, "fetches in a row; held 10 min"); }
+        }
+      }
       else if (r.status === 406) { why = "blocked"; holdMs = Math.max(BAN_HOLD_MS, r.retryAfter); }
       else if (r.status === 429) { why = "busy"; holdMs = Math.max(MIN_BACKOFF_MS, r.retryAfter); }
       // only NextGIS needs a credential, so a 401, 403 or 404 from overpass-api.de is no credential problem
