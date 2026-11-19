@@ -3,6 +3,8 @@ import { route } from "../history/fixtures";
 
 const native = {
   linkStatus: vi.fn(),
+  pairWatch: vi.fn(),
+  unpairWatch: vi.fn(),
   pendingActivities: vi.fn(),
   unreadableActivities: vi.fn(),
   discardUnreadableRoutes: vi.fn(),
@@ -13,7 +15,7 @@ const native = {
 };
 vi.mock("../../../src/platform/platformModule", () => native);
 
-const { createNativeWatchLink, routeName } = await import("../../../src/link/watchLink");
+const { createNativeWatchLink, routeName, PairError } = await import("../../../src/link/watchLink");
 
 const id = "0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0001";
 const routeId = "0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0002";
@@ -151,12 +153,56 @@ describe("native watch link", () => {
     expect(routeName(route({ createdAt }), timeZone)).toBe(name);
   });
 
-  it("refuses to pair before the transport exists", async () => {
-    await expect(createNativeWatchLink().pair("qr")).rejects.toThrow("transport");
+  describe("pairing", () => {
+    const qr = "crossfog:1:secret-looking-text";
+    const failure = (code: string) =>
+      Object.assign(new Error("native text that is never shown"), { code });
+
+    it("hands the scanned text to the native side and resolves with it", async () => {
+      native.pairWatch.mockResolvedValue(undefined);
+      await expect(createNativeWatchLink().pair(qr)).resolves.toBeUndefined();
+      expect(native.pairWatch).toHaveBeenCalledExactlyOnceWith(qr);
+    });
+
+    it("rejects with `no transport` while no radio adapter exists", async () => {
+      native.pairWatch.mockRejectedValue(failure("ERR_NO_TRANSPORT"));
+      const e = await createNativeWatchLink()
+        .pair(qr)
+        .catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(PairError);
+      expect((e as InstanceType<typeof PairError>).reason).toBe("no-transport");
+      expect((e as Error).message).toBe("no transport");
+    });
+
+    it("rejects an unreadable code as such", async () => {
+      native.pairWatch.mockRejectedValue(failure("ERR_INVALID_QR"));
+      const e = await createNativeWatchLink()
+        .pair(qr)
+        .catch((x: unknown) => x);
+      expect((e as InstanceType<typeof PairError>).reason).toBe("invalid-qr");
+      expect((e as Error).message).toBe("invalid pairing code");
+    });
+
+    it("words any other failure generically and never repeats the code or the native text", async () => {
+      native.pairWatch.mockRejectedValue(new Error(`boom ${qr}`));
+      const e = (await createNativeWatchLink()
+        .pair(qr)
+        .catch((x: unknown) => x)) as Error;
+      expect(e).toBeInstanceOf(PairError);
+      expect((e as InstanceType<typeof PairError>).reason).toBe("failed");
+      expect(e.message).toBe("pairing failed");
+      expect(JSON.stringify([e.message, e.cause])).not.toContain("secret");
+    });
+
+    it("unpairs through the native side", async () => {
+      native.unpairWatch.mockResolvedValue(undefined);
+      await createNativeWatchLink().unpair();
+      expect(native.unpairWatch).toHaveBeenCalledOnce();
+    });
   });
 
   describe("events", () => {
-    function listen(event: "activityStaged" | "linkStatus" | "routeSaved") {
+    function listen(event: "activityStaged" | "linkStatus" | "routeSaved" | "routeSetAside") {
       const remove = vi.fn();
       let deliver: (payload: unknown) => void = () => {};
       native.onLinkEvent.mockImplementation((_name: string, fn: (payload: unknown) => void) => {
@@ -173,6 +219,8 @@ describe("native watch link", () => {
       ["linkStatus", { paired: true, reachable: false }],
       ["routeSaved", { routeId }],
       ["routeSaved", { routeId, revision: "0123456789abcdef".repeat(4) }],
+      ["routeSetAside", { routeId }],
+      ["routeSetAside", { routeId, revision: "0123456789abcdef".repeat(4) }],
     ] as const)("delivers a valid %s payload", (event, payload) => {
       const l = listen(event);
       l.deliver(payload);

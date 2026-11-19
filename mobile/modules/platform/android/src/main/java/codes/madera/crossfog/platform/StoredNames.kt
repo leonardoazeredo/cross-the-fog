@@ -11,4 +11,8 @@ internal object StoredNames {
   const val DATABASE_KEY_FILE = "db.key.v1"
   const val STAGING_DIR = "staging"
   const val OUTBOX_DIR = "outbox"
+  const val ASIDE_DIR = "aside"
+  const val LINK_DIR = "link"
+  const val LINK_PIN_FILE = "pin.v1"
+  const val LINK_LEDGER_FILE = "ledger.v1"
 }

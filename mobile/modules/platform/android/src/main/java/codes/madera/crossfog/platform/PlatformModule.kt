@@ -22,8 +22,17 @@ class PlatformModule : Module() {
   private val stagingDir by lazy { File(context.noBackupFilesDir, StoredNames.STAGING_DIR) }
   private val outboxDir by lazy { File(context.noBackupFilesDir, StoredNames.OUTBOX_DIR) }
   private val stagingKey by lazy { keys.stagingKey(listOf(stagingDir, outboxDir)) }
-  private val staging by lazy { StagingStore(stagingDir, stagingKey, ::fsyncDirectory) }
-  private val outbox by lazy { StagingStore(outboxDir, stagingKey, ::fsyncDirectory) }
+  // One instance per directory for the process, so a transport service writing these directories
+  // shares the module's lock instead of racing it.
+  private val staging by lazy { processStagingStores.forDir(stagingDir, { stagingKey }, ::fsyncDirectory) }
+  private val outbox by lazy { processStagingStores.forDir(outboxDir, { stagingKey }, ::fsyncDirectory) }
+
+  private val link by lazy {
+    // sendEvent is a no-op while no JS runtime is attached; JS then finds the item through the stores on start.
+    PhoneLink(staging, outbox, File(context.noBackupFilesDir, StoredNames.LINK_DIR), ::fsyncDirectory, KeystoreIdentity::exists) { name, payload ->
+      sendEvent(name, payload)
+    }
+  }
 
   private val saveAs by lazy { SaveAs(context.contentResolver, context.cacheDir) }
   private lateinit var createLauncher: AppContextActivityResultLauncher<CreateInput, Uri?>
@@ -31,7 +40,7 @@ class PlatformModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("Platform")
 
-    Events("activityStaged", "linkStatus", "routeSaved")
+    Events("activityStaged", "linkStatus", "routeSaved", "routeSetAside")
 
     AsyncFunction("getDatabaseKeyHex") { keyCall { keys.databaseKey().toHex() } }
 
@@ -79,8 +88,16 @@ class PlatformModule : Module() {
 
     AsyncFunction("keyPresence") { keyCall { keys.keyPresence().wire } }
 
-    // The watch transport is not built yet, so the link is never paired and never reachable.
-    AsyncFunction("status") { mapOf("paired" to false, "reachable" to false) }
+    // No watch transport is built yet, so nothing is ever reachable; "paired" needs a pin and the identity key it was made for.
+    AsyncFunction("status") {
+      val status = link.state.status()
+      mapOf("paired" to status.paired, "reachable" to status.reachable)
+    }
+
+    // Refuses with ERR_NO_TRANSPORT until a radio adapter registers one; the code is never logged or echoed.
+    AsyncFunction("pair") { qr: String -> pairCall { link.state.pair(qr) } }
+
+    AsyncFunction("unpair") { coded { link.state.unpair() } }
 
     AsyncFunction("pendingActivities") {
       readStagedActivities(stagingDir) { staging }.readable.map { it.summary() }
@@ -115,7 +132,7 @@ class PlatformModule : Module() {
     AsyncFunction("queueRoute") { routeJson: String ->
       coded {
         val bytes = routeJson.toByteArray(Charsets.UTF_8)
-        outbox.stage(Frames.parseRouteOffer(bytes).routeId, bytes)
+        link.routes.queue(Frames.parseRouteOffer(bytes).routeId, bytes)
       }
     }
 
@@ -124,11 +141,16 @@ class PlatformModule : Module() {
 
   /** The one way an activity enters the staging store; the event follows the durable write. */
   private fun stageActivity(bytes: ByteArray) {
-    val offer = Frames.parseActivityOffer(bytes)
-    staging.stage(offer.activityId, bytes)
-    // sendEvent is a no-op while no JS runtime is attached; JS then finds the item through pendingActivities on start.
-    sendEvent("activityStaged", mapOf("activityId" to offer.activityId))
+    link.sink.store(Frames.parseActivityOffer(bytes))
   }
+
+  private inline fun <T> pairCall(block: () -> T): T =
+    try {
+      block()
+    } catch (e: Exception) {
+      val failure = pairCallFailure(e) ?: throw e
+      throw CodedException(failure.code, failure.message, null)
+    }
 
   private inline fun <T> keyCall(block: () -> T): T =
     try {

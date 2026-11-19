@@ -56,6 +56,22 @@ describe("hand-off", () => {
     expect(link.released()).toEqual([A]);
   });
 
+  // The native sink stages an activity again when the watch resends it after the page released it
+  // (the staging store keeps nothing of released ids); this store keeps that from becoming a second walk.
+  it("stores a resent activity once: staged again after its release, it is released and not stored twice", async () => {
+    const { link, activities, flow } = setup();
+    const resent = offer(A, "2026-03-01T10:00:00Z");
+    link.stage(resent);
+    expect(await flow.run()).toEqual({ stored: 1, released: 1, unreadable: 0 });
+
+    link.stage(resent);
+    expect(await flow.run()).toEqual({ stored: 0, released: 1, unreadable: 0 });
+
+    expect(await activities.list()).toHaveLength(1);
+    expect(link.released()).toEqual([A, A]);
+    expect(await link.pendingActivities()).toEqual([]);
+  });
+
   it("does nothing when nothing is staged", async () => {
     const { flow, link } = setup();
     expect(await flow.run()).toEqual({ stored: 0, released: 0, unreadable: 0 });

@@ -21,6 +21,8 @@ export interface FakeWatchLink extends WatchLink {
   setStatus(status: LinkStatus): void;
   /** The watch saved a queued route; without `revision` it speaks like a watch that sends none. */
   confirmRoute(routeId: string, revision?: string): void;
+  /** The phone gave up on a queued route and moved it out of the queue; it leaves `queued()`. */
+  setRouteAside(routeId: string, revision?: string): void;
   /** The latest route queued under each id; `confirmRoute` does not remove it. */
   queued(): RouteRecord[];
   /** Every UUID passed to `release`, in order, known or not; a malformed id is refused and not recorded. */
@@ -40,6 +42,7 @@ export function createFakeWatchLink(): FakeWatchLink {
     activityStaged: new Set(),
     linkStatus: new Set(),
     routeSaved: new Set(),
+    routeSetAside: new Set(),
   };
 
   function emit<E extends keyof WatchLinkEvents>(event: E, payload: WatchLinkEvents[E]) {
@@ -60,6 +63,10 @@ export function createFakeWatchLink(): FakeWatchLink {
   return {
     async pair() {
       currentStatus = { paired: true, reachable: false };
+      emit("linkStatus", { ...currentStatus });
+    },
+    async unpair() {
+      currentStatus = { paired: false, reachable: false };
       emit("linkStatus", { ...currentStatus });
     },
     async status() {
@@ -116,6 +123,10 @@ export function createFakeWatchLink(): FakeWatchLink {
     confirmRoute(routeId, revision) {
       if (!routes.has(routeId)) throw new Error("route is not queued");
       emit("routeSaved", { routeId, ...(revision === undefined ? {} : { revision }) });
+    },
+    setRouteAside(routeId, revision) {
+      if (!routes.delete(routeId)) throw new Error("route is not queued");
+      emit("routeSetAside", { routeId, ...(revision === undefined ? {} : { revision }) });
     },
     queued: () => [...routes.values()].map((r) => structuredClone(r)),
     released: () => [...releasedIds],

@@ -47,6 +47,45 @@ class StagingStore(
   @Synchronized
   fun list(): List<String> = stagedIds(dir)
 
+  /** The same ids, least recently written first (an item staged again counts as new); ties by id. */
+  @Synchronized
+  fun listOldestFirst(): List<String> =
+    stagedIds(dir).sortedWith(compareBy({ File(dir, "$it$BIN").lastModified() }, { it }))
+
+  /**
+   * Moves an item out of the listing without deleting it: it stays sealed under the same key and id,
+   * readable through [readAside]. Setting aside an item that is gone is not an error. An item set aside
+   * again under the same id replaces the earlier copy: the id names one route, and the later copy is its latest content.
+   */
+  @Synchronized
+  fun setAside(id: String) {
+    requireId(id)
+    val file = File(dir, "$id$BIN")
+    if (file.exists()) {
+      val aside = File(dir, StoredNames.ASIDE_DIR)
+      if (!aside.isDirectory && !aside.mkdirs()) throw IOException("cannot create the aside directory")
+      if (!file.renameTo(File(aside, "$id$BIN"))) throw IOException("cannot move the item aside")
+      syncDir(aside)
+      syncDir(dir)
+    }
+    val tmp = File(dir, "$id.tmp")
+    if (!tmp.delete() && tmp.exists()) throw IOException("cannot delete a staged file")
+  }
+
+  /** An item moved aside, or null when none is. Throws like [read] for one that cannot be opened. */
+  @Synchronized
+  fun readAside(id: String): ByteArray? {
+    requireId(id)
+    val file = File(File(dir, StoredNames.ASIDE_DIR), "$id$BIN")
+    if (!file.exists()) return null
+    if (file.length() > Framing.MAX_FRAME_BYTES + OVERHEAD_BYTES) throw UnreadableItemException()
+    return try {
+      KeyWrap(key, id).unwrap(file.readBytes())
+    } catch (e: AEADBadTagException) {
+      throw UnreadableItemException(e)
+    }
+  }
+
   /**
    * Null only for an absent item. An oversized or unauthenticated one throws UnreadableItemException,
    * so a caller can tell an item it may never read from one that is not there.

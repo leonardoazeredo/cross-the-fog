@@ -239,6 +239,7 @@ class Keys(
     private const val TAG = "Platform"
     const val KEK_ALIAS = "crossfog.kek.v1"
     const val STAGING_ALIAS = "crossfog.staging.v1"
+    const val LINK_IDENTITY_ALIAS = "crossfog.link.identity.v1"
     const val DATABASE_KEY_BYTES = 32
     // The live file and the copy a restore keeps until the new one opens, matching
     // LIVE_DB and REPLACED_DB in src/backup/replace.ts. crossfog.restoring.db is left

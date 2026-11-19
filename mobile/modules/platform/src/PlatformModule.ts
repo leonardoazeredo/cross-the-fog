@@ -12,6 +12,8 @@ declare class PlatformModule extends NativeModule<PlatformNativeEvents> {
   copyToUri(sourcePath: string, uri: string): Promise<number>;
   copyFromUri(uri: string, destPath: string): Promise<{ size: number; head: string }>;
   status(): Promise<unknown>;
+  pair(qr: string): Promise<void>;
+  unpair(): Promise<void>;
   pendingActivities(): Promise<unknown>;
   unreadableActivities(): Promise<unknown>;
   discardUnreadableRoutes(): Promise<unknown>;

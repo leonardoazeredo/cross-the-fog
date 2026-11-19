@@ -116,6 +116,15 @@ export function linkStatus(): Promise<unknown> {
   return Platform.status();
 }
 
+/** Rejects with `ERR_NO_TRANSPORT` until a radio adapter exists, and `ERR_INVALID_QR` for a code it cannot read. */
+export function pairWatch(qr: string): Promise<void> {
+  return Platform.pair(qr);
+}
+
+export function unpairWatch(): Promise<void> {
+  return Platform.unpair();
+}
+
 export function pendingActivities(): Promise<unknown> {
   return Platform.pendingActivities();
 }

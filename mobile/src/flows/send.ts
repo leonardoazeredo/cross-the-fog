@@ -139,9 +139,15 @@ export function createSendFlow(deps: SendDeps): SendFlow {
           send(routeStatus(routeId, "onWatch", { revision }));
         })();
       });
+      // The phone gave up on the route and keeps it aside, so it is not on its way: the page must not go on
+      // saying it is waiting. The revision, when known, keeps a late answer from marking a newer edit.
+      const offAside = link.on("routeSetAside", ({ routeId, revision }) => {
+        send(routeStatus(routeId, "failed", { why: COPY.routeNotSent, revision }));
+      });
       const offStatus = link.on("linkStatus", (status) => send(linkStatus(status)));
       return () => {
         offRoute();
+        offAside();
         offStatus();
       };
     },

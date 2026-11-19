@@ -300,6 +300,45 @@ describe("send", () => {
     valid(sent);
   });
 
+  it("tells the page a route set aside on the phone could not be sent, with the revision of the send it answers", async () => {
+    const { link, routes, sent, flow } = setup();
+    const r = route();
+    await flow.sendRoute(r);
+    sent.length = 0;
+
+    link.setRouteAside(r.id, await revisionOf(r.gpx));
+    await vi_flush();
+
+    expect(sent).toEqual([
+      {
+        v: 1,
+        type: "routeStatus",
+        routeId: r.id,
+        state: "failed",
+        why: COPY.routeNotSent,
+        revision: await revisionOf(r.gpx),
+      },
+    ]);
+    valid(sent);
+    // set aside is not sent: the stored record stays unsent
+    expect((await routes.get(r.id))?.sentAt).toBeUndefined();
+  });
+
+  it("tells the page a route set aside with no known revision could not be sent", async () => {
+    const { link, sent, flow } = setup();
+    const r = route();
+    await flow.sendRoute(r);
+    sent.length = 0;
+
+    link.setRouteAside(r.id);
+    await vi_flush();
+
+    expect(sent).toEqual([
+      { v: 1, type: "routeStatus", routeId: r.id, state: "failed", why: COPY.routeNotSent },
+    ]);
+    valid(sent);
+  });
+
   it("does not mark the route sent before the watch confirms", async () => {
     const { routes, flow } = setup();
     const r = route();
@@ -546,6 +585,7 @@ describe("send", () => {
     sent.length = 0;
     stop();
     link.confirmRoute(route().id);
+    link.setRouteAside(route().id);
     link.setStatus({ paired: true, reachable: true });
     await vi_flush();
     expect(sent).toEqual([]);
