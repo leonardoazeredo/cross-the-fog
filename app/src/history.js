@@ -268,6 +268,7 @@
     const btn = opts.button, chip = opts.chip;
     let sent = null; // { id, revision, hash } of the record last sent: the route's change counter and the hash of its GPX
     let state = null; // waiting | onWatch | failed, for `sent`
+    let why = null; // the phone's own words for a failure, when it sent any
     let paired = null;
     let unsent = 0; // routes the phone had to drop, until the user sends again
     let replyTimer = null;
@@ -286,7 +287,7 @@
       btn.disabled = !(opts.canSend() && hasRoute());
       // A route's own status outranks the line about routes lost earlier, which outranks "Not paired":
       // the user has to send those routes again whether or not the watch is paired.
-      chip.textContent = state ? STATUS_TEXT[state] : unsent > 0 ? unsentText(unsent) : paired === false ? "Not paired" : "";
+      chip.textContent = state ? (state === "failed" && why) || STATUS_TEXT[state] : unsent > 0 ? unsentText(unsent) : paired === false ? "Not paired" : "";
     }
     function unsentText(n) {
       return n === 1 ? "A route could not be sent. Send it again." : n + " routes could not be sent. Send them again.";
@@ -296,6 +297,7 @@
       const rec = record();
       if (!rec || !opts.canSend()) return;
       state = null;
+      why = null;
       unsent = 0;
       if (replyTimer) global.clearTimeout(replyTimer);
       replyTimer = null;
@@ -321,13 +323,15 @@
     return {
       // The route changed (or went away).
       update() {
-        if (state && !currentIs()) { sent = null; state = null; }
+        if (state && !currentIs()) { sent = null; state = null; why = null; }
         paint();
       },
       routeStatus(msg) {
         if (!sent || msg.routeId !== sent.id || !STATUS_TEXT[msg.state] || !currentIs()) return;
         if (msg.revision != null && msg.revision !== sent.hash) return;
         state = msg.state;
+        // Fixed text from the phone; ignored unless it is a non-empty string.
+        why = msg.state === "failed" && typeof msg.why === "string" && msg.why ? msg.why : null;
         paint();
       },
       linkStatus(msg) {
