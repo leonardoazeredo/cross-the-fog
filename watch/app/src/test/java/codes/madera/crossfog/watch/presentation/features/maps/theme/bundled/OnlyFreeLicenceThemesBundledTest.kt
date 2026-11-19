@@ -34,7 +34,7 @@ class OnlyFreeLicenceThemesBundledTest {
     @Test
     fun noLicenceTextNamesARemovedThemeAsBundled() {
         val removed =
-            Regex("""elevate|french.?kiss|tiramisu|voluntary|hike,? ride|os.map theme""", RegexOption.IGNORE_CASE)
+            Regex("""elevate|french.?kiss|tiramisu|voluntary|hike,? ride|\bos[ -]map\b""", RegexOption.IGNORE_CASE)
         val texts =
             listOfNotNull(
                 File(assets, "licenses").listFiles()?.toList(),
