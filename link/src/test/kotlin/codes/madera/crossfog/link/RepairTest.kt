@@ -37,7 +37,22 @@ class RepairTest {
   }
 
   @Test
-  fun aDropAfterTheHelloLeavesTheOldPairingWorking() = dropAt(false, "Hello", 0, 0)
+  fun aDropDuringTheHandshakeLeavesTheOldPairingWorking() = dropAt(false, "Hello", 0, 0)
+
+  @Test
+  fun aDropAfterTheWatchsHelloLeavesTheOldPairingWorking() = dropAt(true, "Hello", 0, 0)
+
+  @Test
+  fun aWatchWithANewKeyThatDropsBeforeTheCommitLeavesThePhoneOnTheOldWatch() {
+    val watchPins = MemoryPins(phoneHash)
+    val phonePins = MemoryPins(watchHash)
+    val p = PairRig(watchPins = watchPins, phonePins = phonePins, watchId = TestKeys.attacker, cutAfter = false to "PairConfirm")
+    p.rig.run()
+    assertEquals(0, phonePins.puts)
+    assertArrayEquals(watchHash, phonePins.get())
+    assertTrue(!watchHash.contentEquals(TestKeys.attacker.spkiHash()))
+    oldPairingStillWorks(watchPins, phonePins)
+  }
 
   @Test
   fun aDropAfterTheRequestLeavesTheOldPairingWorking() = dropAt(false, "PairRequest", 0, 0)

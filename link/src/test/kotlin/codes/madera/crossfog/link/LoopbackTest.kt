@@ -10,7 +10,12 @@ import org.junit.Test
 class LoopbackTest {
   @Test
   fun pairThenSendARouteAndHandAnActivityBackWithConfirmation() {
+    for (mode in Chunking.entries) loopback(mode)
+  }
+
+  private fun loopback(mode: Chunking) {
     val pairing = PairRig()
+    pairing.rig.chunking = mode
     pairing.rig.run()
     assertEquals(listOf(CloseReason.PAIRING_COMPLETE), pairing.watch.events.closed)
     assertEquals(listOf(CloseReason.PAIRING_COMPLETE), pairing.phone.events.closed)
@@ -18,6 +23,7 @@ class LoopbackTest {
     assertArrayEquals(TestKeys.watch.spkiHash(), pairing.phonePins.get())
 
     val session = NormalRig(phonePins = pairing.phonePins, watchPins = pairing.watchPins)
+    session.rig.chunking = mode
     val offer = route(ROUTE_A)
     session.phoneRoutes.queue(offer)
     session.outbox.queue(activity(ACT_1))

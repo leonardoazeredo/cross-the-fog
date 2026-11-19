@@ -19,6 +19,9 @@ enum class TlsFailure { PIN, KEY, CHAIN, PROTOCOL, OTHER }
  * must not lose its link; a key is retired by pairing again.
  *
  * It extends [X509ExtendedTrustManager] so JSSE does not wrap it with checks of its own.
+ *
+ * One manager serves one session: [failure] and [peerHash] are kept on it and never reset, so a
+ * session builds its own. The pin store, not the manager, is what outlives sessions.
  */
 class PinningTrustManager private constructor(
   private val expected: () -> ByteArray?,

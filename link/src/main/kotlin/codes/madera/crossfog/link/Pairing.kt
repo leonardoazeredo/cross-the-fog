@@ -136,11 +136,12 @@ class PairingOffer(private val clock: Clock, config: LinkConfig, random: SecureR
   /** Null when [proofHex] is right (the code is then spent), else why not. A wrong try counts; the third destroys the code. */
   fun attempt(proofHex: String, watchHash: ByteArray, phoneHash: ByteArray): PairRejection? {
     if (spent) return PairRejection.CODE_USED
-    val c = code ?: return PairRejection.TOO_MANY_TRIES
+    // Checked before the code's absence so a retry after the window still says why: the code is gone by then.
     if (clock.nowMillis() >= expiresAt) {
       destroy()
       return PairRejection.EXPIRED
     }
+    val c = code ?: return PairRejection.TOO_MANY_TRIES
     val expected = Pairing.hex(Pairing.proof(c, watchHash, phoneHash)).toByteArray(Charsets.US_ASCII)
     if (MessageDigest.isEqual(expected, proofHex.toByteArray(Charsets.US_ASCII))) {
       spent = true

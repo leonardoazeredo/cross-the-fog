@@ -13,10 +13,12 @@ class KeytoolIdentity(override val chain: List<X509Certificate>, override val ke
 class MemoryPins(initial: ByteArray? = null) : PinStore {
   private var pin: ByteArray? = initial?.copyOf()
   var puts = 0
+  var failPut = false
 
   override fun get(): ByteArray? = pin?.copyOf()
 
   override fun put(pin: ByteArray) {
+    if (failPut) throw java.io.IOException("store failed")
     puts++
     this.pin = pin.copyOf()
   }

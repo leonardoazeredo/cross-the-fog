@@ -55,7 +55,15 @@ class Peer(
 }
 
 /** Two peers joined by memory, with a filter on each direction that a test can use to drop or change bytes. */
+enum class Chunking { WHOLE, ONE_BYTE, JOINED }
+
 class Rig(val server: Peer, val client: Peer) {
+  /** How transport bytes reach the other end: as written, a byte at a time, or all queued bytes as one read. Always at a nonzero offset. */
+  var chunking = Chunking.WHOLE
+
+  /** False withholds the end of the transport, so an end must come from what was said inside TLS. */
+  var deliverEof = true
+
   var toServer: (ByteArray) -> ByteArray? = { it }
   var toClient: (ByteArray) -> ByteArray? = { it }
   private var serverEof = false
@@ -77,6 +85,22 @@ class Rig(val server: Peer, val client: Peer) {
     settle(rounds)
   }
 
+  private fun drain(queue: ArrayDeque<ByteArray>, filter: (ByteArray) -> ByteArray?): List<ByteArray> {
+    val kept = mutableListOf<ByteArray>()
+    while (queue.isNotEmpty()) filter(queue.removeFirst())?.let { kept += it }
+    return when (chunking) {
+      Chunking.WHOLE -> kept
+      Chunking.JOINED -> if (kept.isEmpty()) emptyList() else listOf(kept.fold(ByteArray(0)) { a, b -> a + b })
+      Chunking.ONE_BYTE -> kept.flatMap { c -> c.map { byteArrayOf(it) } }
+    }
+  }
+
+  private fun push(to: TlsSession, bytes: ByteArray) {
+    val padded = ByteArray(bytes.size + 3)
+    System.arraycopy(bytes, 0, padded, 3, bytes.size)
+    to.onBytes(padded, 3, bytes.size)
+  }
+
   fun settle(rounds: Int = 500) {
     repeat(rounds) {
       if (cutting) {
@@ -88,20 +112,20 @@ class Rig(val server: Peer, val client: Peer) {
         return
       }
       var moved = false
-      while (!cutting && client.out.queue.isNotEmpty()) {
+      for (chunk in drain(client.out.queue, toServer)) {
         moved = true
-        toServer(client.out.queue.removeFirst())?.let { server.session.onBytes(it, 0, it.size) }
+        if (!cutting) push(server.session, chunk)
       }
-      while (!cutting && server.out.queue.isNotEmpty()) {
+      for (chunk in drain(server.out.queue, toClient)) {
         moved = true
-        toClient(server.out.queue.removeFirst())?.let { client.session.onBytes(it, 0, it.size) }
+        if (!cutting) push(client.session, chunk)
       }
-      if (!cutting && client.out.closed && client.out.queue.isEmpty() && !serverEof) {
+      if (deliverEof && !cutting && client.out.closed && client.out.queue.isEmpty() && !serverEof) {
         serverEof = true
         moved = true
         server.session.onTransportClosed()
       }
-      if (!cutting && server.out.closed && server.out.queue.isEmpty() && !clientEof) {
+      if (deliverEof && !cutting && server.out.closed && server.out.queue.isEmpty() && !clientEof) {
         clientEof = true
         moved = true
         client.session.onTransportClosed()
@@ -113,8 +137,8 @@ class Rig(val server: Peer, val client: Peer) {
 }
 
 /** A TLS 1.2 client over the same identity and trust, to show a peer that offers less is refused. */
-fun tls12Engine(identity: Identity, trust: PinningTrustManager, client: Boolean): SSLEngine {
-  val context = SSLContext.getInstance("TLSv1.2")
+fun tls12Engine(identity: Identity, trust: PinningTrustManager, client: Boolean, protocols: Array<String> = arrayOf("TLSv1.2")): SSLEngine {
+  val context = SSLContext.getInstance("TLS")
   val keys = javax.net.ssl.KeyManagerFactory.getInstance("SunX509")
   val store = java.security.KeyStore.getInstance("PKCS12").apply { load(null, null) }
   store.setKeyEntry("k", identity.key, charArrayOf(), identity.chain.toTypedArray())
@@ -122,7 +146,7 @@ fun tls12Engine(identity: Identity, trust: PinningTrustManager, client: Boolean)
   context.init(keys.keyManagers, arrayOf(trust), null)
   return context.createSSLEngine().apply {
     useClientMode = client
-    enabledProtocols = arrayOf("TLSv1.2")
+    enabledProtocols = protocols
     if (!client) needClientAuth = true
   }
 }

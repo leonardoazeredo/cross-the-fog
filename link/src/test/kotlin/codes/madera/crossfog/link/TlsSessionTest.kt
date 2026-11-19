@@ -153,4 +153,72 @@ class TlsSessionTest {
     assertTrue(n.phone.out.writes >= 12)
     assertEquals(setOf(ROUTE_A), n.watchRoutes.saved.keys)
   }
+
+  @Test
+  fun theHandshakeTimeoutIsOverOnceTheSessionIsSecure() {
+    val n = NormalRig()
+    n.rig.run()
+    n.clock.now = n.config.handshakeTimeoutMs + 1
+    n.phone.session.tick()
+    n.watch.session.tick()
+    assertNull(n.phone.end)
+    assertNull(n.watch.end)
+    assertNull(n.phone.session.nextDeadline())
+  }
+
+  @Test
+  fun aClientThatHasHeardFromTheServerAndLosesTheStreamIsTruncatedNotRefused() {
+    val n = NormalRig()
+    n.rig.run()
+    assertTrue(n.watch.plainBytes > 0)
+    n.watch.session.onTransportClosed()
+    assertEquals(TlsEnd.TRUNCATED, n.watch.end)
+  }
+
+  @Test
+  fun aRefusedClientLearnsItFromTheAlertAloneWithNoEndOfStream() {
+    val n = NormalRig(phonePins = MemoryPins(TestKeys.attacker.spkiHash()))
+    n.rig.deliverEof = false
+    n.rig.run()
+    assertEquals(TlsEnd.REFUSED, n.watch.end)
+  }
+
+  @Test
+  fun aClientWhoseServerFailedMidSessionAfterTalkingIsNotToldItWasRefused() {
+    val n = NormalRig()
+    n.rig.run()
+    // a late alert (the server's engine fails on garbage) after the client heard the server
+    val record = byteArrayOf(0x17, 3, 3, 0, 32) + ByteArray(32) { 9 }
+    n.phone.session.onBytes(record, 0, record.size)
+    n.rig.settle()
+    assertEquals(TlsEnd.FAILED, n.phone.end)
+    assertTrue(n.watch.end != TlsEnd.REFUSED)
+  }
+
+  @Test
+  fun theEngineIsLimitedToTls13() {
+    assertEquals(listOf("TLSv1.3"), Tls.engine(TestKeys.phone, PinningTrustManager.acceptingAnyKey(), false).enabledProtocols.toList())
+  }
+
+  @Test
+  fun theProtocolCheckAfterTheHandshakeRefusesTls12EvenWhenTheEngineAllowedIt() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val phoneTrust = PinningTrustManager.pinned(MemoryPins(TestKeys.watch.spkiHash()))
+    val phone = Peer(TestKeys.phone, false, phoneTrust, clock, config, { s, e -> PhoneEndpoint(s, clock, FakePhoneRoutes(), FakeSink(), e, config) }, tls12Engine(TestKeys.phone, phoneTrust, false, arrayOf("TLSv1.2", "TLSv1.3")))
+    val watchTrust = PinningTrustManager.pinned(MemoryPins(TestKeys.phone.spkiHash()))
+    val watch = Peer(TestKeys.watch, true, watchTrust, clock, config, { s, e -> WatchEndpoint(s, clock, FakeWatchRoutes(), FakeOutbox(), e, config) }, tls12Engine(TestKeys.watch, watchTrust, true))
+    Rig(phone, watch).run()
+    assertEquals(TlsFailure.PROTOCOL, phone.session.failure)
+    assertEquals(false, phone.secured)
+    assertNull(phone.endpoint)
+  }
+
+  @Test
+  fun aWriteAfterTheSessionWasClosedThrows() {
+    val n = NormalRig()
+    n.rig.run()
+    n.watch.session.close()
+    assertThrows(java.io.IOException::class.java) { n.watch.session.write(byteArrayOf(1)) }
+  }
 }

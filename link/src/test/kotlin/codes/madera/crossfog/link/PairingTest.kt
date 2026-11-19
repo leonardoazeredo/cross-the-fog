@@ -4,6 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -224,5 +225,85 @@ class PairingTest {
     )) {
       assertNull(bad, QrPayload.parse(bad))
     }
+  }
+
+  @Test
+  fun aRetryAfterTheWindowStillSaysExpiredAndTheCodeIsGone() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val offer = PairingOffer(clock, config)
+    val hash = TestKeys.watch.spkiHash()
+    offer.payload(hash, "rfcomm")
+    clock.now = config.pairingWindowMs
+    assertEquals(PairRejection.EXPIRED, offer.attempt("0".repeat(64), hash, TestKeys.phone.spkiHash()))
+    assertEquals(PairRejection.EXPIRED, offer.attempt("0".repeat(64), hash, TestKeys.phone.spkiHash()))
+    assertThrows(IllegalStateException::class.java) { offer.payload(hash, "rfcomm") }
+  }
+
+  @Test
+  fun theOfferIsOpenUpToButNotAtTheEndOfTheWindow() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val offer = PairingOffer(clock, config)
+    clock.now = config.pairingWindowMs - 1
+    assertTrue(offer.isOpen)
+    clock.now = config.pairingWindowMs
+    assertEquals(false, offer.isOpen)
+  }
+
+  @Test
+  fun aWrongLengthOrSpareBitInTheQrIsRefusedNotCrashed() {
+    val offer = PairingOffer(FakeClock(), LinkConfig())
+    val good = offer.payload(TestKeys.watch.spkiHash(), "rfcomm").encode()
+    val (head, hash, code, hint) = good.removePrefix("crossfog:1:").split(":").let { listOf("crossfog:1:", it[0], it[1], it[2]) }
+    fun make(h: String, c: String) = "$head$h:$c:$hint"
+    assertNull(QrPayload.parse(make(hash.dropLast(1), code)))
+    assertNull(QrPayload.parse(make(hash + "A", code)))
+    assertNull(QrPayload.parse(make(hash, code.dropLast(1))))
+    assertNull(QrPayload.parse(make(hash, code + "A")))
+    // the code's last character carries 4 spare bits, the hash's 2
+    val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    val bad = alphabet[(alphabet.indexOf(code.last()) or 8)]
+    assertNull(QrPayload.parse(make(hash, code.dropLast(1) + bad)))
+  }
+
+  @Test
+  fun theQrParserReturnsNullForHugeInput() {
+    assertNull(QrPayload.parse("crossfog:1:" + "A".repeat(2_000_000)))
+  }
+
+  @Test
+  fun theWatchSaysDoneOnlyAfterItsPinIsStored() {
+    val watchPins = MemoryPins(TestKeys.phone.spkiHash())
+    watchPins.failPut = true
+    val phonePins = MemoryPins(TestKeys.watch.spkiHash())
+    val p = PairRig(watchPins = watchPins, phonePins = phonePins)
+    p.rig.run()
+    assertEquals(listOf(CloseReason.STORE_FAILED), p.watch.events.closed)
+    assertEquals(0, phonePins.puts)
+    assertEquals(CloseReason.PEER_CLOSED, p.phone.events.closed.single())
+    assertArrayEquals(TestKeys.watch.spkiHash(), phonePins.get())
+  }
+
+  @Test
+  fun aPhoneWhoseStoreFailsReportsItAndDoesNotClaimThePairing() {
+    val watchPins = MemoryPins()
+    val phonePins = MemoryPins()
+    phonePins.failPut = true
+    val p = PairRig(watchPins = watchPins, phonePins = phonePins)
+    p.rig.run()
+    assertEquals(listOf(CloseReason.STORE_FAILED), p.phone.events.closed)
+    assertNull(phonePins.get())
+  }
+
+  @Test
+  fun aLargerFrameInThePhonesPairingSessionClosesItToo() {
+    val clock = FakeClock()
+    val ends = RecordingEvents()
+    val qr = PairingOffer(clock, LinkConfig()).payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val phone = PhonePairingEndpoint(MemoryStream(), clock, ends, LinkConfig(), qr, TestKeys.phone.spkiHash(), MemoryPins())
+    phone.open()
+    phone.onBytes(byteArrayOf(0, 0, 2, 1), 0, 4)
+    assertEquals(listOf(CloseReason.BAD_FRAME), ends.closed)
   }
 }
