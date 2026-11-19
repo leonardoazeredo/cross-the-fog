@@ -12,10 +12,10 @@ interface LedgerStore {
 
 /** What the app does about an item the ledger has given up on or pushed back. */
 sealed interface LedgerAction {
-  /** A definite local failure three sessions running: take the item out of the queue (never delete it) and tell the user. */
+  /** A definite local failure [ItemLedger]'s threshold times with no confirmation between: take the item out of the queue (never delete it) and tell the user. */
   data class SetAside(val item: ItemRef) : LedgerAction
 
-  /** The item ended three or more sessions unconfirmed: [ItemLedger.prefer] now offers it after the others. */
+  /** The item ended [ItemLedger]'s threshold times or more unconfirmed, with no confirmation between: [ItemLedger.prefer] now offers it after the others. */
   data class Demoted(val item: ItemRef) : LedgerAction
 }
 
@@ -26,12 +26,12 @@ sealed interface LedgerAction {
  *
  * - **Definite local failures** ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM] naming an item of
  *   this app's own queue): after [threshold] times with no confirmation between the ledger answers [LedgerAction.SetAside].
- * - **Unconfirmed ends** (any other end with an own item in flight, which a dropped link causes just as well):
+ * - **Unconfirmed ends** (an end other than a local close or a finished pairing, with an own item in flight; a dropped link causes one just as well):
  *   after [threshold] times with no confirmation between the item is [LedgerAction.Demoted], and [prefer] offers every other
  *   item first. Each further unconfirmed end demotes it again, so two items that both fail take turns
- *   instead of the older one starving the other. Nothing is parked and nothing blocks.
+ *   instead of the older one starving the other. Nothing is parked.
  *
- * A count only resets through [confirmed] or [forget]. A session that ends because of the peer's item
+ * A count resets through [confirmed] or [forget], or when its entry is evicted past [maxEntries]. A session that ends because of the peer's item
  * (a failure that names an item of the other kind) says nothing about this app's own items and is not counted.
  */
 class ItemLedger(
