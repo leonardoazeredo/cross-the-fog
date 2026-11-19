@@ -95,7 +95,7 @@ if (phone && !existsSync(join(linkDir, "build.gradle.kts"))) {
   process.exit(1);
 }
 
-// A cold run compiles the whole app (a full debug build measured 3 min 31 s when the app was imported), so the line warns it can be slow.
+// The watch plan compiles the whole app, so its first run on a machine is slow; only its line says so.
 say(
   `gradle ${plan.gradleTasks.join(" ")} in ${phone ? "mobile/android" : "watch"} (about ${phone ? "20 to 60 s" : "10 to 40 s warm, minutes cold"}; a first run on a new machine downloads Gradle's dependencies)`,
 );
