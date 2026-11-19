@@ -31,7 +31,7 @@ for (const c of vectors.cases) {
 }
 assert.ok(checked >= 2, "the vectors hold route offers to check against");
 
-// The page needs the script: without its tag every Send tap fails, and no other test loads index.html.
+// The page needs the script: without its tag every Send tap fails, and nothing else checks this tag.
 const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
 const at = (name) => html.indexOf(`<script src="src/${name}"></script>`);
 assert.ok(at("sha256.js") > 0, "index.html loads sha256.js");
