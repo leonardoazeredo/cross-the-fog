@@ -67,8 +67,8 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
-  // A promote that failed leaves the copy pending and the page showing it, and the next start's recover would drop it
-  // and tell the user a second time. So the copy goes now and the previous fog comes back, with one notice.
+  // A promote that failed without saving the new fog leaves the copy pending and the page showing it, and the next
+  // start's recover would drop it and tell the user a second time. So the copy goes now and the previous fog comes back, with one notice.
   async function dropUnkeptCopy(): Promise<void> {
     try {
       await store.discardPending();
@@ -88,6 +88,33 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     } catch (e) {
       warnClass("import", "could not reload after an import it could not keep", e);
       deps.notify(COPY.importFailed);
+    }
+    await endImport();
+  }
+
+  // `promotePending` writes the new pointer before it removes the old pointer and pending.json, so a failure
+  // in those leaves the new copy as the saved fog. An unreadable store is not an answer: the copy is then treated
+  // as not kept, as before. The savedAt tells it from an older copy of the same file.
+  async function newCopyIsCurrent(staged: CopyMeta | null): Promise<boolean> {
+    if (!staged) return false;
+    try {
+      const current = await store.current();
+      return current?.sha256 === staged.sha256 && current.savedAt === staged.savedAt;
+    } catch (e) {
+      warnClass("import", "could not read the saved fog after a failed promote", e);
+      return false;
+    }
+  }
+
+  // The import took effect, so it ends as one that did: nothing is dropped from the page and nothing is said.
+  // pending.json and the zips no pointer keeps are cleared if they can be. An old pointer a failed promote left is
+  // removed by the next start's recover (the highest pointer is the current one meanwhile), which also drops a
+  // pending.json that stayed (the removal failed twice) and says the import failed, as it does for any pending copy.
+  async function settleKeptImport(): Promise<void> {
+    try {
+      await store.discardPending();
+    } catch (e) {
+      warnClass("import", "could not clear what a kept import left behind", e);
     }
     await endImport();
   }
@@ -250,12 +277,20 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
         }
         return;
       }
+      // What the copy is before the promote, to tell afterwards whether the saved fog became it.
+      let staged: CopyMeta | null = null;
       try {
-        if (msg.ok) await store.promotePending();
-        else await store.discardPending();
+        if (msg.ok) {
+          staged = await store.pending();
+          await store.promotePending();
+        } else await store.discardPending();
       } catch (e) {
         if (msg.ok) {
           warnClass("import", "could not keep an import", e);
+          if (await newCopyIsCurrent(staged)) {
+            await settleKeptImport();
+            return;
+          }
           await dropUnkeptCopy();
           return;
         }
