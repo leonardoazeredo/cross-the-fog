@@ -39,6 +39,14 @@ class MapThemePreferencesTest {
     }
 
     @Test
+    fun `a first per-map style edit with no theme stored pins OpenHiking, the default`() {
+        preferences.mapPath = "a.map"
+        preferences.edit().putString(STYLE, "hiking").apply()
+        assertEquals("openhiking", disk.all.entries.single { it.key.endsWith("selected_theme_id") }.value)
+        assertEquals("hiking", preferences.getString(STYLE, null))
+    }
+
+    @Test
     fun `per-map styles and overlays remain distinct while terrain toggles remain global`() {
         preferences.mapPath = "a.map"
         preferences

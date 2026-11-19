@@ -25,6 +25,10 @@ object BundledRenderThemeAssetLocator {
                 ),
         )
 
+    /** Where the theme's XML is packaged, relative to the assets root, or null for an id that is not bundled. */
+    internal fun generatedXmlPathOrNull(themeId: String?): String? =
+        resolveKnownThemeIdOrNull(themeId)?.let { specs.getValue(it) }?.let { "${it.generatedRoot}/${it.xmlFileName}" }
+
     fun isThemeAvailable(
         assets: AssetManager,
         themeId: String,
