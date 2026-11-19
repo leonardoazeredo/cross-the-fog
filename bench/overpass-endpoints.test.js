@@ -918,6 +918,7 @@ const realFetch = global.fetch;
       await Overpass.post("data=3");
       assert.deepEqual(calls, [N, M], "the third is still asked");
       assert.equal(warns.length, 1, "the third rejection logs one line");
+      assert.equal(warns[0], "[overpass] endpoint rejected nextgis 3 fetches in a row; held 10 min", "the line names the endpoint and the count");
       assert.ok(!warns[0].includes(KEY) && !warns[0].includes(encodeURIComponent(KEY)) && !/nextgis\.com|https?:/.test(warns[0]), "no key and no URL in it: " + warns[0]);
       calls = []; t += 30_001;
       await Overpass.post("data=4");
@@ -988,6 +989,20 @@ const realFetch = global.fetch;
       await Overpass.post("data=6");
       assert.deepEqual(calls, [N], "two, an answer that is not a success, two: never three in a row");
     }
+  }
+  { // 26g. every endpoint rejecting: the post's reason stays offline through the long hold, and Overpass.cap() (4 for
+    //      NextGIS, 2 for overpass-api.de, whichever is asked first and not held) shows NextGIS held for 10 minutes
+    reset({ order: null });
+    global.fetch = routed({ [N]: unreachable, [M]: unreachable });
+    for (let i = 1; i <= 3; i++) {
+      assert.equal((await rejection(Overpass.post("data=" + i))).reason, "offline");
+      t += 30_001;
+    }
+    assert.equal(Overpass.cap(), 2, "NextGIS is held after the third rejection, though its 30 s are over");
+    t += 540_000;
+    assert.equal(Overpass.cap(), 2, "still held just before the 10 minutes are up");
+    t += 30_001;
+    assert.equal(Overpass.cap(), 4, "free again after them");
   }
   { // 26c. only NextGIS has the long hold: overpass-api.de rejected three times in a row is still held 30 s
     reset({ key: null });
