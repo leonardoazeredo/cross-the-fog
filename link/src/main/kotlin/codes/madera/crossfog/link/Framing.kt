@@ -39,8 +39,9 @@ object Framing {
    * is allocated only as bytes arrive, doubling up to the claimed length, so a peer that claims
    * 16 MiB and sends nothing costs a few bytes and one that sends the whole frame costs exactly the
    * frame. A refused length throws [ProtocolException] and leaves the decoder refusing the same.
+   * [maxFrame] is the largest body this decoder takes, checked from the length alone, before any body byte.
    */
-  class Decoder {
+  class Decoder(private val maxFrame: Int = MAX_FRAME_BYTES) {
     private val head = ByteArray(PREFIX_BYTES)
     private var headLength = 0
     private var inBody = false
@@ -64,7 +65,7 @@ object Framing {
           at += n
           if (headLength < PREFIX_BYTES) return
           val claimed = lengthOf(head)
-          checkLength(claimed)
+          checkLength(claimed, maxFrame)
           want = claimed.toInt()
           inBody = true
           bodyLength = 0
@@ -120,9 +121,9 @@ object Framing {
     return body.toByteArray()
   }
 
-  private fun checkLength(length: Long) {
+  private fun checkLength(length: Long, max: Int = MAX_FRAME_BYTES) {
     if (length == 0L) throw ProtocolException(ProtocolError.FRAME_EMPTY)
-    if (length > MAX_FRAME_BYTES) throw ProtocolException(ProtocolError.FRAME_TOO_LARGE)
+    if (length > max) throw ProtocolException(ProtocolError.FRAME_TOO_LARGE)
   }
 
   private fun lengthOf(bytes: ByteArray): Long =

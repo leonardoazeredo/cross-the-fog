@@ -79,6 +79,20 @@ enum class CloseReason {
   UNSENDABLE_ITEM,
   /** [Endpoint.close] was called. */
   LOCAL,
+  /** The TLS handshake or a TLS record failed (the failure kind is on the session, never peer text). */
+  TLS_FAILED,
+  /**
+   * The peer ended or refused the session before it said anything. A TLS 1.3 client finishes its
+   * handshake before the server has checked the client certificate, so a server that does not pin
+   * this end shows as an alert or an end of stream after the client's handshake, and that is this reason.
+   */
+  TLS_REFUSED,
+  /** The stream ended without a TLS close_notify, so the end may have been cut by someone on the path. */
+  TLS_TRUNCATED,
+  /** A pairing session finished as designed (both pins committed). */
+  PAIRING_COMPLETE,
+  /** A pairing was refused: on the phone, the watch refused the proof; on the watch, this end did (any [PairRejection]). */
+  PAIRING_REFUSED,
 }
 
 /** What the caller wants to know about the link. */
@@ -97,9 +111,19 @@ interface LinkEvents {
   fun closed(reason: CloseReason, itemId: String?)
 }
 
-/** How long an endpoint waits. */
-data class LinkConfig(val helloTimeoutMs: Long = 10_000, val confirmTimeoutMs: Long = 60_000) {
+/**
+ * How long an endpoint waits. [handshakeTimeoutMs] covers the TLS handshake until it finishes (the hello
+ * wait is [helloTimeoutMs]); [pairingWindowMs] is how long a pairing code can be used (the spec gives none).
+ */
+data class LinkConfig(
+  val helloTimeoutMs: Long = 10_000,
+  val confirmTimeoutMs: Long = 60_000,
+  val handshakeTimeoutMs: Long = 10_000,
+  val pairingWindowMs: Long = 5 * 60_000,
+) {
   init {
-    require(helloTimeoutMs > 0 && confirmTimeoutMs > 0) { "timeouts must be positive" }
+    require(helloTimeoutMs > 0 && confirmTimeoutMs > 0 && handshakeTimeoutMs > 0 && pairingWindowMs > 0) {
+      "timeouts must be positive"
+    }
   }
 }

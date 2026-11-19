@@ -29,6 +29,48 @@ data class Hello(val versions: List<Int>) : Message {
   }
 }
 
+/** Why the watch refused a pairing. The wire names are fixed and nothing else is ever sent as a reason. */
+enum class PairRejection(val wire: String) {
+  WRONG_CODE("wrong_code"),
+  CODE_USED("code_used"),
+  EXPIRED("expired"),
+  TOO_MANY_TRIES("too_many_tries");
+
+  companion object {
+    fun of(wire: String): PairRejection? = entries.firstOrNull { it.wire == wire }
+  }
+}
+
+/** Phone to watch, first message of a pairing session: `proof` is 64 lowercase hex (see [Pairing.proof]). */
+data class PairRequest(val proof: String) : Message {
+  init {
+    Fields.revision(proof, "proof")
+  }
+
+  // The proof is derived from the one-time code, so it stays out of any log.
+  override fun toString() = "PairRequest"
+}
+
+/** Watch to phone: the proof matched and the code is spent; the watch has stored nothing yet. */
+object PairAccepted : Message {
+  override fun toString() = "PairAccepted"
+}
+
+/** Watch to phone: the proof was refused, for one of the fixed reasons. */
+data class PairRejected(val reason: PairRejection) : Message {
+  override fun toString() = "PairRejected"
+}
+
+/** Phone to watch: the phone has the watch's key staged and the watch may store the phone's. */
+object PairConfirm : Message {
+  override fun toString() = "PairConfirm"
+}
+
+/** Watch to phone: the watch has stored the phone's key; the phone may store the watch's. */
+object PairDone : Message {
+  override fun toString() = "PairDone"
+}
+
 /** `{"type":"ping"}`: no fields. */
 object Ping : Message {
   override fun toString() = "Ping"
@@ -101,6 +143,11 @@ object Messages {
       "routeSaved" -> RouteSaved(Fields.uuid(o.opt("routeId"), "routeId"), Fields.revision(o.opt("revision"), "revision"))
       "activityOffer" -> activityOffer(o)
       "activityStored" -> ActivityStored(Fields.uuid(o.opt("activityId"), "activityId"))
+      "pairRequest" -> PairRequest(Fields.revision(o.opt("proof"), "proof"))
+      "pairAccepted" -> PairAccepted
+      "pairRejected" -> PairRejected(PairRejection.of(Fields.text(o.opt("reason"), "reason", 32)) ?: throw Fields.invalid("reason"))
+      "pairConfirm" -> PairConfirm
+      "pairDone" -> PairDone
       else -> throw ProtocolException(ProtocolError.UNKNOWN_TYPE)
     }
   }
@@ -120,6 +167,11 @@ object Messages {
           (if (message.routeId != null) """"routeId":"${message.routeId}",""" else "") +
           """"encoderVersion":${q(message.encoderVersion)},"gpx":${q(message.gpx)}}"""
       is ActivityStored -> """$head"activityStored","activityId":"${message.activityId}"}"""
+      is PairRequest -> """$head"pairRequest","proof":"${message.proof}"}"""
+      is PairAccepted -> """$head"pairAccepted"}"""
+      is PairRejected -> """$head"pairRejected","reason":"${message.reason.wire}"}"""
+      is PairConfirm -> """$head"pairConfirm"}"""
+      is PairDone -> """$head"pairDone"}"""
     }
     return text.toByteArray(Charsets.UTF_8)
   }

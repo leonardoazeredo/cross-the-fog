@@ -190,6 +190,84 @@
       "name": "activity_stored_with_a_bad_id",
       "frame": "000000337b2276223a312c2274797065223a22616374697669747953746f726564222c2261637469766974794964223a222e2e2f78227d",
       "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_request",
+      "frame": "000000677b2276223a312c2274797065223a227061697252657175657374222c2270726f6f66223a2261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162227d",
+      "canonical": "{\"v\":1,\"type\":\"pairRequest\",\"proof\":\"abababababababababababababababababababababababababababababababab\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_accepted",
+      "frame": "0000001d7b2276223a312c2274797065223a22706169724163636570746564227d",
+      "canonical": "{\"v\":1,\"type\":\"pairAccepted\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_rejected_wrong_code",
+      "frame": "000000337b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a2277726f6e675f636f6465227d",
+      "canonical": "{\"v\":1,\"type\":\"pairRejected\",\"reason\":\"wrong_code\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_rejected_code_used",
+      "frame": "000000327b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a22636f64655f75736564227d",
+      "canonical": "{\"v\":1,\"type\":\"pairRejected\",\"reason\":\"code_used\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_rejected_expired",
+      "frame": "000000307b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a2265787069726564227d",
+      "canonical": "{\"v\":1,\"type\":\"pairRejected\",\"reason\":\"expired\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_rejected_too_many_tries",
+      "frame": "000000377b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a22746f6f5f6d616e795f7472696573227d",
+      "canonical": "{\"v\":1,\"type\":\"pairRejected\",\"reason\":\"too_many_tries\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_confirm",
+      "frame": "0000001c7b2276223a312c2274797065223a2270616972436f6e6669726d227d",
+      "canonical": "{\"v\":1,\"type\":\"pairConfirm\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_done",
+      "frame": "000000197b2276223a312c2274797065223a2270616972446f6e65227d",
+      "canonical": "{\"v\":1,\"type\":\"pairDone\"}",
+      "roundTrip": true
+    },
+    {
+      "name": "pair_request_proof_uppercase",
+      "frame": "000000677b2276223a312c2274797065223a227061697252657175657374222c2270726f6f66223a2241424142414241424142414241424142414241424142414241424142414241424142414241424142414241424142414241424142414241424142414241424142227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_request_proof_short",
+      "frame": "000000657b2276223a312c2274797065223a227061697252657175657374222c2270726f6f66223a226162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_request_proof_missing",
+      "frame": "0000001c7b2276223a312c2274797065223a227061697252657175657374227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_rejected_unknown_reason",
+      "frame": "000000307b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a2262656361757365227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_rejected_reason_missing",
+      "frame": "0000001d7b2276223a312c2274797065223a227061697252656a6563746564227d",
+      "error": "FIELD_MISSING_OR_INVALID"
+    },
+    {
+      "name": "pair_rejected_reason_number",
+      "frame": "000000287b2276223a312c2274797065223a227061697252656a6563746564222c22726561736f6e223a317d",
+      "error": "FIELD_MISSING_OR_INVALID"
     }
   ]
 }
