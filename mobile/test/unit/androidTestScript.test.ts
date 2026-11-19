@@ -102,6 +102,7 @@ describe("scripts/android-test.ts", () => {
   it("runs Gradle in the directory the plan names, and treats only the phone project as generated", () => {
     expect(script).toContain('run("./gradlew", plan.gradleTasks, gradleDirFor(plan, mobile), env)');
     expect(script).toContain('const phone = plan.project === "phone";');
+    expect(script).toContain('const hasGradlew = existsSync(join(androidDir, "gradlew"));');
     expect(script).toContain("if (phone && !hasGradlew)");
     expect(script).toContain('if (phone && !existsSync(join(linkDir, "build.gradle.kts")))');
   });

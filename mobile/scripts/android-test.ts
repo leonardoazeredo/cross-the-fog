@@ -65,7 +65,7 @@ const phone = plan.project === "phone";
 
 // android/ is generated and git-ignored, so a fresh checkout or worktree has none; a gate that skipped
 // without it would pass while testing nothing.
-const hasGradlew = !phone || existsSync(join(androidDir, "gradlew"));
+const hasGradlew = existsSync(join(androidDir, "gradlew"));
 if (phone && !hasGradlew) {
   say("mobile/android is missing; generating the page (about 2 s)");
   if (run("pnpm", ["generate"], mobile, env) !== 0) process.exit(1);
