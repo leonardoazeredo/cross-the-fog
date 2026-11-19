@@ -8,11 +8,16 @@ import appConfig from "../../../app.config.js";
 const require = createRequire(import.meta.url);
 const MOBILE = resolve(fileURLToPath(import.meta.url), "../../../..");
 const PLUGIN = "./plugins/withMinSdk.cjs";
-const { applyMinSdk, MIN_SDK, MARKER } = require("../../../plugins/withMinSdk.cjs") as {
+const withMinSdk = require("../../../plugins/withMinSdk.cjs") as ((config: object) => {
+  mods: {
+    android: { projectBuildGradle: (c: object) => Promise<{ modResults: { contents: string } }> };
+  };
+}) & {
   applyMinSdk: (contents: string) => string;
   MIN_SDK: number;
   MARKER: string;
 };
+const { applyMinSdk, MIN_SDK, MARKER } = withMinSdk;
 
 const ROOT = `buildscript {\n}\n\nallprojects {\n}\n\napply plugin: "expo-root-project"\napply plugin: "com.facebook.react.rootproject"\n`;
 
@@ -37,6 +42,25 @@ describe("the phone's minSdk", () => {
 
   it("fails loudly when the template has no expo-root-project line to anchor on", () => {
     expect(() => applyMinSdk("buildscript {\n}\n")).toThrow(/expo-root-project/);
+  });
+});
+
+describe("the exported plugin", () => {
+  it("rewrites the generated root build.gradle through the projectBuildGradle mod", async () => {
+    const config = withMinSdk({ name: "x", slug: "x" });
+    const result = await config.mods.android.projectBuildGradle({
+      ...config,
+      modResults: { contents: ROOT, language: "groovy" },
+      modRequest: {
+        projectRoot: "/x",
+        platformProjectRoot: "/x/android",
+        modName: "projectBuildGradle",
+        platform: "android",
+        introspect: true,
+      },
+      modRawConfig: config,
+    });
+    expect(result.modResults.contents).toBe(applyMinSdk(ROOT));
   });
 });
 
