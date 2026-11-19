@@ -67,8 +67,8 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
-  // A promote that failed leaves the copy pending and the page showing it, and the next start's recover would drop it
-  // and tell the user a second time. So the copy goes now and the previous fog comes back, with one notice.
+  // A promote that failed without saving the new fog leaves the copy pending and the page showing it, and the next
+  // start's recover would drop it and tell the user a second time. So the copy goes now and the previous fog comes back, with one notice.
   async function dropUnkeptCopy(): Promise<void> {
     try {
       await store.discardPending();

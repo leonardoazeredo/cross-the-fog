@@ -1074,9 +1074,35 @@ it("a promote that fails removing the old pointer has still saved the new fog, s
   expect(await h.store.recover()).toEqual({ discardedPending: false });
 });
 
-it("a promote that fails removing pending.json has still saved the new fog, and the copy it cannot clear is dropped at the next start", async () => {
+const failRemovingZips = (h: Harness): void => {
+  const real = h.fs.remove.bind(h.fs);
+  h.fs.remove = async (name) => {
+    if (name.endsWith(".zip")) throw new Error("path detail");
+    return real(name);
+  };
+};
+
+it("a promote that fails in its last step, after pending.json is gone, has still saved the new fog", async () => {
   const h = await savedThenImportingB();
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  failRemovingZips(h);
+  h.sent.length = 0;
+
+  await h.c.onWebMessage(loadedB);
+
+  // The staged copy is read before the promote: afterwards pending.json is already gone.
+  expect(await h.store.pending()).toBeNull();
+  expect((await h.store.current())?.sha256).toBe(sha(B));
+  expect(h.remounts.count).toBe(1);
+  expect(h.notified).toEqual([]);
+  expect(h.busy.at(-1)).toBe(false);
+  expect(noNotice(h)).toEqual([]);
+});
+
+it("a promote that fails removing pending.json has still saved the new fog; the copy it cannot clear makes the next start say the import failed", async () => {
+  const h = await savedThenImportingB();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const real = h.fs.remove.bind(h.fs);
   failRemovingPending(h);
   h.sent.length = 0;
 
@@ -1087,6 +1113,11 @@ it("a promote that fails removing pending.json has still saved the new fog, and 
   expect(h.notified).toEqual([]);
   expect(h.busy.at(-1)).toBe(false);
   expect(noNotice(h)).toEqual([]);
+
+  // The accepted limit: recover drops any pending copy and says so, though the saved fog is the new one.
+  h.fs.remove = real;
+  expect(await h.store.recover()).toEqual({ discardedPending: true });
+  expect((await h.store.current())?.sha256).toBe(sha(B));
 });
 
 it("a failed promote with nothing saved before leaves no fog and says so once", async () => {
