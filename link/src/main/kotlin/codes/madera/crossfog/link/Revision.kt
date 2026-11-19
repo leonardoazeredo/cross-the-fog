@@ -38,6 +38,12 @@ object Revision {
       bytes.clear()
       at = end
     }
+    // Android's encoder keeps a trailing unpaired surrogate until it is flushed; without it the "?" is never written.
+    if (gpx.isNotEmpty()) {
+      encoder.flush(bytes)
+      bytes.flip()
+      digest.update(bytes)
+    }
     return digest.digest().joinToString("") { "%02x".format(it) }
   }
 

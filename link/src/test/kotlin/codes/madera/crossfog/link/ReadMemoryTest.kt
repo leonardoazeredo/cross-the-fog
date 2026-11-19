@@ -79,6 +79,8 @@ class ReadMemoryTest {
         assertEquals("pad $pad middle ${middle.length}", expected(text), Revision.of(text))
       }
     }
+    // Every char three bytes: a slice is then 48 Ki bytes, the most one slice can hold, and any smaller buffer drops the rest of it.
+    for (text in listOf("\u20ac".repeat(40_000), "\u0800".repeat(16 * 1024), "\u20ac".repeat(16 * 1024 + 1))) assertEquals(expected(text), Revision.of(text))
     repeat(100) {
       val text = randomText(random, 3000)
       assertEquals(expected(text), Revision.of(text))
