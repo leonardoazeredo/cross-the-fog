@@ -34,7 +34,7 @@ function runsFor(file: string): boolean {
 }
 
 describe("the pre-push hook's verify command", () => {
-  it("is declared once, as `pnpm verify` of mobile/", () => {
+  it("is declared once, as `pnpm --dir mobile verify`", () => {
     expect(LEFTHOOK_YML.match(/^\s*run: pnpm --dir mobile verify\s*$/gm)).toHaveLength(1);
   });
 
@@ -45,7 +45,9 @@ describe("the pre-push hook's verify command", () => {
     .each([
       "watch/app/src/main/java/A.kt",
       "watch/app/detekt-baseline.xml",
+      "watch/build.gradle.kts",
       "link/src/main/kotlin/B.kt",
+      "link/build.gradle.kts",
       "app/src/main.js",
       "app/index.html",
       "mobile/package.json",
