@@ -54,6 +54,25 @@ class RecordingOutboxHookTest {
     }
 
     @Test
+    fun aSavedRecordingReachesTheLinksOutboxThroughTheHookTheAppUses() {
+        val ledger = ItemLedger(MemoryLedger(), ItemKind.ACTIVITY)
+        val outbox = WatchOutbox(File(tmp.root, "outbox"), ledger, {})
+        val link =
+            WatchLink(
+                outbox = outbox,
+                ledger = ledger,
+                routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }),
+                pins = FilePinStore(File(tmp.root, "link"), {}),
+                identityPresent = { true },
+            )
+        createRecordingHook(log = { logs += it }) { link }.onSaved("<gpx>a</gpx>".toByteArray())
+        val offer = outbox.next()!!
+        assertEquals("<gpx>a</gpx>", offer.gpx)
+        assertEquals(codes.madera.crossfog.watch.BuildConfig.VERSION_NAME.trim().ifEmpty { "unknown" }.take(64), offer.encoderVersion)
+        assertTrue(logs.isEmpty())
+    }
+
+    @Test
     fun theLinkIsResolvedInsideTheGuardSoItsFirstBuildCannotFailTheSave() {
         val hook = createRecordingHook(log = { logs += it }) { throw IllegalStateException("no preferences") }
         hook.onSaved("<gpx>a</gpx>".toByteArray())
