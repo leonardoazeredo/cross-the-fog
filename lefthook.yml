@@ -8,5 +8,10 @@ pre-commit:
 pre-push:
   commands:
     verify:
-      root: "mobile/"
-      run: pnpm verify
+      # No `root`: lefthook would keep only the push's files under mobile/ and skip a watch-, link- or page-only push.
+      glob:
+        - "watch/**"
+        - "link/**"
+        - "app/**"
+        - "mobile/**"
+      run: pnpm --dir mobile verify
