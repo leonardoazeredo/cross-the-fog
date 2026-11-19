@@ -8,9 +8,14 @@ import org.junit.Test
 
 /** The rules both ends share: hello first, one version, timeouts, nothing out of turn. */
 class EndpointBaseTest {
-  private fun each(prepare: (Solo) -> Unit = {}, config: LinkConfig = LinkConfig(), block: (Solo, Endpoint) -> Unit) {
+  private fun each(
+    prepare: (Solo) -> Unit = {},
+    config: LinkConfig = LinkConfig(),
+    clock: FakeClock = FakeClock(),
+    block: (Solo, Endpoint) -> Unit,
+  ) {
     for (kind in listOf("phone", "watch")) {
-      val solo = Solo(config)
+      val solo = Solo(config, FakeClock(clock.now))
       prepare(solo)
       block(solo, if (kind == "phone") solo.phone() else solo.watch())
     }
@@ -240,10 +245,25 @@ class EndpointBaseTest {
   fun aStreamThatDropsBeforeOpenClosesOnceAndIsClosed() {
     each { solo, endpoint ->
       endpoint.onClosed()
+      endpoint.onClosed()
+      assertTrue(endpoint.isClosed)
       assertEquals(listOf(CloseReason.PEER_CLOSED), solo.events.closed)
       assertEquals(1, solo.stream.closeCalls)
+    }
+  }
+
+  @Test
+  fun theHelloWaitRunsFromWhenTheLinkOpenedNotFromClockZero() {
+    each(config = LinkConfig(helloTimeoutMs = 100), clock = FakeClock(5_000)) { solo, endpoint ->
+      endpoint.open()
+      assertEquals(5_100L, endpoint.nextDeadline())
+      solo.clock.now = 5_099
       endpoint.tick()
-      assertEquals(null, endpoint.nextDeadline())
+      assertTrue(solo.events.closed.isEmpty())
+      solo.clock.now = 5_100
+      endpoint.tick()
+      assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+      assertEquals(listOf<String?>(null), solo.events.itemIds)
     }
   }
 
@@ -287,6 +307,14 @@ class EndpointBaseTest {
       solo.stream.failWrites = true
       endpoint.open()
       assertEquals(listOf(CloseReason.WRITE_FAILED), solo.events.closed)
+      assertTrue(endpoint.isClosed)
+      assertEquals(null, endpoint.nextDeadline())
+      solo.clock.now = 1_000_000
+      endpoint.tick()
+      endpoint.onClosed()
+      endpoint.wake()
+      assertEquals(listOf(CloseReason.WRITE_FAILED), solo.events.closed)
+      assertEquals(1, solo.stream.closeCalls)
     }
   }
 

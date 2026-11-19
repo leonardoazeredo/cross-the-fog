@@ -24,6 +24,7 @@ class PhoneEndpointTest {
     val other = route(ROUTE_A, "<gpx>another</gpx>").revision
     phone.feed(RouteSaved(ROUTE_A, other))
     assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
+    assertEquals(listOf<String?>(null), solo.events.itemIds)
     assertTrue(solo.phoneRoutes.delivered.isEmpty())
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
   }
@@ -227,6 +228,7 @@ class PhoneEndpointTest {
     solo.clock.now = 1000
     phone.tick()
     assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+    assertEquals(listOf<String?>(null), solo.events.itemIds)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
   }
 
@@ -333,6 +335,7 @@ class PhoneEndpointTest {
     solo.stream.failWrites = true
     phone.feed(HELLO)
     assertEquals(listOf(CloseReason.WRITE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(null), solo.events.itemIds)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
   }
 

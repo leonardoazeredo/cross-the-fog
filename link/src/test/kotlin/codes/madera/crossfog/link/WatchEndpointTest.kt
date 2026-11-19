@@ -119,6 +119,7 @@ class WatchEndpointTest {
     val watch = solo.ready(solo.watch())
     watch.feed(ActivityStored(ACT_3))
     assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
+    assertEquals(listOf<String?>(null), solo.events.itemIds)
     assertTrue(solo.outbox.deleted.isEmpty())
     assertEquals(setOf(ACT_1, ACT_3), solo.outbox.queued.keys)
   }
@@ -182,7 +183,28 @@ class WatchEndpointTest {
     solo.clock.now = 500
     watch.tick()
     assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+    assertEquals(listOf<String?>(null), solo.events.itemIds)
     assertEquals(setOf(ACT_1), solo.outbox.queued.keys)
+  }
+
+  @Test
+  fun theWaitForAConfirmationStartsWhenTheWriteReturns() {
+    val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    solo.outbox.queue(act1)
+    val slow = object : ByteStream {
+      override fun write(bytes: ByteArray) {
+        solo.stream.write(bytes)
+        solo.clock.now += 400
+      }
+
+      override fun close() = solo.stream.close()
+    }
+    val watch = WatchEndpoint(slow, solo.clock, solo.watchRoutes, solo.outbox, solo.events, solo.config)
+    watch.open()
+    solo.clock.now = 0
+    watch.feed(HELLO)
+    // the length and the body were two writes of 400 ms each before the clock was read
+    assertEquals(800L + 1000L, watch.nextDeadline())
   }
 
   @Test
@@ -237,7 +259,7 @@ class WatchEndpointTest {
     assertEquals(listOf(CloseReason.UNSENDABLE_ITEM), solo.events.closed)
     assertEquals(listOf<String?>(ACT_1), solo.events.itemIds)
     assertEquals(setOf(ACT_1), solo.outbox.queued.keys)
-    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertEquals(emptyList<Message>(), solo.pending)
   }
 
   @Test
