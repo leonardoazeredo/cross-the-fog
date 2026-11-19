@@ -53,7 +53,7 @@
     return typeof key === "string" && key ? "https://overpass.nextgis.com/" + encodeURIComponent(key) + "/api/interpreter" : undefined;
   }
   let state = {}; // url -> {until: time before which it is not asked again, heldAt: when that hold was set, why: its reason, error: the failure that earned it, stalls: in a row, rejects: rejected fetches in a row on NextGIS}
-  let warned = {}; // endpoint name -> true once a 401/403/404 from NextGIS was logged; keyed on the name, the URL holds the key
+  let warned = {}; // endpoint name -> true once a 401/403/404 from NextGIS was logged; keyed on the name, the URL holds the key; `rejects` -> true while the line for NextGIS's current streak of rejected fetches is out
   let slots = {}; // endpoint name -> {open: requests in flight, waiting: resolvers, first come first served}
 
   const stateOf = (url) => state[url] || (state[url] = { until: 0, heldAt: -Infinity, why: null, error: null, stalls: 0, rejects: 0 });
