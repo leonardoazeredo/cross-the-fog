@@ -82,6 +82,11 @@
       "error": "NOT_A_JSON_OBJECT"
     },
     {
+      "name": "version_negative_zero",
+      "frame": "000000167b2276223a2d302c2274797065223a2270696e67227d",
+      "error": "NOT_A_JSON_OBJECT"
+    },
+    {
       "name": "hex_number",
       "frame": "000000177b2276223a3078312c2274797065223a2270696e67227d",
       "error": "NOT_A_JSON_OBJECT"
