@@ -106,10 +106,10 @@ export function createImportFlow(deps: ImportFlowDeps): ImportFlow {
     }
   }
 
-  // The import took effect, so it ends as one that did: nothing is dropped from the page and nothing is said. The
-  // old pointer and pending.json a failed promote left are cleared if they can be. A pending.json that stays (the
-  // removal failed twice) is dropped by the next start's recover, which says the import failed, as it does for any
-  // pending copy.
+  // The import took effect, so it ends as one that did: nothing is dropped from the page and nothing is said.
+  // pending.json and the zips no pointer keeps are cleared if they can be. An old pointer a failed promote left is
+  // removed by the next start's recover (the highest pointer is the current one meanwhile), which also drops a
+  // pending.json that stayed (the removal failed twice) and says the import failed, as it does for any pending copy.
   async function settleKeptImport(): Promise<void> {
     try {
       await store.discardPending();
