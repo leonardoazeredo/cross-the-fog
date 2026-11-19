@@ -104,6 +104,7 @@ class TraceRecordingViewModel(
     private val elevationProvider: RecordingElevationProvider,
     private val draftStore: TraceRecordingDraftStore,
     private val runtimeDependencies: RecordingRuntimeDependencies = RecordingRuntimeDependencies(),
+    private val onRecordingSaved: (ByteArray) -> Unit = {},
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TraceRecordingUiState())
     val uiState: StateFlow<TraceRecordingUiState> = _uiState.asStateFlow()
@@ -2150,6 +2151,7 @@ class TraceRecordingViewModel(
                             onProgress = {},
                             expectedSize = bytes.size.toLong(),
                         )
+                        onRecordingSaved(bytes)
                         RecordingScreenOffDiagnostics.stop(
                             activity = RecordingScreenOffActivity.GPX_PERSIST,
                             startedAtElapsedMs = gpxPersistStartedAtElapsedMs,

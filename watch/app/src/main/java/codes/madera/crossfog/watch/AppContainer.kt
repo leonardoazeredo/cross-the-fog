@@ -9,6 +9,8 @@ import codes.madera.crossfog.watch.data.repository.maps.theme.ExternalThemeStore
 import codes.madera.crossfog.watch.data.repository.maps.theme.ThemeRepository
 import codes.madera.crossfog.watch.data.repository.maps.theme.ThemeRepositoryImpl
 import codes.madera.crossfog.watch.domain.sensors.CompassViewModel
+import codes.madera.crossfog.watch.link.WatchLink
+import codes.madera.crossfog.watch.link.createWatchLink
 import codes.madera.crossfog.watch.presentation.SyncManager
 import codes.madera.crossfog.watch.presentation.features.download.DownloadViewModel
 import codes.madera.crossfog.watch.presentation.features.download.OamBundleDownloader
@@ -57,6 +59,10 @@ class AppContainer(
 
     val gpxRepository: GpxRepositoryImpl by lazy {
         GpxRepositoryImpl(applicationContext)
+    }
+
+    internal val watchLink: WatchLink by lazy {
+        createWatchLink(applicationContext, gpxRepository)
     }
 
     val mapRepository: MapRepositoryImpl by lazy {
@@ -146,6 +152,7 @@ class AppContainer(
                 syncManager = syncManager,
                 elevationProvider = RecordingElevationProvider(applicationContext),
                 draftStore = TraceRecordingDraftStore(applicationContext),
+                onRecordingSaved = { bytes -> watchLink.recordingHook.onSaved(bytes) },
                 runtimeDependencies =
                     RecordingRuntimeDependencies(
                         applicationContext = applicationContext,

@@ -20,6 +20,7 @@ import androidx.wear.compose.material3.Text
 import codes.madera.crossfog.watch.R
 import codes.madera.crossfog.watch.core.service.transfer.storage.StalePartialTransferCleaner
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
+import codes.madera.crossfog.watch.link.LinkSettingsRow
 import codes.madera.crossfog.watch.presentation.features.gpx.GpxViewModel
 import codes.madera.crossfog.watch.presentation.features.maps.MapViewModel
 import codes.madera.crossfog.watch.presentation.navigation.WatchRoutes
@@ -162,6 +163,8 @@ fun SettingsScreen(
                 onClick = { navController.navigate(WatchRoutes.DOWNLOAD_SETTINGS) },
             )
         }
+
+        item { LinkSettingsRow() }
 
         item {
             SettingsPickerChip(

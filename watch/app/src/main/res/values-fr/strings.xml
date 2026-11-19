@@ -2059,4 +2059,8 @@
     <string name="map_terrain_3d_experimental">3D - Bêta</string>
     <string name="map_terrain_3d_hiking_theme">Thème randonnée 3D</string>
     <string name="map_3d_viewing_angle">Angle de vue 3D</string>
+    <string name="settings_link">"Lien"</string>
+    <string name="settings_link_not_paired">"Non associée"</string>
+    <string name="settings_link_paired">"Associée"</string>
+    <string name="settings_link_walks_not_sent">"Parcours non envoyés : %1$d"</string>
 </resources>
