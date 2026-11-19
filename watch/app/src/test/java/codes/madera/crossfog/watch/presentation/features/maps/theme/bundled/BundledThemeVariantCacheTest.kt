@@ -18,7 +18,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `style A to B to A retains content and rendered tile cache identity`() {
-        val directory = temporaryFolder.newFolder("elevate")
+        val directory = temporaryFolder.newFolder("openhiking")
         val first = variant(directory, "A")
         val originalContent = first.readText()
         val originalIdentity = tileCacheIdentity(first)
@@ -35,7 +35,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `persisted recent use protects an older variant when a fifth variant arrives`() {
-        val directory = temporaryFolder.newFolder("elevate")
+        val directory = temporaryFolder.newFolder("openhiking")
         val variants = listOf("A", "B", "C", "D").map { name -> variant(directory, name) }
         variants.forEach(::retainBundledThemeVariants)
         retainBundledThemeVariants(File(directory, variants.first().name))
@@ -49,7 +49,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `a cache hit trims excess variants while keeping the selected old file`() {
-        val directory = temporaryFolder.newFolder("elevate")
+        val directory = temporaryFolder.newFolder("openhiking")
         val selected = variant(directory, "A")
         val identity = tileCacheIdentity(selected)
         (1..8).forEach { variant(directory, "extra-$it") }
@@ -63,7 +63,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `resource files directories and other themes are left intact`() {
-        val firstDirectory = temporaryFolder.newFolder("elevate")
+        val firstDirectory = temporaryFolder.newFolder("openhiking")
         val secondDirectory = temporaryFolder.newFolder("hike-ride-sight")
         val resourceXml = firstDirectory.resolve("resource.xml").apply { writeText("resource") }
         val marker = firstDirectory.resolve(".theme_id").apply { writeText("fixture") }
@@ -83,7 +83,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `empty or missing output cannot evict valid variants`() {
-        val directory = temporaryFolder.newFolder("elevate")
+        val directory = temporaryFolder.newFolder("openhiking")
         (1..4).forEach { retainBundledThemeVariants(variant(directory, "valid-$it")) }
         val empty = directory.resolve("dynamic_theme_empty.xml").apply { createNewFile() }
 
@@ -96,7 +96,7 @@ class BundledThemeVariantCacheTest {
 
     @Test
     fun `usage record failure does not damage or reject a readable theme`() {
-        val directory = temporaryFolder.newFolder("elevate")
+        val directory = temporaryFolder.newFolder("openhiking")
         val current = variant(directory, "A")
         val identity = tileCacheIdentity(current)
         directory.resolve(".${current.name}.last_used").mkdir()
@@ -125,7 +125,7 @@ class BundledThemeVariantCacheTest {
             .toSet()
 
     private fun tileCacheIdentity(file: File): String {
-        val signature = computeMapRendererThemeSignature(file, null, "elevate", false)
+        val signature = computeMapRendererThemeSignature(file, null, "openhiking", false)
         return resolveMapRendererDesiredCacheId("map:A", signature, true, 1f)
     }
 }

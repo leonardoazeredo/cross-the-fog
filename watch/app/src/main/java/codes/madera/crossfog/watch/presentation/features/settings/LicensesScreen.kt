@@ -59,7 +59,7 @@ fun LicensesScreen(onOpenGeneralSettings: () -> Unit) {
             Text(
                 text =
                     stringResource(
-                        R.string.settings_thanks_to_openandromaps_elevate_openhiking_tiramisu_hike_ride_sight_op,
+                        R.string.settings_thanks_to_openandromaps_openhiking_openstreetmap_refuges_info_overpass,
                     ),
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -228,32 +228,8 @@ private val LICENSE_DOCUMENTS =
             bodyRes = R.raw.legal_openhiking_theme,
         ),
         LicenseDocument(
-            labelRes = R.string.legal_french_kiss_theme,
-            secondaryLabelRes = R.string.legal_bundled_ign_style_theme_details,
-            titleRes = R.string.legal_french_kiss_theme,
-            bodyRes = R.raw.legal_french_kiss_theme,
-        ),
-        LicenseDocument(
-            labelRes = R.string.legal_tiramisu_theme,
-            secondaryLabelRes = R.string.legal_bundled_cycle_hike_theme_details,
-            titleRes = R.string.legal_tiramisu_theme,
-            bodyRes = R.raw.legal_tiramisu_theme,
-        ),
-        LicenseDocument(
-            labelRes = R.string.legal_hike_ride_sight,
-            secondaryLabelRes = R.string.legal_bundled_overlay_rich_theme_details,
-            titleRes = R.string.legal_hike_ride_sight_theme,
-            bodyRes = R.raw.legal_hike_ride_sight_theme,
-        ),
-        LicenseDocument(
-            labelRes = R.string.legal_voluntary_theme,
-            secondaryLabelRes = R.string.legal_bundled_os_inspired_theme_details,
-            titleRes = R.string.legal_voluntary_theme,
-            bodyRes = R.raw.legal_voluntary_theme,
-        ),
-        LicenseDocument(
             labelRes = R.string.legal_data_asset_attribution,
-            secondaryLabelRes = R.string.legal_osm_elevate_bundled_themes_dem_icons,
+            secondaryLabelRes = R.string.legal_osm_bundled_themes_dem_icons,
             titleRes = R.string.legal_data_asset_attribution,
             bodyRes = R.raw.legal_data_and_asset_attribution,
         ),

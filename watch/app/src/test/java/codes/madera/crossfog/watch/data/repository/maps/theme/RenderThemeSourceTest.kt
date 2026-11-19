@@ -8,7 +8,7 @@ import org.junit.Test
 class RenderThemeSourceTest {
     @Test
     fun `legacy bundled selections resolve to the same bundled theme without external metadata`() {
-        listOf("elevate", "openhiking", "tiramisu").forEach { id ->
+        listOf("openhiking", "hiking_3d").forEach { id ->
             assertEquals(RenderThemeSource.Bundled(id), selection(id, null).source)
         }
     }
