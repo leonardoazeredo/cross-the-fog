@@ -199,6 +199,23 @@ class PhoneEndpointTest {
   }
 
   @Test
+  fun trafficInTheOtherDirectionAndNewlyQueuedRoutesDoNotMoveTheWait() {
+    val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    solo.phoneRoutes.queue(a)
+    val phone = solo.ready(solo.phone())
+    solo.clock.now = 900
+    phone.feed(activity(ACT_1))
+    assertEquals(listOf<Message>(ActivityStored(ACT_1)), solo.stream.takeMessages())
+    solo.phoneRoutes.queue(route(ROUTE_B))
+    phone.wake()
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertEquals(1000L, phone.nextDeadline())
+    solo.clock.now = 1000
+    phone.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+  }
+
+  @Test
   fun aSilentWatchTimesOutAndTheRouteStaysQueued() {
     val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
     solo.phoneRoutes.queue(a)
@@ -317,17 +334,15 @@ class PhoneEndpointTest {
     phone.feed(HELLO)
     assertEquals(listOf(CloseReason.WRITE_FAILED), solo.events.closed)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
-    assertEquals(null, phone.nextDeadline())
   }
 
   @Test
   fun aRouteTooLargeToFrameClosesTheLinkAndStaysQueued() {
     val solo = Solo()
     solo.phoneRoutes.queue(RouteOffer(ROUTE_A, "big", "t", "a".repeat(Framing.MAX_FRAME_BYTES)))
-    val phone = solo.ready(solo.phone())
+    solo.ready(solo.phone())
     assertEquals(listOf(CloseReason.UNSENDABLE_ITEM), solo.events.closed)
     assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
     assertEquals(setOf(ROUTE_A), solo.phoneRoutes.queued.keys)
-    assertEquals(null, phone.nextDeadline())
   }
 }

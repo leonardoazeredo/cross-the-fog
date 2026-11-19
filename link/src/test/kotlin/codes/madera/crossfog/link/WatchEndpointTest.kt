@@ -213,6 +213,34 @@ class WatchEndpointTest {
   }
 
   @Test
+  fun aRouteArrivingAndNewlyQueuedActivitiesDoNotMoveTheWait() {
+    val solo = Solo(LinkConfig(confirmTimeoutMs = 1000))
+    solo.outbox.queue(act1)
+    val watch = solo.ready(solo.watch())
+    solo.clock.now = 900
+    watch.feed(a)
+    assertEquals(listOf<Message>(RouteSaved(ROUTE_A, a.revision)), solo.stream.takeMessages())
+    solo.outbox.queue(activity(ACT_2))
+    watch.wake()
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertEquals(1000L, watch.nextDeadline())
+    solo.clock.now = 1000
+    watch.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), solo.events.closed)
+  }
+
+  @Test
+  fun anActivityTooLargeToFrameClosesTheLinkNamedAndStaysQueued() {
+    val solo = Solo()
+    solo.outbox.queue(activity(ACT_1, gpx = "a".repeat(Framing.MAX_FRAME_BYTES)))
+    solo.ready(solo.watch())
+    assertEquals(listOf(CloseReason.UNSENDABLE_ITEM), solo.events.closed)
+    assertEquals(listOf<String?>(ACT_1), solo.events.itemIds)
+    assertEquals(setOf(ACT_1), solo.outbox.queued.keys)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+  }
+
+  @Test
   fun anActivityQueuedWhileIdleGoesOutOnWake() {
     val solo = Solo()
     val watch = solo.ready(solo.watch())

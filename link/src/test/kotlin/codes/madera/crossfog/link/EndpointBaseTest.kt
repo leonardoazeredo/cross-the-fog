@@ -237,6 +237,17 @@ class EndpointBaseTest {
   }
 
   @Test
+  fun aStreamThatDropsBeforeOpenClosesOnceAndIsClosed() {
+    each { solo, endpoint ->
+      endpoint.onClosed()
+      assertEquals(listOf(CloseReason.PEER_CLOSED), solo.events.closed)
+      assertEquals(1, solo.stream.closeCalls)
+      endpoint.tick()
+      assertEquals(null, endpoint.nextDeadline())
+    }
+  }
+
+  @Test
   fun timeoutsMustBePositive() {
     assertFalse(runCatching { LinkConfig(helloTimeoutMs = 0) }.isSuccess)
     assertFalse(runCatching { LinkConfig(confirmTimeoutMs = -1) }.isSuccess)
