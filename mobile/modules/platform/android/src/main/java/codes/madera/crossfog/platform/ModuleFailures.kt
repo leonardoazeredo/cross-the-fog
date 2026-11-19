@@ -39,10 +39,11 @@ internal fun keyCallFailure(e: Exception): Failure =
  * A failed staging or outbox call, or null for anything else, which the caller rethrows as itself so
  * a bug keeps its class. UnreadableItemException is an IOException, so it is matched first. A staging
  * Keystore entry that cannot be used (see [isUnusableKey]) is the named failure STAGING_KEY_UNUSABLE
- * for every call that runs inside `coded` and so builds a store there (the four the page names, and
- * `unpair`, which builds the link), whether the Keystore read or the first use of the key throws it. The listing, count and discard calls catch the
- * same exceptions themselves and report an empty list or a count. Nothing is deleted and no new entry
- * is minted over the unusable one, so the items sealed under it stay for a later try.
+ * for every call that runs inside `coded` and so builds a store there (readActivity, release,
+ * queueRoute, the debug stageForTest, and unpair, which builds the link), whether the Keystore read
+ * or the first use of the key throws it. The listing, count and discard calls catch the same
+ * exceptions themselves and report an empty list or a count. Nothing is deleted and no new entry is
+ * minted over the unusable one, so the items sealed under it stay for a later try.
  */
 internal fun stagingCallFailure(e: Exception): Failure? =
   when (e) {
