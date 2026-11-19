@@ -320,4 +320,66 @@ class PairingTest {
     watch.tick()
     assertEquals(listOf(CloseReason.TIMEOUT), ends.closed)
   }
+
+  private fun watchEndpoint(pins: MemoryPins, offer: PairingOffer, ends: RecordingEvents, clock: FakeClock): WatchPairingEndpoint =
+    WatchPairingEndpoint(MemoryStream(), clock, ends, LinkConfig(), offer, TestKeys.watch.spkiHash(), { TestKeys.phone.spkiHash() }, pins)
+
+  @Test
+  fun aPhoneThatIsToldDoneBeforeItWasAcceptedStoresNothing() {
+    val clock = FakeClock()
+    val ends = RecordingEvents()
+    val pins = MemoryPins()
+    val qr = PairingOffer(clock, LinkConfig()).payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val phone = PhonePairingEndpoint(MemoryStream(), clock, ends, LinkConfig(), qr, TestKeys.phone.spkiHash(), pins)
+    phone.open()
+    phone.feed(Hello(listOf(1)), PairDone)
+    assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), ends.closed)
+    assertEquals(0, pins.puts)
+  }
+
+  @Test
+  fun aWatchThatIsToldToConfirmBeforeItAcceptedStoresNothing() {
+    val clock = FakeClock()
+    val ends = RecordingEvents()
+    val pins = MemoryPins()
+    val watch = watchEndpoint(pins, PairingOffer(clock, LinkConfig()), ends, clock)
+    watch.open()
+    watch.feed(Hello(listOf(1)), PairConfirm)
+    assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), ends.closed)
+    assertEquals(0, pins.puts)
+  }
+
+  @Test
+  fun aSecondRequestAfterAcceptanceIsOutOfTurn() {
+    val clock = FakeClock()
+    val ends = RecordingEvents()
+    val pins = MemoryPins()
+    val offer = PairingOffer(clock, LinkConfig())
+    val qr = offer.payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val proof = Pairing.hex(Pairing.proof(qr.code(), TestKeys.watch.spkiHash(), TestKeys.phone.spkiHash()))
+    val watch = watchEndpoint(pins, offer, ends, clock)
+    watch.open()
+    watch.feed(Hello(listOf(1)), PairRequest(proof), PairRequest(proof))
+    assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), ends.closed)
+    assertEquals(0, pins.puts)
+  }
+
+  @Test
+  fun theCodeIsGoneOnceItWasSpent() {
+    val p = PairRig()
+    p.rig.run()
+    assertThrows(IllegalStateException::class.java) { p.offer.payload(TestKeys.watch.spkiHash(), "rfcomm") }
+  }
+
+  @Test
+  fun aWakeAfterTheRequestWasSentDoesNotSendItAgain() {
+    val clock = FakeClock()
+    val stream = MemoryStream()
+    val qr = PairingOffer(clock, LinkConfig()).payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val phone = PhonePairingEndpoint(stream, clock, RecordingEvents(), LinkConfig(), qr, TestKeys.phone.spkiHash(), MemoryPins())
+    phone.open()
+    phone.feed(Hello(listOf(1)))
+    phone.wake()
+    assertEquals(1, stream.takeMessages().count { it is PairRequest })
+  }
 }

@@ -55,10 +55,10 @@ class Peer(
 }
 
 /** Two peers joined by memory, with a filter on each direction that a test can use to drop or change bytes. */
-enum class Chunking { WHOLE, ONE_BYTE, JOINED }
+enum class Chunking { WHOLE, ONE_BYTE, JOINED, SEVEN_BYTES }
 
 class Rig(val server: Peer, val client: Peer) {
-  /** How transport bytes reach the other end: as written, a byte at a time, or all queued bytes as one read. Always at a nonzero offset. */
+  /** How transport bytes reach the other end: as written, a byte at a time, all queued bytes as one read, or in 7-byte reads. Always at a nonzero offset. */
   var chunking = Chunking.WHOLE
 
   /** False withholds the end of the transport, so an end must come from what was said inside TLS. */
@@ -92,6 +92,8 @@ class Rig(val server: Peer, val client: Peer) {
       Chunking.WHOLE -> kept
       Chunking.JOINED -> if (kept.isEmpty()) emptyList() else listOf(kept.fold(ByteArray(0)) { a, b -> a + b })
       Chunking.ONE_BYTE -> kept.flatMap { c -> c.map { byteArrayOf(it) } }
+      // all queued bytes cut into pieces that start and end partway into a record
+      Chunking.SEVEN_BYTES -> kept.fold(ByteArray(0)) { a, b -> a + b }.toList().chunked(7).map { it.toByteArray() }
     }
   }
 

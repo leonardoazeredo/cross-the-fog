@@ -37,7 +37,7 @@ class RepairTest {
   }
 
   @Test
-  fun aDropDuringTheHandshakeLeavesTheOldPairingWorking() = dropAt(false, "Hello", 0, 0)
+  fun aDropRightAfterThePhonesHelloLeavesTheOldPairingWorking() = dropAt(false, "Hello", 0, 0)
 
   @Test
   fun aDropAfterTheWatchsHelloLeavesTheOldPairingWorking() = dropAt(true, "Hello", 0, 0)
