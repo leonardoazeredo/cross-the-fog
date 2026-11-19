@@ -23,6 +23,9 @@ export interface ExpoSqliteDriverOptions {
   open?: (name: string) => Promise<ExpoDb>;
 }
 
+// What SQLite's integrity_check says when a page read failed with a code other than SQLITE_CORRUPT (11).
+const READ_FAULT = /unable to get the page\. error code=(?!11\b)\d+|Failed to read ptrmap/;
+
 // What SQLCipher's cipher_integrity_check says of a page it read and found bad.
 const PAGE_REPORT = /^(HMAC verification failed for page \d+|page \d+ has an invalid size of .*)$/;
 
@@ -106,6 +109,8 @@ function wrap(db: ExpoDb): SqlTx {
  * - an error when `cipher_integrity_check` answers with a row that reports neither of those two
  *   failures (it reports a failed read, a failed key derivation or an out of memory as a row, and
  *   none of those says anything about the file);
+ * - an error when `integrity_check` reports a page it failed to read for a reason other than
+ *   corruption;
  * - whatever `integrity_check` throws when it cannot read the file (it throws, not reports, on a
  *   file cut at a page boundary).
  */
@@ -131,6 +136,11 @@ export async function checkFileIntegrity(opts: {
     }
     if (reports.length > 0) return "damaged";
     const rows = await db.getAllAsync<Record<string, unknown>>("PRAGMA integrity_check", []);
+    // SQLite reports a page it failed to read for a reason other than corruption (a read fault) as a
+    // row too; that says nothing about the file.
+    if (rows.some((row) => READ_FAULT.test(String(Object.values(row)[0])))) {
+      throw new Error("integrity_check could not read a page");
+    }
     const only = rows.length === 1 ? Object.values(rows[0] ?? {}) : [];
     return only.length === 1 && only[0] === "ok" ? "intact" : "damaged";
   } finally {

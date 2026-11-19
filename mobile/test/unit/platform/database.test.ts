@@ -144,6 +144,7 @@ describe("createDatabase with a key that does not open the file", () => {
       throw new Error("disk full");
     };
     await expect(createDatabase()).rejects.toThrow("disk full");
+    expect(checked).toEqual([]);
   });
 
   it("rejects, never reporting key-lost, when the native side cannot reach the key", async () => {
@@ -325,6 +326,7 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     };
     await expect(createDatabase()).rejects.toThrow("malformed");
     expect(checked).toEqual([]);
+    expect(disk.get(LIVE_DB)).toBe("restored");
     expect(disk.get(REPLACED_DB)).toBe("old");
   });
 

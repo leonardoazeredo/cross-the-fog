@@ -457,6 +457,8 @@ function checkDb(
   return {
     async execAsync(sql) {
       log.push(sql);
+      const answer = answers[sql];
+      if (answer instanceof Error) throw answer;
     },
     async getAllAsync<T>(sql: string) {
       log.push(sql);
@@ -546,6 +548,24 @@ describe("checkFileIntegrity", () => {
     },
   );
 
+  it.each(["Tree 2 page 7: unable to get the page. error code=10", "Failed to read ptrmap key=7"])(
+    "gives no verdict when integrity_check reports a read fault (%s)",
+    async (row) => {
+      const log: string[] = [];
+      await expect(
+        check({ "PRAGMA integrity_check": [{ integrity_check: row }] }, log),
+      ).rejects.toThrow("could not read a page");
+      expect(log.at(-1)).toBe("close");
+    },
+  );
+
+  it("still calls the file damaged when integrity_check cannot get a page because it is corrupt (code 11)", async () => {
+    const row = "Tree 2 page 7: unable to get the page. error code=11";
+    await expect(check({ "PRAGMA integrity_check": [{ integrity_check: row }] })).resolves.toBe(
+      "damaged",
+    );
+  });
+
   it("gives no verdict, and closes, when integrity_check throws", async () => {
     const log: string[] = [];
     const cut = new Error("Error code 11: database disk image is malformed");
@@ -553,10 +573,29 @@ describe("checkFileIntegrity", () => {
     expect(log.at(-1)).toBe("close");
   });
 
-  it("closes when cipher_integrity_check or the key statement throws", async () => {
+  it.each([
+    ["cipher_integrity_check", CIC],
+    ["the key statement", PRAGMA],
+  ])("closes when %s throws", async (_, statement) => {
     const log: string[] = [];
-    await expect(check({ [CIC]: new Error("boom") }, log)).rejects.toThrow("boom");
+    await expect(check({ [statement]: new Error("boom") }, log)).rejects.toThrow("boom");
     expect(log.at(-1)).toBe("close");
+  });
+
+  it.each(["10", "12", "100", "199"])(
+    "calls a file damaged when only page %s fails its HMAC, not taking it for page 1",
+    async (n) => {
+      const rows = [page(`HMAC verification failed for page ${n}`)];
+      await expect(check({ [CIC]: rows })).resolves.toBe("damaged");
+    },
+  );
+
+  it("gives no verdict when a page report comes with a row that is not one", async () => {
+    const rows = [
+      page("HMAC verification failed for page 41"),
+      page("error reading 4096 bytes from file page 7 at offset 24576"),
+    ];
+    await expect(check({ [CIC]: rows })).rejects.toThrow("not a page report");
   });
 
   it("keeps the verdict when the close fails, and logs only the error class", async () => {
