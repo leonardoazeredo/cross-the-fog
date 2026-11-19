@@ -12,7 +12,7 @@ object Pairing {
 
   /**
    * The largest frame a pairing session reads. The watch takes any peer there, so a frame is capped
-   * at what hello and the five pairing messages need (the longest, a request, is about 110 bytes).
+   * at what hello and the five pairing messages need (a request is 103 bytes, a hello that lists 16 versions about 131).
    */
   const val MAX_FRAME_BYTES = 512
 
@@ -175,8 +175,14 @@ class WatchPairingEndpoint(
 ) : Endpoint(stream, clock, events, config, Pairing.MAX_FRAME_BYTES) {
   private var phoneKey: ByteArray? = null
   private var accepted = false
+  private var waiting = false
 
-  override fun pump() = Unit
+  /** The watch takes any peer here, so one that says hello and then nothing must not hold the session (and the one connection the offer serves) open. */
+  override fun pump() {
+    if (waiting) return
+    waiting = true
+    armConfirm()
+  }
 
   override fun onMessage(message: Message) {
     when {

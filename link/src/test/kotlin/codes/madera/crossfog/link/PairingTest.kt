@@ -306,4 +306,18 @@ class PairingTest {
     phone.onBytes(byteArrayOf(0, 0, 2, 1), 0, 4)
     assertEquals(listOf(CloseReason.BAD_FRAME), ends.closed)
   }
+
+  @Test
+  fun aPeerThatSaysHelloAndNothingElseIsDroppedByTheWatch() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val ends = RecordingEvents()
+    val watch = WatchPairingEndpoint(MemoryStream(), clock, ends, config, PairingOffer(clock, config), TestKeys.watch.spkiHash(), { TestKeys.phone.spkiHash() }, MemoryPins())
+    watch.open()
+    watch.feed(Hello(listOf(1)))
+    assertEquals(config.confirmTimeoutMs, watch.nextDeadline())
+    clock.now = config.confirmTimeoutMs
+    watch.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), ends.closed)
+  }
 }

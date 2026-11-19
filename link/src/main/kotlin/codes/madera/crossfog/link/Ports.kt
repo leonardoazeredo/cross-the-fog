@@ -91,7 +91,7 @@ enum class CloseReason {
   TLS_TRUNCATED,
   /** A pairing session finished as designed (both pins committed). */
   PAIRING_COMPLETE,
-  /** A pairing was refused: the watch said no, or this end said no to a second claim on the code. */
+  /** A pairing was refused: on the phone, the watch refused the proof; on the watch, this end did (any [PairRejection]). */
   PAIRING_REFUSED,
 }
 
@@ -112,8 +112,8 @@ interface LinkEvents {
 }
 
 /**
- * How long an endpoint waits. [handshakeTimeoutMs] covers the TLS handshake until the peer's first
- * message; [pairingWindowMs] is how long a pairing code can be used (the spec gives none).
+ * How long an endpoint waits. [handshakeTimeoutMs] covers the TLS handshake until it finishes (the hello
+ * wait is [helloTimeoutMs]); [pairingWindowMs] is how long a pairing code can be used (the spec gives none).
  */
 data class LinkConfig(
   val helloTimeoutMs: Long = 10_000,
