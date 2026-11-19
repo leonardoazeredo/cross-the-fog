@@ -24,7 +24,7 @@ class WatchRoutesTest {
 
     private fun sha(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
-    /** What the repository's atomic write does: a file in the gpx directory, and the hash of what it wrote. */
+    /** A route store over the in-memory index that writes into the temp folder through a stand-in write: a plain file write that returns the bytes' SHA-256. */
     private fun routes() =
         WatchRoutes(
             index = index,

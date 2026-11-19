@@ -164,8 +164,6 @@ class WatchOutboxTest {
         assertEquals(0, box.queuedCount())
     }
 
-    // ---- aside
-
     @Test
     fun settingAsideMovesTheWalkOutOfTheQueueWithoutDeletingIt() {
         val box = outbox()
@@ -210,8 +208,6 @@ class WatchOutboxTest {
         assertEquals(1, box.queuedCount())
         assertEquals(ID_B, box.next()!!.activityId)
     }
-
-    // ---- ledger
 
     @Test
     fun aDemotedWalkIsOfferedAfterTheOthers() {

@@ -12,8 +12,8 @@ import java.util.UUID
 /**
  * The walks this watch recorded and the phone has not confirmed, one file per walk named by its id, in
  * the wire form of the offer so what is sent is exactly what was saved. It is separate from the GPX
- * list: a walk leaves here only when the phone confirms it, and never otherwise. One that keeps
- * failing is moved to `aside/` (still readable, never deleted) by [WatchLinkEvents].
+ * list. A walk leaves the queue in one of two ways: the phone confirms it and it is deleted, or it keeps
+ * failing and [WatchLinkEvents] moves it to `aside/`, where it stays readable and is never deleted.
  */
 internal class WatchOutbox(
     private val dir: File,

@@ -36,5 +36,5 @@ internal const val ID_C = "33333333-3333-4333-8333-333333333333"
 /** An activity item of this end's own queue that failed at a store, as a session reports it. */
 internal fun storeFailed(id: String) = CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ACTIVITY, id), ItemRef(ItemKind.ACTIVITY, id))
 
-/** A session that ended with this activity offered and never confirmed (a timeout, a cut stream). */
+/** A session that ended with this activity offered and never confirmed (here, a timeout). */
 internal fun unconfirmed(id: String) = CloseInfo(CloseReason.TIMEOUT, null, ItemRef(ItemKind.ACTIVITY, id))
