@@ -19,6 +19,8 @@ android {
   sourceSets {
     // The shared test vectors live with link/; the tests here run the same files.
     test.resources.srcDir '../../../../link/src/test/resources'
+    // The same vectors, run on the device's own org.json, which is not the Maven artifact the JVM tests use.
+    androidTest.resources.srcDir '../../../../link/src/test/resources'
   }
 }
 

@@ -3,7 +3,7 @@ package codes.madera.crossfog.link
 /**
  * A strict RFC 8259 check of one JSON object, run before org.json builds anything. Android's org.json
  * is looser than the JVM artifact the tests run on (it skips comments and `#` lines, reads `0x1` and
- * `01` as numbers and lets a later duplicate key win), so what it would accept is decided here, once,
+ * `01` as numbers, reads `-0` as 0 and lets a later duplicate key win), so what it would accept is decided here, once,
  * the same on every device. Nesting is capped, so no input can exhaust the stack.
  */
 internal class StrictJson private constructor(private val s: String) {
@@ -170,5 +170,7 @@ internal class StrictJson private constructor(private val s: String) {
     if (i - start > MAX_NUMBER_CHARS) throw notJson()
     // Android's org.json refuses a number past double range and the JVM one takes it, whatever its shape.
     if (s.substring(start, i).toDouble().isInfinite()) throw notJson()
+    // Android's org.json reads the integer `-0` as 0 and the JVM one as a double, so a field of that value would be refused differently.
+    if (i - start == 2 && s[start] == '-' && s[start + 1] == '0') throw notJson()
   }
 }
