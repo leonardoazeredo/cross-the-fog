@@ -548,16 +548,18 @@ describe("checkFileIntegrity", () => {
     },
   );
 
-  it.each(["Tree 2 page 7: unable to get the page. error code=10", "Failed to read ptrmap key=7"])(
-    "gives no verdict when integrity_check reports a read fault (%s)",
-    async (row) => {
-      const log: string[] = [];
-      await expect(
-        check({ "PRAGMA integrity_check": [{ integrity_check: row }] }, log),
-      ).rejects.toThrow("could not read a page");
-      expect(log.at(-1)).toBe("close");
-    },
-  );
+  it.each([
+    "Tree 2 page 7: unable to get the page. error code=10",
+    "Tree 2 page 7: unable to get the page. error code=266",
+    "Tree 2 page 7: unable to get the page. error code=522",
+    "Failed to read ptrmap key=7",
+  ])("gives no verdict when integrity_check reports a read fault (%s)", async (row) => {
+    const log: string[] = [];
+    await expect(
+      check({ "PRAGMA integrity_check": [{ integrity_check: row }] }, log),
+    ).rejects.toThrow("could not read a page");
+    expect(log.at(-1)).toBe("close");
+  });
 
   it("still calls the file damaged when integrity_check cannot get a page because it is corrupt (code 11)", async () => {
     const row = "Tree 2 page 7: unable to get the page. error code=11";
