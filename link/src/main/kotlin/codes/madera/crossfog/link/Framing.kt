@@ -16,19 +16,76 @@ object Framing {
   private const val CHUNK_BYTES = 64 * 1024
 
   fun encode(body: ByteArray): ByteArray {
-    checkLength(body.size.toLong())
     val frame = ByteArray(PREFIX_BYTES + body.size)
-    writeLength(frame, body.size)
+    prefix(body.size).copyInto(frame)
     System.arraycopy(body, 0, frame, PREFIX_BYTES, body.size)
     return frame
   }
 
   fun writeFrame(out: OutputStream, body: ByteArray) {
-    checkLength(body.size.toLong())
-    val head = ByteArray(PREFIX_BYTES)
-    writeLength(head, body.size)
-    out.write(head)
+    out.write(prefix(body.size))
     out.write(body)
+  }
+
+  /** The 4 length bytes for a body of [length] bytes, so a sender can write prefix and body without joining them into a third array. */
+  fun prefix(length: Int): ByteArray {
+    checkLength(length.toLong())
+    return ByteArray(PREFIX_BYTES).also { writeLength(it, length) }
+  }
+
+  /**
+   * Cuts frames out of bytes that arrive in pieces of any size. Each finished body goes to the
+   * callback; the callback returns false to stop (the rest of the bytes are dropped). A body array
+   * is allocated only as bytes arrive, doubling up to the claimed length, so a peer that claims
+   * 16 MiB and sends nothing costs a few bytes and one that sends the whole frame costs exactly the
+   * frame. A refused length throws [ProtocolException] and leaves the decoder refusing the same.
+   */
+  class Decoder {
+    private val head = ByteArray(PREFIX_BYTES)
+    private var headLength = 0
+    private var inBody = false
+    private var want = 0
+    private var body = ByteArray(0)
+    private var bodyLength = 0
+
+    fun hasPartial(): Boolean = headLength > 0 || inBody
+
+    /** Bytes held for the frame in progress, allocated rather than arrived. */
+    fun allocatedBytes(): Int = headLength + body.size
+
+    fun feed(bytes: ByteArray, offset: Int, length: Int, onFrame: (ByteArray) -> Boolean) {
+      var at = offset
+      val end = offset + length
+      while (at < end) {
+        if (!inBody) {
+          val n = minOf(PREFIX_BYTES - headLength, end - at)
+          System.arraycopy(bytes, at, head, headLength, n)
+          headLength += n
+          at += n
+          if (headLength < PREFIX_BYTES) return
+          val claimed = lengthOf(head)
+          checkLength(claimed)
+          want = claimed.toInt()
+          inBody = true
+          bodyLength = 0
+          body = ByteArray(0)
+        } else {
+          val n = minOf(want - bodyLength, end - at)
+          if (body.size < bodyLength + n) body = body.copyOf(minOf(want, maxOf(bodyLength + n, body.size * 2)))
+          System.arraycopy(bytes, at, body, bodyLength, n)
+          bodyLength += n
+          at += n
+          if (bodyLength == want) {
+            val frame = body
+            body = ByteArray(0)
+            bodyLength = 0
+            inBody = false
+            headLength = 0
+            if (!onFrame(frame)) return
+          }
+        }
+      }
+    }
   }
 
   /** The body of [frame], which must be exactly one frame. */
