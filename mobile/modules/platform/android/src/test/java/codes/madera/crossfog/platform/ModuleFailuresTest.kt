@@ -68,14 +68,12 @@ class ModuleFailuresTest {
     for (e in listOf(UnrecoverableKeyException("alias $id"), KeyPermanentlyInvalidatedException("alias $id"))) {
       val failure = stagingCallFailure(e)!!
       assertEquals(e.toString(), "ERR_STAGING_KEY_UNUSABLE", failure.code)
-      // Fixed text: a provider exception may name the alias or a file.
       assertEquals("the staging key cannot be used", failure.message)
     }
   }
 
   @Test
   fun otherKeystoreFailuresAreNotAnUnusableKey() {
-    // A busy Keystore may answer on the next call; only these two classes say the entry is unusable.
     for (e in listOf(KeyStoreException("busy"), InvalidKeyException("bad"))) {
       assertEquals(e.toString(), null, stagingCallFailure(e))
     }
