@@ -99,7 +99,7 @@ abstract class Endpoint(
       stream.write(prefix)
       stream.write(body)
     } catch (e: ProtocolException) {
-      close(CloseReason.UNSENDABLE_ITEM, itemIdOf(message))
+      close(CloseReason.UNSENDABLE_ITEM, itemOf(message))
       return false
     } catch (e: Exception) {
       close(CloseReason.WRITE_FAILED)
@@ -117,7 +117,10 @@ abstract class Endpoint(
     confirmDeadline = null
   }
 
-  protected fun close(reason: CloseReason, itemId: String? = null) {
+  /** This end's own item that is offered and not yet confirmed, or null. */
+  protected open fun inFlight(): ItemRef? = null
+
+  protected fun close(reason: CloseReason, item: ItemRef? = null) {
     if (phase == Phase.CLOSED) return
     phase = Phase.CLOSED
     confirmDeadline = null
@@ -126,12 +129,12 @@ abstract class Endpoint(
     } catch (e: Exception) {
       // closing is best effort: the stream may already be gone, and the reason below is the news
     }
-    events.closed(reason, itemId)
+    events.closedWith(CloseInfo(reason, item, inFlight()))
   }
 
-  private fun itemIdOf(message: Message): String? = when (message) {
-    is RouteOffer -> message.routeId
-    is ActivityOffer -> message.activityId
+  private fun itemOf(message: Message): ItemRef? = when (message) {
+    is RouteOffer -> ItemRef(ItemKind.ROUTE, message.routeId)
+    is ActivityOffer -> ItemRef(ItemKind.ACTIVITY, message.activityId)
     else -> null
   }
 

@@ -95,6 +95,21 @@ enum class CloseReason {
   PAIRING_REFUSED,
 }
 
+/** Which queue an item belongs to: the phone queues routes for the watch, the watch queues activities for the phone. */
+enum class ItemKind { ROUTE, ACTIVITY }
+
+/** An item named by kind and id, so a caller can tell its own queue's item from the peer's. */
+data class ItemRef(val kind: ItemKind, val id: String)
+
+/**
+ * Everything an endpoint knows when it stops. [failed] is the item a store or sink threw on, or that
+ * could not be framed ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM]); it may be the
+ * peer's item (a sink that cannot keep an activity) or this end's own (a route that cannot be marked
+ * delivered). [inFlight] is this end's own item that was offered and not yet confirmed when the
+ * session ended, for any reason, so a caller can count sessions that ended on the same item.
+ */
+data class CloseInfo(val reason: CloseReason, val failed: ItemRef?, val inFlight: ItemRef?)
+
 /** What the caller wants to know about the link. */
 interface LinkEvents {
   /** Hello exchanged and a version agreed; items flow from here on. Always before [closed], including when the first item sent closes the session. */
@@ -109,6 +124,13 @@ interface LinkEvents {
    * caller that sees the same id fail every time must set it aside, or nothing behind it is ever sent.
    */
   fun closed(reason: CloseReason, itemId: String?)
+
+  /**
+   * What an endpoint calls when it stops: [CloseInfo] carries what [closed] does and more. The default
+   * forwards to [closed] with the failed item's id, so a caller that wants only that implements
+   * [closed]; one that wants the in-flight item implements this.
+   */
+  fun closedWith(info: CloseInfo) = closed(info.reason, info.failed?.id)
 }
 
 /**

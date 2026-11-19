@@ -21,6 +21,8 @@ class PhoneEndpoint(
   // Only the key is kept; the route is read from the store again for any resend, so no track stays in memory.
   private var offered: Offered? = null
 
+  override fun inFlight(): ItemRef? = offered?.let { ItemRef(ItemKind.ROUTE, it.routeId) }
+
   override fun pump() {
     if (offered != null) return
     val route = try {
@@ -28,9 +30,9 @@ class PhoneEndpoint(
     } catch (e: Exception) {
       return close(CloseReason.STORE_FAILED)
     } ?: return
-    val key = Offered(route.routeId, route.revision)
+    // In flight from before the write: a write that fails halfway still leaves the peer holding part of this item.
+    offered = Offered(route.routeId, route.revision)
     if (send(route)) {
-      offered = key
       armConfirm()
     }
   }
@@ -52,7 +54,7 @@ class PhoneEndpoint(
     try {
       routes.markDelivered(saved.routeId, saved.revision)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED, saved.routeId)
+      return close(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, saved.routeId))
     }
     offered = null
     disarmConfirm()
@@ -63,7 +65,7 @@ class PhoneEndpoint(
     try {
       sink.store(offer)
     } catch (e: Exception) {
-      return close(CloseReason.STORE_FAILED, offer.activityId)
+      return close(CloseReason.STORE_FAILED, ItemRef(ItemKind.ACTIVITY, offer.activityId))
     }
     send(ActivityStored(offer.activityId))
   }

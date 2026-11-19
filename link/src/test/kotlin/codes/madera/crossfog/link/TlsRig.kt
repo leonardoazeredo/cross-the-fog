@@ -20,6 +20,26 @@ class QueueStream : ByteStream {
   }
 }
 
+/** What [Rig] needs of one end: the bytes it writes and the three things that can happen to it. */
+interface RigSide {
+  val out: QueueStream
+
+  fun open()
+
+  fun onBytes(bytes: ByteArray, offset: Int, length: Int)
+
+  fun onTransportClosed()
+}
+
+/** A session made by [Sessions], with the transport it writes to. */
+class BuiltSide(val session: SecureSession, override val out: QueueStream) : RigSide {
+  override fun open() = session.open()
+
+  override fun onBytes(bytes: ByteArray, offset: Int, length: Int) = session.onBytes(bytes, offset, length)
+
+  override fun onTransportClosed() = session.onTransportClosed()
+}
+
 /** One end of a TLS session with the endpoint above it, as a caller would wire them. */
 class Peer(
   identity: Identity,
@@ -29,8 +49,8 @@ class Peer(
   config: LinkConfig,
   private val make: (ByteStream, LinkEvents) -> Endpoint,
   engine: SSLEngine = Tls.engine(identity, trust, client),
-) : TlsListener {
-  val out = QueueStream()
+) : TlsListener, RigSide {
+  override val out = QueueStream()
   val events = RecordingEvents()
   val session = TlsSession(out, engine, trust, clock, config, this)
   var endpoint: Endpoint? = null
@@ -38,6 +58,12 @@ class Peer(
   var end: TlsEnd? = null
   var failureAtEnd: TlsFailure? = null
   var plainBytes = 0
+
+  override fun open() = session.open()
+
+  override fun onBytes(bytes: ByteArray, offset: Int, length: Int) = session.onBytes(bytes, offset, length)
+
+  override fun onTransportClosed() = session.onTransportClosed()
 
   override fun onSecure() {
     secured = true
@@ -60,7 +86,7 @@ class Peer(
 enum class Chunking { WHOLE, ONE_BYTE, JOINED, SEVEN_BYTES }
 
 /** Two peers joined by memory, with a filter on each direction that a test can use to drop or change bytes. */
-class Rig(val server: Peer, val client: Peer) {
+class Rig(val server: RigSide, val client: RigSide) {
   /** How transport bytes reach the other end: as written, a byte at a time, all queued bytes as one read, or in 7-byte reads. Always at a nonzero offset. */
   var chunking = Chunking.WHOLE
 
@@ -82,8 +108,8 @@ class Rig(val server: Peer, val client: Peer) {
   /** Opens both ends (unless [open] is false), then moves bytes until nothing is left to move. */
   fun run(open: Boolean = true, rounds: Int = 500) {
     if (open) {
-      server.session.open()
-      client.session.open()
+      server.open()
+      client.open()
     }
     settle(rounds)
   }
@@ -100,7 +126,7 @@ class Rig(val server: Peer, val client: Peer) {
     }
   }
 
-  private fun push(to: TlsSession, bytes: ByteArray) {
+  private fun push(to: RigSide, bytes: ByteArray) {
     val padded = ByteArray(bytes.size + 3)
     System.arraycopy(bytes, 0, padded, 3, bytes.size)
     to.onBytes(padded, 3, bytes.size)
@@ -112,28 +138,28 @@ class Rig(val server: Peer, val client: Peer) {
         cutting = false
         client.out.queue.clear()
         server.out.queue.clear()
-        server.session.onTransportClosed()
-        client.session.onTransportClosed()
+        server.onTransportClosed()
+        client.onTransportClosed()
         return
       }
       var moved = false
       for (chunk in drain(client.out.queue, toServer)) {
         moved = true
-        if (!cutting) push(server.session, chunk)
+        if (!cutting) push(server, chunk)
       }
       for (chunk in drain(server.out.queue, toClient)) {
         moved = true
-        if (!cutting) push(client.session, chunk)
+        if (!cutting) push(client, chunk)
       }
       if (deliverEof && !cutting && client.out.closed && client.out.queue.isEmpty() && !serverEof) {
         serverEof = true
         moved = true
-        server.session.onTransportClosed()
+        server.onTransportClosed()
       }
       if (deliverEof && !cutting && server.out.closed && server.out.queue.isEmpty() && !clientEof) {
         clientEof = true
         moved = true
-        client.session.onTransportClosed()
+        client.onTransportClosed()
       }
       if (!moved && !cutting) return
     }
