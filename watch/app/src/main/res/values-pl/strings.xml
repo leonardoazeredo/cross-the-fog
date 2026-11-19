@@ -1768,7 +1768,6 @@
     <string name="settings_manual_stop_invalidates_benchmark">"Ręczne zatrzymanie · unieważnia test"</string>
     <string name="settings_map_label_size">"Rozmiar etykiet mapy"</string>
     <string name="settings_map_settings">"Ustawienia mapy"</string>
-    <string name="settings_map_style">"Styl mapy"</string>
     <string name="settings_map_theme">"Motyw mapy"</string>
     <string name="settings_marked_hiking_routes">"Oznaczone szlaki piesze"</string>
     <string name="settings_marker_style">"Styl znacznika"</string>
@@ -1780,7 +1779,6 @@
     <string name="settings_mi_2">"%1$.1f mi"</string>
     <string name="settings_mm">"%1$s mm"</string>
     <string name="settings_mm_m">"%1$d mm · %2$s m"</string>
-    <string name="settings_mode">"Tryb"</string>
     <string name="settings_move_s">"Ruszaj: %1$ss"</string>
     <string name="settings_mph">"mph"</string>
     <string name="settings_needed_to_find_sensors">"Wymagane do szukania czujników"</string>
