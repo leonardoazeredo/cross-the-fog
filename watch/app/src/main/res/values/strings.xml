@@ -957,20 +957,13 @@
     <string name="gpx_wait_for_a_fresh_gps_fix_before_using_current_location">"Wait for a fresh GPS fix before using current location."</string>
     <string name="legal_ai_acknowledgment">"AI Acknowledgment"</string>
     <string name="legal_ai_creator_acknowledgment">"AI &amp; Creator Acknowledgment"</string>
-    <string name="legal_bundled_cycle_hike_theme_details">"Bundled cycle/hike theme details"</string>
     <string name="legal_bundled_hiking_theme_details">"Bundled hiking theme details"</string>
-    <string name="legal_bundled_ign_style_theme_details">"Bundled IGN-style theme details"</string>
-    <string name="legal_bundled_os_inspired_theme_details">"Bundled OS-inspired theme details"</string>
-    <string name="legal_bundled_overlay_rich_theme_details">"Bundled overlay-rich theme details"</string>
     <string name="legal_companion_external_sources">"Companion External Sources"</string>
     <string name="legal_companion_sources">"Companion Sources"</string>
     <string name="legal_compliance_status">"Compliance Status"</string>
     <string name="legal_credits_thanks">"Credits &amp; Thanks"</string>
     <string name="legal_data_access_sharing_and_retention">"Data access, sharing and retention"</string>
     <string name="legal_data_asset_attribution">"Data &amp; Asset Attribution"</string>
-    <string name="legal_french_kiss_theme">"French Kiss Theme"</string>
-    <string name="legal_hike_ride_sight" translatable="false">"Hike, Ride &amp; Sight"</string>
-    <string name="legal_hike_ride_sight_theme">"Hike, Ride &amp; Sight Theme"</string>
     <string name="legal_human_creators_and_transparency">"Human creators and transparency"</string>
     <string name="legal_libraries_and_oss_licenses">"Libraries and OSS licenses"</string>
     <string name="legal_main_contributors_and_projects">"Main contributors and projects"</string>
@@ -978,40 +971,31 @@
     <string name="legal_map_theme_errors_and_personal_responsibility">"Map/theme errors and personal responsibility"</string>
     <string name="legal_open_source_notices">"Open Source Notices"</string>
     <string name="legal_openhiking_theme">"OpenHiking Theme"</string>
-    <string name="legal_osm_elevate_bundled_themes_dem_icons">"OSM, Elevate, bundled themes, DEM, icons"</string>
+    <string name="legal_osm_bundled_themes_dem_icons">"OSM, bundled themes, DEM, icons"</string>
     <string name="legal_privacy_policy">"Privacy Policy"</string>
     <string name="legal_provider_terms_and_usage_limits">"Provider terms and usage limits"</string>
     <string name="legal_release_checklist_and_pending_items">"Release checklist and pending items"</string>
     <string name="legal_safety_limitations">"Safety &amp; Limitations"</string>
     <string name="legal_safety_limits">"Safety &amp; Limits"</string>
     <string name="legal_service_terms_api_usage">"Service Terms &amp; API Usage"</string>
-    <string name="legal_tiramisu_theme">"Tiramisu Theme"</string>
     <string name="legal_unable_to_load">"Unable to load: %1$s"</string>
-    <string name="legal_voluntary_theme">"Voluntary Theme"</string>
     <string name="map_a_map_with_that_name_already_exists">"A map with that name already exists."</string>
     <string name="map_ascent_value">"↑ %1$s"</string>
     <string name="map_custom">"Custom · %1$s"</string>
-    <string name="map_day">"Day - %1$s"</string>
     <string name="map_default">"Default"</string>
     <string name="map_default_2">"Default (%1$s)"</string>
-    <string name="map_default_white_ski">"Default (White ski)"</string>
-    <string name="map_default_winter">"Default (Winter)"</string>
     <string name="map_deletes_from_the_watch">"Deletes %1$s from the watch."</string>
     <string name="map_descent_value">"↓ %1$s"</string>
     <string name="map_detailed_ready">"Detailed ready"</string>
-    <string name="map_elevate" translatable="false">"Elevate"</string>
-    <string name="map_elevate_winter" translatable="false">"Elevate Winter"</string>
     <string name="map_enabled_overlays">"Enabled Overlays"</string>
     <string name="map_enter_a_map_name_first">"Enter a map name first."</string>
     <string name="map_eta_row">"%1$s %2$s"</string>
-    <string name="map_french_kiss" translatable="false">"French Kiss"</string>
     <string name="map_hill_shading_title">"Hill Shading"</string>
     <string name="map_imported_theme">"Imported theme"</string>
     <string name="map_map_details">"Map details"</string>
     <string name="map_mapsforge" translatable="false">"Mapsforge"</string>
     <string name="map_missing">"Missing"</string>
     <string name="map_mixed_ready">"Mixed ready"</string>
-    <string name="map_night">"Night - %1$s"</string>
     <string name="map_no_elevation">"No elevation"</string>
     <string name="map_no_render_theme_xml_found">"No render theme XML found"</string>
     <string name="map_no_routing_packs">"No routing packs"</string>
@@ -1020,7 +1004,6 @@
     <string name="map_none_installed">"none installed"</string>
     <string name="map_not_a_valid_mapsforge_theme_package">"Not a valid Mapsforge theme package"</string>
     <string name="map_openhiking" translatable="false">"OpenHiking"</string>
-    <string name="map_os_map" translatable="false">"OS Map"</string>
     <string name="map_poi_services">"POI &amp; services"</string>
     <string name="map_routes_labels">"Routes &amp; labels"</string>
     <string name="map_routing_coverage_unavailable">"Routing coverage unavailable"</string>
@@ -1043,10 +1026,7 @@
     <string name="map_theme_package_is_too_large">"Theme package is too large"</string>
     <string name="map_theme_resources_are_missing">"Theme resources are missing"</string>
     <string name="map_theme_style">"Theme Style"</string>
-    <string name="map_tiramisu" translatable="false">"Tiramisu"</string>
     <string name="map_unknown">"Unknown"</string>
-    <string name="map_voluntary" translatable="false">"Voluntary"</string>
-    <string name="map_white">"White"</string>
     <string name="map_winter_activities">"Winter activities"</string>
     <string name="maps_add_second_point_b">"Add second point B"</string>
     <string name="maps_cancel_elevation_download">"Cancel elevation download"</string>
@@ -1548,7 +1528,6 @@
     <string name="settings_dashboard_2">"Dashboard"</string>
     <string name="settings_dashboard_info">"Dashboard info"</string>
     <string name="settings_dashboard_page">"Dashboard page"</string>
-    <string name="settings_day">"Day"</string>
     <string name="settings_dbm">" · %1$s dBm"</string>
     <string name="settings_debug_crash_test">"Debug crash test"</string>
     <string name="settings_debug_popup">"Debug popup"</string>
@@ -1698,7 +1677,6 @@
     <string name="settings_manual_stop_invalidates_benchmark">"Manual stop · invalidates benchmark"</string>
     <string name="settings_map_label_size">"Map label size"</string>
     <string name="settings_map_settings">"Map settings"</string>
-    <string name="settings_map_style">"Map style"</string>
     <string name="settings_map_theme">"Map theme"</string>
     <string name="settings_marked_hiking_routes">"Marked hiking routes"</string>
     <string name="settings_marker_style">"Marker style"</string>
@@ -1710,14 +1688,12 @@
     <string name="settings_mi_2">"%1$.1f mi"</string>
     <string name="settings_mm">"%1$s mm"</string>
     <string name="settings_mm_m">"%1$d mm · %2$s m"</string>
-    <string name="settings_mode">"Mode"</string>
     <string name="settings_move_s">"Move: %1$ss"</string>
     <string name="settings_mph">"mph"</string>
     <string name="settings_needed_to_find_sensors">"Needed to find sensors"</string>
     <string name="settings_needs_declination">"%1$s (needs declination)"</string>
     <string name="settings_neutral">"Neutral"</string>
     <string name="settings_never">"Never"</string>
-    <string name="settings_night">"Night"</string>
     <string name="settings_night_mode">"Night mode"</string>
     <string name="settings_night_mode_uses_mapsforge_dark_your_normal_theme_and_overlay_choices_a">"Night mode uses Mapsforge Dark. Your normal theme and overlay choices are saved and return when it is off."</string>
     <string name="settings_no_bike_sensor_linked">"No bike sensor linked"</string>
@@ -1753,8 +1729,6 @@
     <string name="settings_open_navigate_shortcuts_to_mark_n_e_s_and_w">"Open Navigate → shortcuts to mark N, E, S and W"</string>
     <string name="settings_orientation_provider">"Orientation provider"</string>
     <string name="settings_orientation_provider_2">"Orientation\nprovider"</string>
-    <string name="settings_os_map_mode">"OS Map mode"</string>
-    <string name="settings_os_map_style">"OS Map style"</string>
     <string name="settings_overlays_tap_group_to_open">"Overlays (tap group to open)"</string>
     <string name="settings_pack">"pack %1$s"</string>
     <string name="settings_page">"Page %1$d"</string>
@@ -1899,7 +1873,7 @@
     <string name="settings_test_failed">"Test failed"</string>
     <string name="settings_test_unavailable">"Test unavailable"</string>
     <string name="settings_testing">"Testing %1$s"</string>
-    <string name="settings_thanks_to_openandromaps_elevate_openhiking_tiramisu_hike_ride_sight_op">"Thanks to OpenAndroMaps, Elevate, OpenHiking, Tiramisu, Hike, Ride &amp; Sight, OpenStreetMap, Refuges.info, Overpass, Mapsforge and BRouter."</string>
+    <string name="settings_thanks_to_openandromaps_openhiking_openstreetmap_refuges_info_overpass">"Thanks to OpenAndroMaps, OpenHiking, OpenStreetMap, Refuges.info, Overpass, Mapsforge and BRouter."</string>
     <string name="settings_the_first_full_screen_page_keeps_turn_guidance">"The first full-screen page keeps turn guidance."</string>
     <string name="settings_theme_icon">"Theme icon"</string>
     <string name="settings_theme_style">"Theme style"</string>

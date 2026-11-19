@@ -50,7 +50,7 @@ internal class MapThemePreferences(
                 choiceStarted = true
                 editor.putString(
                     scoped(SELECTED_THEME),
-                    getString(SELECTED_THEME, MapsforgeThemeCatalog.ELEVATE_THEME_ID),
+                    getString(SELECTED_THEME, MapsforgeThemeCatalog.OPENHIKING_THEME_ID),
                 )
             }
             return scoped(key)

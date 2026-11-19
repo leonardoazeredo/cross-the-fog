@@ -12,29 +12,7 @@ Diese Datei dokumentiert Quellen- und Lizenzangaben für von GlanceMap genutzte 
   - https://www.openstreetmap.org/copyright
   - https://opendatacommons.org/licenses/odbl/1-0/
 
-## 2) Elevate-Kartenthema (OpenAndroMaps-Umfeld)
-
-- Lokale Themendatei:
-- `app/src/main/assets/Elevate.xml`
-- `app/src/main/assets/theme/elevate/`
-- `app/src/main/assets/theme/elevate-winter/`
-- `app/src/main/assets/theme/elevate-winter-white/`
-- Enthaltene Lizenzerklärung in der Datei:
-  - CC BY-NC-SA 4.0 für den Kartenstil.
-  - Der Hinweis zur kommerziellen Nutzung verweist auf BY-ND 4.0.
-- Ursprüngliche Verweise:
-  - https://www.openandromaps.org/en/legend/elevate-mountain-hike-theme
-  - https://www.openandromaps.org/en/license
-
-Wichtig:
-- `Elevate.xml` verweist für Ressourcen-Wiederverwendungslizenzen auf `read_me_elevate.txt`.
-- Die versionierten Themenstände enthalten `read_me_elevate.txt`; normale Builds laden keine Themenressourcen herunter.
-- Die Quell-Ersatzdatei im Stammverzeichnis führt `app/src/main/assets/read_me_elevate.txt` neben `Elevate.xml`.
-- Die OpenAndroMaps-Lizenzseite enthält Beigabe-/Genehmigungsvorgaben.
-- Laut Projektverantwortlichem wurde die Erlaubnis zur OpenAndroMaps/Elevate-Nutzung und -Integration durch GlanceMap von OpenAndroMaps und Tobias Kuehn erteilt.
-- Genaue Zustimmungsdaten und genehmigten Umfang vor Änderung der Sichtbarkeit außerhalb des öffentlichen Repositorys festhalten.
-
-## 3) OpenHiking-Mapsforge-Thema
+## 2) OpenHiking-Mapsforge-Thema
 
 - Lokale enthaltene Themendateien:
   - `app/src/main/assets/theme/openhiking/OpenHiking.xml`
@@ -58,116 +36,7 @@ Wichtig:
 - Genaue ursprüngliche Seite/Version und Genehmigungsdetails privat archivieren, sobald verfügbar.
 - Nutzerhinweis in `licenses/OPENHIKING_THEME.md` verfügbar.
 
-## 4) Tiramisu-Mapsforge-Thema
-
-- Lokale enthaltene Themendateien:
-  - `app/src/main/assets/theme/tiramisu/Tiramisu.xml`
-  - Ressourcenbaum `app/src/main/assets/theme/tiramisu/res/`
-- Quelle des enthaltenen Stands:
-  - https://github.com/IgorMagellan/Tiramisu/releases/tag/v4.4
-- Am 2026-03-18 festgestellter Veröffentlichungsinhalt:
-  - `Tiramisu.xml`
-  - SVG-Ressourcenbaum `res/`
-  - `LICENSE`
-  - `README.md`
-- Im Ursprungspaket erklärte Lizenz:
-  - CC BY-NC-SA 3.0
-
-Wichtig:
-- Die ursprüngliche Lizenz ist nichtkommerziell.
-- Der Projektverantwortliche bestätigte am 2026-04-26 das nichtkommerzielle Vertriebsmodell; der aktuelle Plan für öffentliches Repository und App wird daher als vereinbar betrachtet.
-- Quellenangaben und Weitergabe-unter-gleichen-Bedingungen-Pflichten in der Projektdokumentation beibehalten.
-- Bei kommerziellem Vertriebsmodell erneut prüfen.
-- Nutzerhinweis in `licenses/TIRAMISU_THEME.md` verfügbar.
-
-## 5) French-Kiss-Mapsforge-Thema
-
-- Lokale enthaltene Themendateien:
-  - `app/src/main/assets/theme/frenchkiss/frenchkiss.xml`
-  - `app/src/main/assets/theme/frenchkiss/motifs/`
-- Quelle des aktuellen lokalen Paketstands:
-  - Vom Nutzer bereitgestelltes `xctrack-beta-latest.apk`
-- Am 2026-03-18 festgestellter Standinhalt:
-  - `frenchkiss.xml`
-  - PNG-Ressourcenbaum `motifs/`
-- Enthaltene Herkunftsangabe im XML-Kopf:
-  - `IGN TOP25 theme for XCTrack by Pascal Cochet`
-
-Wichtig:
-- Neben den extrahierten Themenressourcen wurde keine separate Lizenzdatei gefunden.
-- Der Projektverantwortliche bestätigte am 2026-04-27 die Genehmigung des French-Kiss-Entwicklers.
-- Aktuelle Quellenangabe beibehalten, sofern der Urheber später keine genauere Formulierung verlangt.
-- Genaue Genehmigungsdetails privat archivieren.
-- Nutzerhinweis in `licenses/FRENCH_KISS_THEME.md` verfügbar.
-
-## 6) Hike, Ride & Sight-Mapsforge-Thema
-
-- Lokale enthaltene Themendateien:
-  - `app/src/main/assets/theme/hike-ride-sight/HikeRideSight.xml`
-  - `app/src/main/assets/theme/hike-ride-sight/PATTERNS/`
-  - `app/src/main/assets/theme/hike-ride-sight/SYMBOLS/`
-- Themenseite:
-  - http://j.seydoux.free.fr/locus/hrs.html
-- Manueller ZIP-Download:
-  - http://j.seydoux.free.fr/locus/Hike,%20Ride%20&%20Sight!.zip
-- Festgestellte ursprüngliche Lizenzerklärung:
-  - Im XML-Kopfkommentar als CC BY-NC-SA 3.0 angegeben
-
-Wichtig:
-- Im heruntergeladenen ZIP wurde keine separate Lizenzdatei gefunden.
-- Die angegebene Lizenz ist nichtkommerziell.
-- Der Projektverantwortliche bestätigte am 2026-04-26 die Genehmigung zur Nutzung/Weiterverteilung durch GlanceMap.
-- Das aktuelle nichtkommerzielle Vertriebsmodell von GlanceMap wird als vereinbar betrachtet.
-- Quellenangaben und Weitergabe-unter-gleichen-Bedingungen-Pflichten in der Projektdokumentation beibehalten.
-- Erforderliche Nutzerlinks werden in `licenses/CREDITS_AND_THANKS.md` beibehalten.
-- Nutzerhinweis in `licenses/HIKE_RIDE_SIGHT_THEME.md` verfügbar.
-
-## 7) Voluntary-Mapsforge-Thema
-
-- Lokale enthaltene Themendateien:
-  - `app/src/main/assets/theme/voluntary/Voluntary V5.xml`
-  - `app/src/main/assets/theme/voluntary/vol_res/`
-- Themenwebsite:
-  - https://voluntary.nichesite.org/
-- Manueller ZIP-Download:
-  - https://ftp.gwdg.de/pub/misc/openstreetmap/openandromaps/themes/voluntary/downloads/Voluntary%20MF5.zip
-- Legende:
-  - https://voluntary.nichesite.org/key.html
-  - https://ftp.gwdg.de/pub/misc/openstreetmap/openandromaps/themes/voluntary/downloads/Voluntary%20Key.pdf
-- Festgestellte ursprüngliche Lizenzerklärung:
-  - Im XML-Kopfkommentar und auf der ursprünglichen Quellenangabenseite als CC BY-NC-SA 3.0 angegeben
-
-Wichtig:
-- Im heruntergeladenen ZIP wurde keine separate Lizenzdatei gefunden.
-- Die angegebene Lizenz ist nichtkommerziell.
-- Der Projektverantwortliche bestätigte am 2026-04-29 die Zustimmung des Urhebers zur GlanceMap-Integration.
-- Das aktuelle nichtkommerzielle Vertriebsmodell von GlanceMap wird als vereinbar betrachtet.
-- Quellenangaben und Weitergabe-unter-gleichen-Bedingungen-Pflichten in der Projektdokumentation beibehalten.
-- Nutzerhinweis in `licenses/VOLUNTARY_THEME.md` verfügbar.
-
-## 8) OS-Map-Mapsforge-Thema
-
-- Lokale enthaltene Themendateien:
-  - `app/src/main/assets/theme/os-map/OS Map V4 Day.xml`
-  - `app/src/main/assets/theme/os-map/OS Map V4 Night.xml`
-  - `app/src/main/assets/theme/os-map/os_res/`
-- Themendiskussion:
-  - https://forum.locusmap.eu/index.php?topic=7000.msg59948#msg59948
-- Veröffentlichungs-ZIP:
-  - https://drive.google.com/uc?export=download&id=1RzZTMLRIQM1pY_R8FXdVxKPSTqO2LHUE
-- Legenden:
-  - https://drive.google.com/file/d/1PE0eBzJnGMbDs9a_V_uhQQa0db5RK-Zs/view
-  - https://drive.google.com/file/d/1OwAeuBtYN-XxjGkpOs3SrdYAUwYXDets/view
-- Festgestellte ursprüngliche Lizenzerklärung:
-  - Im XML-Kopfkommentar als CC BY-NC-SA 3.0 angegeben
-
-Wichtig:
-- Die angegebene Lizenz ist nichtkommerziell.
-- Das aktuelle nichtkommerzielle Vertriebsmodell von GlanceMap wird als vereinbar betrachtet.
-- Quellenangaben und Weitergabe-unter-gleichen-Bedingungen-Pflichten in der Projektdokumentation beibehalten.
-- Nutzerhinweis in `licenses/OS_MAP_THEME.md` verfügbar.
-
-## 9) Refuges.info-Datenimporte
+## 3) Refuges.info-Datenimporte
 
 - Die Begleit-App importiert POI-Daten von:
   - `https://www.refuges.info/api/bbox`
@@ -179,7 +48,7 @@ Hinweise:
 - Laut Refuges.info stehen Inhalte der Punktseiten unter CC BY-SA.
 - Refuges.info verweist gegebenenfalls auch auf OpenStreetMap-Daten und ODbL-Vorgaben.
 
-## 9) Ergänzung von OSM-POI über Overpass API
+## 4) Ergänzung von OSM-POI über Overpass API
 
 - Von der Begleit-App genutzter Endpunkt:
   - `https://overpass-api.de/api/interpreter`
@@ -189,7 +58,7 @@ Hinweise:
 Nutzungshinweis:
 - Die Hinweise zur öffentlichen Instanz nennen vorsichtige Grenzen für Abfragen und Bandbreite pro Tag.
 
-## 10) DEM-Höhendaten (Neigungs-/Geländedarstellung)
+## 5) DEM-Höhendaten (Neigungs-/Geländedarstellung)
 
 - Build und Laufzeit nutzen DEM3-artige `.hgt.zip`-Kacheln und optional `.hgt.gz`-Kacheln mit 1 Bogensekunde.
 - Standardquelle in App/Build:
@@ -203,7 +72,7 @@ Nutzungshinweis:
   - https://www.mapzen.com/blog/terrain-tile-service/
   - https://www.mapzen.com/rights/
 
-## 11) POI-Symbolressourcen
+## 6) POI-Symbolressourcen
 
 - Lokale POI-Symbole stammen aus den SVG-Symbolsätzen Maki und Temaki:
   - https://github.com/mapbox/maki
@@ -214,7 +83,7 @@ Nutzungshinweis:
   - CC0 1.0 Universal
   - https://creativecommons.org/publicdomain/zero/1.0/
 
-## 12) BRouter-Routenressourcen und -segmente
+## 7) BRouter-Routenressourcen und -segmente
 
 - Enthaltene Routenprofilressourcen:
   - `app/src/main/assets/brouter/profiles2/lookups.dat`
@@ -230,12 +99,12 @@ Hinweise:
 - Die OpenStreetMap-Quellenangabe bleibt für Routensegmentdaten relevant.
 - Die Uhr-App bindet BRouter-Code separat unter der MIT-Lizenz ein; Lizenzhinweis zum Code in `THIRD_PARTY_NOTICES.md`.
 
-## 13) Vom Nutzer importierte Dateien
+## 8) Vom Nutzer importierte Dateien
 
 - Die App unterstützt vom Nutzer importierte Karten-, POI- und GPX-Dateien.
 - Lizenzen und Weiterverteilungsrechte bereitgestellter Dateien bleiben in der Verantwortung des Nutzers.
 
-## 14) Praktische Konformitätsprüfliste
+## 9) Praktische Konformitätsprüfliste
 
 - Rechtliche Hinweise aus den Uhreinstellungen erreichbar halten.
 - `CREDITS_AND_THANKS.md` verständlich und kurz halten.

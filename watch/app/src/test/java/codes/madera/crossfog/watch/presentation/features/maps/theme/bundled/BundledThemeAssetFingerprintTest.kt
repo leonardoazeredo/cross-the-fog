@@ -42,8 +42,8 @@ class BundledThemeAssetFingerprintTest {
                 assets +
                     mapOf(
                         "classes.dex" to "new code",
-                        "assets/theme/elevate/Elevate.xml" to "other theme",
-                        "assets/theme/hike-ride-sight-other/symbols/peak.svg" to "other icon",
+                        "assets/theme/other/Other.xml" to "other theme",
+                        "assets/theme/other-icons/symbols/peak.svg" to "other icon",
                     ),
             )
 
@@ -89,12 +89,12 @@ class BundledThemeAssetFingerprintTest {
 
     @Test
     fun `legacy resource directories and individual files are included`() {
-        val path = "Elevate.xml"
-        val resources = setOf("ele-res", "symbol.svg")
+        val path = "Legacy.xml"
+        val resources = setOf("legacy-res", "symbol.svg")
         val entries =
             mapOf(
                 "assets/$path" to "<rendertheme />",
-                "assets/ele-res/peak.svg" to "peak",
+                "assets/legacy-res/peak.svg" to "peak",
                 "assets/symbol.svg" to "old symbol",
             )
         val original = apk("original.apk", entries)

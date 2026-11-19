@@ -14,13 +14,13 @@ class MapThemePreferencesTest {
     fun `map A custom and map B built-in restore independently through recreation`() {
         preferences
             .edit()
-            .putString(THEME, "elevate")
+            .putString(THEME, "openhiking")
             .putString(STYLE, "default-style")
             .apply()
         preferences.mapPath = "mapA.map"
         preferences.edit().putString(THEME, CUSTOM).apply()
         preferences.mapPath = "mapB.map"
-        assertEquals("elevate", preferences.getString(THEME, null))
+        assertEquals("openhiking", preferences.getString(THEME, null))
         assertEquals("default-style", preferences.getString(STYLE, null))
         preferences
             .edit()
@@ -35,7 +35,15 @@ class MapThemePreferencesTest {
         recreated.mapPath = "mapA.map"
         assertEquals(CUSTOM, recreated.getString(THEME, null))
         recreated.mapPath = "unassociated.map"
-        assertEquals("elevate", recreated.getString(THEME, null))
+        assertEquals("openhiking", recreated.getString(THEME, null))
+    }
+
+    @Test
+    fun `a first per-map style edit with no theme stored pins OpenHiking, the default`() {
+        preferences.mapPath = "a.map"
+        preferences.edit().putString(STYLE, "hiking").apply()
+        assertEquals("openhiking", disk.all.entries.single { it.key.endsWith("selected_theme_id") }.value)
+        assertEquals("hiking", preferences.getString(STYLE, null))
     }
 
     @Test
@@ -45,7 +53,7 @@ class MapThemePreferencesTest {
             .edit()
             .putString(
                 THEME,
-                "elevate",
+                "openhiking",
             ).putString(
                 STYLE,
                 "hiking",
@@ -57,7 +65,7 @@ class MapThemePreferencesTest {
             .edit()
             .putString(
                 THEME,
-                "elevate",
+                "openhiking",
             ).putString(STYLE, "cycling")
             .putStringSet(OVERLAYS, setOf("bike"))
             .apply()
@@ -76,14 +84,14 @@ class MapThemePreferencesTest {
         preferences.mapPath = "a.map"
         preferences.edit().putString(STYLE, "DARK").apply()
         preferences.mapPath = null
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
         assertEquals("mapsforge", preferences.getString(THEME, null))
     }
 
     @Test
     fun `theme removal invalidates associations and restores global built-in defaults`() {
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
         preferences
             .edit()
@@ -94,7 +102,7 @@ class MapThemePreferencesTest {
         preferences.edit().putString(THEME, "mapsforge").apply()
         preferences.invalidateExternalThemes(emptySet())
         preferences.mapPath = "a.map"
-        assertEquals("elevate", preferences.getString(THEME, null))
+        assertEquals("openhiking", preferences.getString(THEME, null))
         preferences.mapPath = "b.map"
         assertEquals("mapsforge", preferences.getString(THEME, null))
         assertFalse(disk.all.values.contains(CUSTOM))
@@ -120,17 +128,17 @@ class MapThemePreferencesTest {
 
     @Test
     fun `valid external association survives catalog invalidation and global preferences stay unscoped`() {
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
         preferences.edit().putString(THEME, CUSTOM).apply()
         preferences.invalidateExternalThemes(setOf(CUSTOM))
         assertEquals(CUSTOM, preferences.getString(THEME, null))
-        assertEquals("elevate", disk.getString(THEME, null))
+        assertEquals("openhiking", disk.getString(THEME, null))
     }
 
     @Test
     fun `global toggle writes keep chained theme choices scoped to their map`() {
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
         preferences
             .edit()
@@ -138,7 +146,7 @@ class MapThemePreferencesTest {
             .putString(THEME, CUSTOM)
             .apply()
         assertEquals(CUSTOM, preferences.getString(THEME, null))
-        assertEquals("elevate", disk.getString(THEME, null))
+        assertEquals("openhiking", disk.getString(THEME, null))
         assertTrue(disk.getBoolean("global_night_mode_enabled", false))
     }
 
@@ -154,14 +162,14 @@ class MapThemePreferencesTest {
         assertEquals("mapsforge", disk.getString(THEME, null))
         assertEquals("mapsforge:DARK", disk.getString(STYLE, null))
         preferences.mapPath = null
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
-        assertEquals("elevate", preferences.getString(THEME, null))
+        assertEquals("openhiking", preferences.getString(THEME, null))
     }
 
     @Test
     fun `legacy map-specific theme migration preserves the global default`() {
-        preferences.edit().putString(THEME, "elevate").apply()
+        preferences.edit().putString(THEME, "openhiking").apply()
         preferences.mapPath = "a.map"
         preferences.edit().putString(THEME, "mapsforge:DARK").apply()
         preferences
@@ -170,13 +178,13 @@ class MapThemePreferencesTest {
             .putString(STYLE, "mapsforge:DARK")
             .apply()
         assertEquals("mapsforge", preferences.getString(THEME, null))
-        assertEquals("elevate", disk.getString(THEME, null))
+        assertEquals("openhiking", disk.getString(THEME, null))
     }
 
     companion object {
         private const val THEME = "selected_theme_id"
         private const val STYLE = "selected_style_mapsforge"
-        private const val OVERLAYS = "enabled_overlays_for_theme_elevate_style_hiking"
+        private const val OVERLAYS = "enabled_overlays_for_theme_openhiking_style_hiking"
         private const val CUSTOM = "external:package:entry"
     }
 }

@@ -33,7 +33,7 @@ internal fun buildMapRendererThemeOrNull(
                 ?: run {
                     Log.w(
                         MAP_RENDERER_THEME_TAG,
-                        "Unknown Mapsforge theme: $mapsforgeThemeName. Falling back to Elevate.",
+                        "Unknown Mapsforge theme: $mapsforgeThemeName. Falling back to the default theme.",
                     )
                     null
                 }
