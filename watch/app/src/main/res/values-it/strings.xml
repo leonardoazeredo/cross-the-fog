@@ -1137,7 +1137,6 @@
     <string name="navigate_coordinates">"Coordinate"</string>
     <string name="navigate_create_poi">"Crea POI"</string>
     <string name="navigate_create_route">"Crea percorso"</string>
-    <string name="navigate_create_route_to_gpx">"Crea percorso verso GPX"</string>
     <string name="navigate_dashboard_measure">"Misura del pannello"</string>
     <string name="navigate_direction_to_route">"Direzione verso il percorso"</string>
     <string name="navigate_direction_to_route_start">"Direzione verso la partenza del percorso"</string>
@@ -1154,7 +1153,6 @@
     <string name="navigate_gpx_start">"Inizio GPX"</string>
     <string name="navigate_grant_permission">"Concedi permesso"</string>
     <string name="navigate_guide">"Guida"</string>
-    <string name="navigate_guide_back">"Guidare al ritorno?"</string>
     <string name="navigate_ignore">"Ignora"</string>
     <string name="navigate_inspect_the_edit_then_save">"Controlla la modifica, poi salva."</string>
     <string name="navigate_inspect_the_new_end_then_save">"Controlla il nuovo arrivo, poi salva."</string>
@@ -1191,8 +1189,6 @@
     <string name="navigate_resume_guidance">"Riprendi guida"</string>
     <string name="navigate_resume_recording">"Riprendi registrazione"</string>
     <string name="navigate_reverse">"Inverti"</string>
-    <string name="navigate_route_back">"Percorso di ritorno?"</string>
-    <string name="navigate_route_back_to_gpx">"Percorso di ritorno al GPX"</string>
     <string name="navigate_route_complete">"Percorso completato"</string>
     <string name="navigate_s">"S"</string>
     <string name="navigate_saving_poi">"Salvataggio POI..."</string>

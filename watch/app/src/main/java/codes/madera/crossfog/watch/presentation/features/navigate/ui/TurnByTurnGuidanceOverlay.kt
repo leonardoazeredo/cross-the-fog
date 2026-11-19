@@ -36,7 +36,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -425,10 +424,9 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
                         R.string.navigate_from_gpx,
                         formatLiveDistanceLabel(it, isMetric, resources = resources),
                     )
-                } ?: stringResource(R.string.navigate_guide_back),
-            acceptText = stringResource(R.string.navigate_guide),
+                } ?: "",
+            acceptText = null,
             dismissText = stringResource(R.string.navigate_ignore),
-            onAccept = onGuideBackToRoute,
             onDismiss = onDismissGuideBackPrompt,
             modifier =
                 Modifier
@@ -503,13 +501,6 @@ private fun ExpandedGuidanceOverlay(
         } else {
             null
         }
-    val showGuideBackShortcut = state.active && state.offRoute && !guideBackToRouteActive && !showGuideBackPrompt
-    var showGuideBackShortcutConfirm by remember(state.trackTitle) { mutableStateOf(false) }
-    LaunchedEffect(state.offRoute, guideBackToRouteActive, showGuideBackPrompt) {
-        if (!state.offRoute || guideBackToRouteActive || showGuideBackPrompt) {
-            showGuideBackShortcutConfirm = false
-        }
-    }
 
     Box(
         modifier =
@@ -532,19 +523,6 @@ private fun ExpandedGuidanceOverlay(
                     .align(Alignment.CenterStart)
                     .padding(start = 16.dp),
         )
-
-        if (showGuideBackShortcut) {
-            GuidanceGuideBackShortcut(
-                onClick = {
-                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_click")
-                    showGuideBackShortcutConfirm = true
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 16.dp),
-            )
-        }
 
         cappedFontScale(maxFontScale = 1.15f) {
             Column(
@@ -628,34 +606,6 @@ private fun ExpandedGuidanceOverlay(
                     }
                 }
             }
-        }
-
-        if (showGuideBackShortcutConfirm) {
-            GuidanceDecisionPromptCard(
-                title = stringResource(R.string.navigate_route_back),
-                detail =
-                    state.distanceToRouteMeters?.let {
-                        stringResource(
-                            R.string.navigate_from_gpx,
-                            formatLiveDistanceLabel(it, isMetric, resources = resources),
-                        )
-                    } ?: stringResource(R.string.navigate_create_route_to_gpx),
-                acceptText = stringResource(R.string.navigate_guide),
-                dismissText = stringResource(R.string.common_cancel),
-                onAccept = {
-                    showGuideBackShortcutConfirm = false
-                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_confirm")
-                    onGuideBackToRoute()
-                },
-                onDismiss = {
-                    showGuideBackShortcutConfirm = false
-                    DebugTelemetry.log("TurnByTurn", "event=guide_back_dashboard_shortcut_cancel")
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 36.dp),
-            )
         }
     }
 }
@@ -858,27 +808,6 @@ private fun formatGuidanceDuration(
 }
 
 @Composable
-private fun GuidanceGuideBackShortcut(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier =
-            modifier
-                .size(48.dp)
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Route,
-            contentDescription = stringResource(R.string.navigate_route_back_to_gpx),
-            tint = OFF_ROUTE_AMBER,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-@Composable
 private fun GuidanceVoiceToggle(
     enabled: Boolean,
     onClick: () -> Unit,
@@ -1017,10 +946,10 @@ private fun GuidanceMiniStopButton(onClick: () -> Unit) {
 internal fun GuidanceDecisionPromptCard(
     title: String,
     detail: String,
-    acceptText: String,
+    acceptText: String?,
     dismissText: String,
-    onAccept: () -> Unit,
     onDismiss: () -> Unit,
+    onAccept: () -> Unit = {},
     tertiaryText: String? = null,
     onTertiary: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -1031,11 +960,13 @@ internal fun GuidanceDecisionPromptCard(
         modifier = modifier,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GuideBackPromptButton(
-                text = acceptText,
-                selected = true,
-                onClick = onAccept,
-            )
+            if (acceptText != null) {
+                GuideBackPromptButton(
+                    text = acceptText,
+                    selected = true,
+                    onClick = onAccept,
+                )
+            }
             GuideBackPromptButton(
                 text = dismissText,
                 selected = false,
@@ -1077,15 +1008,17 @@ private fun GuidancePromptCard(
                     lineHeight = 14.sp,
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    text = detail,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 10.sp,
-                    lineHeight = 11.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (detail.isNotEmpty()) {
+                    Text(
+                        text = detail,
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 10.sp,
+                        lineHeight = 11.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 buttons()
             }
