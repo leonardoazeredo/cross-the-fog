@@ -1,13 +1,5 @@
 <resources>
     <string name="watch_whats_new_title">What’s new in %1$s</string>
-    <string-array name="watch_whats_new_notes">
-        <item>Added French, German, Spanish, Italian and Polish, with language selection.</item>
-        <item>Added fullscreen map controls and an auto-recenter shortcut.</item>
-        <item>Added experimental 3D terrain and a hiking theme.</item>
-        <item>Added support for custom Mapsforge themes sent from the phone.</item>
-        <item>Improved recording continuity, GPS gap handling and sensor recovery.</item>
-        <item>Improved offline map downloads and extraction.</item>
-    </string-array>
     <string name="app_name" translatable="false">GlanceMap</string>
     <string name="glancemap_state_on">On</string>
     <string name="glancemap_state_off">Off</string>
@@ -123,9 +115,7 @@
     <string name="common_ok">"OK"</string>
     <string name="common_pause">"Pause"</string>
     <string name="common_percent">"%1$s%%"</string>
-    <string name="common_please_take_a_moment_to_rate_glancemap_on_google_play">"Please take a moment to rate GlanceMap on Google Play."</string>
     <string name="common_poi">"POI"</string>
-    <string name="common_rate_app">"Rate app"</string>
     <string name="common_rec">"REC"</string>
     <string name="common_recording">"Recording"</string>
     <string name="common_resume">"Resume"</string>

@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="watch_whats_new_title">Novità della versione %1$s</string>
-    <string-array name="watch_whats_new_notes">
-        <item>Aggiunti francese, tedesco, spagnolo, italiano e polacco, con selezione della lingua.</item>
-        <item>Aggiunti i controlli della mappa a schermo intero e un collegamento al ricentramento automatico.</item>
-        <item>Aggiunti il terreno 3D sperimentale e un tema escursionistico.</item>
-        <item>Aggiunto il supporto per temi Mapsforge personalizzati inviati dal telefono.</item>
-        <item>Migliorate la continuità della registrazione, la gestione delle interruzioni GPS e il ripristino dei sensori.</item>
-        <item>Migliorati il download e l’estrazione delle mappe offline.</item>
-    </string-array>
     <string name="glancemap_state_on">"Attivo"</string>
     <string name="glancemap_state_off">"Disattivo"</string>
     <string name="action_increase">"Aumenta"</string>
@@ -115,9 +107,7 @@
     <string name="common_ok">"OK"</string>
     <string name="common_pause">"Pausa"</string>
     <string name="common_percent">"%1$s%%"</string>
-    <string name="common_please_take_a_moment_to_rate_glancemap_on_google_play">"Dedica un momento a valutare GlanceMap su Google Play."</string>
     <string name="common_poi">"POI"</string>
-    <string name="common_rate_app">"Valuta app"</string>
     <string name="common_rec">"REC"</string>
     <string name="common_recording">"Registrazione"</string>
     <string name="common_resume">"Riprendi"</string>
