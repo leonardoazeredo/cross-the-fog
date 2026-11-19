@@ -918,7 +918,7 @@ const realFetch = global.fetch;
       await Overpass.post("data=3");
       assert.deepEqual(calls, [N, M], "the third is still asked");
       assert.equal(warns.length, 1, "the third rejection logs one line");
-      assert.ok(!warns[0].includes(KEY) && !/nextgis\.com|https?:/.test(warns[0]), "no key and no URL in it: " + warns[0]);
+      assert.ok(!warns[0].includes(KEY) && !warns[0].includes(encodeURIComponent(KEY)) && !/nextgis\.com|https?:/.test(warns[0]), "no key and no URL in it: " + warns[0]);
       calls = []; t += 30_001;
       await Overpass.post("data=4");
       assert.deepEqual(calls, [M], "after the third NextGIS is held beyond 30 s");
@@ -929,6 +929,9 @@ const realFetch = global.fetch;
       await Overpass.post("data=6");
       assert.deepEqual(calls, [N, M], "asked again once the 10 minutes are up");
       assert.equal(warns.length, 1, "a longer streak logs no second line");
+      calls = []; t += 30_001;
+      await Overpass.post("data=7");
+      assert.deepEqual(calls, [M], "a fourth rejection is held 10 minutes again, not 30 s");
     } finally { console.warn = realWarn; }
   }
   { // 26b. a finished answer between resets the count; requests open together that are rejected together are one
@@ -959,6 +962,32 @@ const realFetch = global.fetch;
       for (let i = 4; i <= 7; i++) { await Overpass.post("data=" + i); t += 30_001; }
       assert.equal(warns.length, 2, "the second streak of three logs again");
     } finally { console.warn = realWarn; }
+  }
+  { // 26e. a stall (here a body that never ends, which still carries its 200) is no finished answer, so it does not
+    //      break a streak of rejections
+    reset({ order: null });
+    const nextgis = [unreachable, unreachable, headersOnly, unreachable];
+    global.fetch = routed({ [N]: (u, o) => nextgis.shift()(u, o), [M]: answer });
+    for (let i = 1; i <= 2; i++) { await Overpass.post("data=" + i); t += 30_001; }
+    const stalled = Overpass.post("data=3");
+    await settle(); await advance(120_000);
+    await stalled;
+    t += 30_001;
+    await Overpass.post("data=4");
+    calls = []; t += 30_001;
+    await Overpass.post("data=5");
+    assert.deepEqual(calls, [M], "rejection, rejection, stall, rejection is three in a row");
+  }
+  { // 26f. any finished answer resets the count, not only a 200 with JSON: a 500 and a 200 that is not JSON
+    for (const finished of [status(500), notJson]) {
+      reset({ order: null });
+      const nextgis = [unreachable, unreachable, finished, unreachable, unreachable];
+      global.fetch = routed({ [N]: (u, o) => nextgis.shift()(u, o), [M]: answer });
+      for (let i = 1; i <= 5; i++) { await Overpass.post("data=" + i); t += 30_001; }
+      calls = []; global.fetch = routed({ [N]: answer, [M]: answer });
+      await Overpass.post("data=6");
+      assert.deepEqual(calls, [N], "two, an answer that is not a success, two: never three in a row");
+    }
   }
   { // 26c. only NextGIS has the long hold: overpass-api.de rejected three times in a row is still held 30 s
     reset({ key: null });
