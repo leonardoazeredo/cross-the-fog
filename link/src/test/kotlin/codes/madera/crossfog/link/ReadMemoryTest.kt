@@ -74,7 +74,7 @@ class ReadMemoryTest {
     // and of an unpaired surrogate on either side of it.
     for (pad in 0..4) {
       val head = "a".repeat(16 * 1024 - 2 + pad)
-      for (middle in listOf("\ud83d\ude00", "\ud83d", "\ude00", "\ud83dx", "x\ude00")) {
+      for (middle in listOf("\ud83d\ude00", "\ud83d", "\ude00", "\ud83dx", "x\ude00", "\ud83d\ud83d", "\ud83d\ud83dx", "\ud83d\ud83d\ude00")) {
         val text = head + middle + "b".repeat(40_000) + "\u00e9\u20ac"
         assertEquals("pad $pad middle ${middle.length}", expected(text), Revision.of(text))
       }

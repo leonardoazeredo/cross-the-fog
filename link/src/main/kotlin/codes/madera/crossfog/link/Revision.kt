@@ -32,11 +32,13 @@ object Revision {
       // A pair is never cut: its high half waits for the next slice, where its low half is.
       if (end < gpx.length && Character.isHighSurrogate(gpx[end - 1])) end--
       gpx.toCharArray(chars, 0, at, end)
-      encoder.encode(CharBuffer.wrap(chars, 0, end - at), bytes, end == gpx.length)
+      val input = CharBuffer.wrap(chars, 0, end - at)
+      encoder.encode(input, bytes, end == gpx.length)
       bytes.flip()
       digest.update(bytes)
       bytes.clear()
-      at = end
+      // A trailing unpaired surrogate may be left unconsumed (the JVM) or held inside the encoder (Android): go on from what was taken.
+      at = end - input.remaining()
     }
     // Android's encoder keeps a trailing unpaired surrogate until it is flushed; without it the "?" is never written.
     if (gpx.isNotEmpty()) {

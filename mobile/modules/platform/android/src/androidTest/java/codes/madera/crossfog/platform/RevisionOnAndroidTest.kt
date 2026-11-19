@@ -33,5 +33,12 @@ class RevisionOnAndroidTest {
     for (text in listOf("\ud800", "a\udc00b", "x\ud83d", "\udc00😀", "a".repeat(16 * 1024 - 1) + "\ud83d" + "x")) {
       assertEquals(expected(text), Revision.of(text))
     }
+    // Two high surrogates with the second at the end of a slice: the first has no low half, the second may start a pair.
+    for (pad in 0..3) {
+      for (middle in listOf("\ud83d\ud83d", "\ud83d\ud83dx", "\ud83d\ud83d\ude00")) {
+        val text = "a".repeat(16 * 1024 - 2 + pad) + middle + "b"
+        assertEquals("pad $pad middle ${middle.length}", expected(text), Revision.of(text))
+      }
+    }
   }
 }
