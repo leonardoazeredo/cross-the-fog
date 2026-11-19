@@ -25,9 +25,9 @@ sealed interface LedgerAction {
  * touched entry goes first), and survives a restart through its [LedgerStore].
  *
  * - **Definite local failures** ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM] naming an item of
- *   this app's own queue): after [threshold] in a row the ledger answers [LedgerAction.SetAside].
+ *   this app's own queue): after [threshold] times with no confirmation between the ledger answers [LedgerAction.SetAside].
  * - **Unconfirmed ends** (any other end with an own item in flight, which a dropped link causes just as well):
- *   after [threshold] in a row the item is [LedgerAction.Demoted], and [prefer] offers every other
+ *   after [threshold] times with no confirmation between the item is [LedgerAction.Demoted], and [prefer] offers every other
  *   item first. Each further unconfirmed end demotes it again, so two items that both fail take turns
  *   instead of the older one starving the other. Nothing is parked and nothing blocks.
  *

@@ -57,7 +57,7 @@ class ItemLedgerTest {
         assertTrue(l.onClosed(unconfirmed(a, reason)).isEmpty())
       }
     }
-    assertEquals(a, l.prefer(listOf(a)))
+    assertEquals(a, l.prefer(listOf(a, b)))
     assertEquals(null, l.prefer(emptyList()))
   }
 
@@ -78,7 +78,7 @@ class ItemLedgerTest {
   @Test
   fun anUnsendableOwnItemIsDefiniteToo() {
     val l = ledger()
-    val info = CloseInfo(CloseReason.UNSENDABLE_ITEM, route(a), null)
+    val info = CloseInfo(CloseReason.UNSENDABLE_ITEM, route(a), route(a))
     assertTrue(l.onClosed(info).isEmpty())
     assertTrue(l.onClosed(info).isEmpty())
     assertEquals(listOf<LedgerAction>(LedgerAction.SetAside(route(a))), l.onClosed(info))
@@ -98,7 +98,7 @@ class ItemLedgerTest {
     val l = ledger()
     val info = CloseInfo(CloseReason.STORE_FAILED, activity(a), route(b))
     repeat(5) { assertTrue(l.onClosed(info).isEmpty()) }
-    assertEquals(b, l.prefer(listOf(b)))
+    assertEquals(b, l.prefer(listOf(b, c)))
     assertTrue(l.onClosed(unconfirmed(b)).isEmpty())
   }
 

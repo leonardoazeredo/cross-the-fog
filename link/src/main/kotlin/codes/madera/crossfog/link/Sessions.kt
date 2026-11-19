@@ -25,7 +25,10 @@ class SecureSession internal constructor(
   private var reported = false
   private val tls: TlsSession = TlsSession(raw, engine, trust, clock, config, object : TlsListener {
     override fun onSecure() {
-      endpoint = makeEndpoint(tls, events).also { it.open() }
+      // Set before open(): a hello that fails to write closes the endpoint inside open(), and a close from the app's handler must find it.
+      val e = makeEndpoint(tls, events)
+      endpoint = e
+      e.open()
     }
 
     override fun onPlain(bytes: ByteArray, offset: Int, length: Int) {

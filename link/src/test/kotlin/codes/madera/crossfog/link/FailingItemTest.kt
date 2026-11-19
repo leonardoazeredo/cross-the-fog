@@ -177,7 +177,9 @@ class FailingItemTest {
     val s = Sessions2()
     s.queueRoutes()
     s.phoneRoutes.failMarkFor += ROUTE_A
-    repeat(3) { s.session() }
+    repeat(2) { s.session() }
+    assertTrue(s.phoneAside.isEmpty())
+    s.session()
     assertEquals(listOf(ROUTE_A), s.phoneAside)
     // set aside means out of the queue; the app moves the file, so the queue here forgot it and the ledger let go
     assertFalse(ROUTE_A in s.phoneQueue.queued)
@@ -240,6 +242,11 @@ class FailingItemTest {
     s.watchRoutes.failIds.clear()
     s.session()
     assertEquals(listOf(ROUTE_B, ROUTE_A), s.phoneQueue.delivered.map { it.first })
+    // the confirmation took A off the bottom: a new revision of A and a route C go in queue order
+    s.phoneQueue.queue(route(ROUTE_A, gpx = "<gpx>rev2</gpx>"))
+    s.phoneQueue.queue(route(ROUTE_C))
+    s.session()
+    assertEquals(listOf(ROUTE_B, ROUTE_A, ROUTE_A, ROUTE_C), s.phoneQueue.delivered.map { it.first })
   }
 
   @Test

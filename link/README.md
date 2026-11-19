@@ -116,10 +116,12 @@ Not proven here: Conscrypt's engine and Keystore-backed keys behave as the JVM's
 
 `ItemLedger` keeps a queue moving past an item that fails every session, with ids and counts only (bounded, persisted through a `LedgerStore`):
 
-- A definite local failure of an own item (`STORE_FAILED`, `UNSENDABLE_ITEM`) three sessions in a row gives `SetAside`: the app takes the item out of the queue without deleting it and tells the user.
-- An unconfirmed end with an own item in flight (timeout, closed peer, cut frame, truncated TLS: all things a weak radio does) three times in a row gives `Demoted`: `prefer(queued)` offers every other item first. The item is still retried and nothing is parked; a confirmation (`confirmed`) resets it.
+- A definite local failure of an own item (`STORE_FAILED`, `UNSENDABLE_ITEM`) three times with no confirmation between gives `SetAside`: the app takes the item out of the queue without deleting it and tells the user.
+- An unconfirmed end with an own item in flight (timeout, closed peer, cut frame, truncated TLS: all things a weak radio does) three times with no confirmation between gives `Demoted`: `prefer(queued)` offers every other item first. The item is still retried and nothing is parked; a confirmation (`confirmed`) resets it.
 
 The apps' queues call `prefer` with the queued ids in order and offer the id it returns.
+
+What this does not cover: an item the receiver can never store ends every session when it arrives (`STORE_FAILED`), and an answer behind it in the same stream is lost with the session. So with one such item in one direction and a healthy item queued the other way, the healthy item's confirmation never lands, and demotion cannot help while the bad item is the only one queued. Fixing that needs the receiver to refuse an item without ending the session, which is a protocol change.
 
 ## JSON
 

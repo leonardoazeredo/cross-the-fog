@@ -78,6 +78,7 @@ class SessionsTest {
     for (info in s.phoneEvents.infos + s.watchEvents.infos) assertNull(info.inFlight)
     assertTrue(s.watchEvents.infos.single().reason in setOf(CloseReason.TLS_FAILED, CloseReason.TLS_REFUSED))
     assertEquals(1, s.phoneEvents.infos.size)
+    assertEquals(TlsFailure.PIN, s.watch.failure)
   }
 
   @Test
@@ -87,9 +88,13 @@ class SessionsTest {
     s.outbox.queue(activity(ACT_1))
     s.rig.run()
     assertEquals(0, s.phoneEvents.ready)
+    // the watch's endpoint did open and send its hello, but the phone's hello never came, so it never became ready
     assertTrue(s.sink.stored.isEmpty())
     assertEquals(1, s.phoneEvents.infos.size)
+    assertEquals(TlsFailure.PIN, s.phone.failure)
     val watchEnd = s.watchEvents.infos.single()
+    assertEquals(0, s.watchEvents.ready)
+    assertNull(watchEnd.inFlight)
     assertTrue(watchEnd.reason in setOf(CloseReason.TLS_REFUSED, CloseReason.TLS_FAILED))
     assertNull(watchEnd.failed)
   }
@@ -154,7 +159,9 @@ class SessionsTest {
     val info = s.phoneEvents.infos.single()
     assertNull(info.failed)
     assertNull(info.inFlight)
-    assertTrue(info.reason != CloseReason.LOCAL)
+    assertEquals(CloseReason.TLS_FAILED, info.reason)
+    s.phone.onTransportClosed()
+    assertEquals(1, s.phoneEvents.infos.size)
     assertEquals(0, s.phoneEvents.ready)
   }
 
@@ -213,6 +220,51 @@ class SessionsTest {
     s.watch.close()
     s.watch.close()
     assertEquals(listOf(CloseReason.LOCAL), s.watchEvents.infos.map { it.reason })
+  }
+
+  /** Fails the [n]th write (counting from 1) and every one after it; writes before that go to [inner]. */
+  private class FailFrom(private val inner: QueueStream, private val n: Int) : ByteStream {
+    private var count = 0
+
+    override fun write(bytes: ByteArray) {
+      if (++count >= n) throw java.io.IOException("write failed")
+      inner.write(bytes)
+    }
+
+    override fun close() = inner.close()
+  }
+
+  @Test
+  fun aCloseFromTheHandlerOfAFailedWriteReportsNothingMore() {
+    var sawWriteFailed = false
+    // which raw write carries the hello is not fixed, so every position is tried
+    for (n in 1..8) {
+      val out = QueueStream()
+      val serverOut = QueueStream()
+      lateinit var client: SecureSession
+      val infos = mutableListOf<CloseInfo>()
+      val events = object : LinkEvents {
+        var ready = 0
+
+        override fun ready() {
+          ready++
+        }
+
+        override fun closed(reason: CloseReason, itemId: String?) = Unit
+
+        override fun closedWith(info: CloseInfo) {
+          infos += info
+          client.close()
+        }
+      }
+      client = Sessions.normalWatch(FailFrom(out, n), TestKeys.watch, MemoryPins(TestKeys.phone.spkiHash()), FakeWatchRoutes(), FakeOutbox(), clock, config, events)
+      val server = Sessions.normalPhone(serverOut, TestKeys.phone, MemoryPins(TestKeys.watch.spkiHash()), FakePhoneRoutes(), FakeSink(), clock, config, InfoEvents())
+      Rig(BuiltSide(server, serverOut), BuiltSide(client, out)).run()
+      // a position past the session's last write fails nothing and the session stays open
+      assertTrue("write $n", infos.size <= 1)
+      if (infos.singleOrNull()?.reason == CloseReason.WRITE_FAILED) sawWriteFailed = true
+    }
+    assertTrue(sawWriteFailed)
   }
 
   @Test
