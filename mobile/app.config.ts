@@ -67,6 +67,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/withNoBackup.cjs",
     "./plugins/withReleaseBundleInputs.cjs",
     "./plugins/withLinkProject.cjs",
+    "./plugins/withMinSdk.cjs",
     ["expo-share-intent", { disableIOS: true, androidIntentFilters: shareMime }],
   ],
   extra: {
