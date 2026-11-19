@@ -13,6 +13,8 @@ Defog: a browser-only tool that reads a Fog of World `Sync/` folder (or backup .
 - `Sync/` (personal location history) is gitignored: never commit it or anything derived from it.
 - Third-party libs are vendored in `app/vendor/`; there is nothing to install.
 - `watch/` is the Wear OS watch app: a one-time import of GlanceMap (ADR 0009), its own Gradle project, application id `codes.madera.crossfog.watch`. Upstream URL, pinned commit, what was left out and what is not byte-identical are in `watch/UPSTREAM.md`; read it before touching a file there. Build and test: in `watch/`, `./gradlew :app:assembleDebug :app:testDebugUnitTest` (JDK 21, `ANDROID_HOME` set; the build reads the git SHA, so it must run inside a git checkout). Not part of `pnpm verify`. `link/` is the Kotlin module shared by the phone app and `watch/` (ADR 0009, #407): both Gradle builds include it (`watch/settings.gradle.kts`, and `mobile/plugins/withLinkProject.cjs` for the generated phone project), the phone's `pnpm test:android` runs `:link:test`, and `link/README.md` says what may go in it.
+  - Device tests (`watch/app/src/androidTest`) run in no gate. A PR that changes a watch screen, its strings or its navigation runs that screen's device test classes on the `crossfog-wear-os7-test` emulator before it is marked ready and reports the counts (`./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=<classes>` in `watch/`); eight tests already fail there, listed in #497.
+  - A PR that removes or renames a UI element also greps `watch/app/src/androidTest` for its text and content description.
 
 ## Architecture
 

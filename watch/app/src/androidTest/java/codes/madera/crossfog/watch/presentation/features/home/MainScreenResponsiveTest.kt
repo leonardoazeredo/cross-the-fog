@@ -58,7 +58,6 @@ class MainScreenResponsiveTest {
     }
 
     private fun assertCoreActionsVisible() {
-        composeRule.onNodeWithText("POI").assertIsDisplayed()
         composeRule.onNodeWithText("GPX").assertIsDisplayed()
         composeRule.onNodeWithText("Maps").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Navigate").assertIsDisplayed()
@@ -66,11 +65,11 @@ class MainScreenResponsiveTest {
     }
 
     @Test
-    fun mediumSquare_navigatesToPoi() {
+    fun mediumSquare_navigatesToGpx() {
         launchMainScreen(config = MediumSquareWatch)
-        composeRule.onNodeWithText("POI").performClick()
+        composeRule.onNodeWithText("GPX").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("POI destination").assertIsDisplayed()
+        composeRule.onNodeWithText("GPX destination").assertIsDisplayed()
     }
 
     @Test
