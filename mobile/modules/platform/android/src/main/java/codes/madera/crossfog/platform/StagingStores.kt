@@ -18,3 +18,6 @@ class StagingStores {
     return stores[name] ?: StagingStore(dir, key(), syncDir).also { stores[name] = it }
   }
 }
+
+/** The holder the module and any later service in this process both use; a second holder would defeat it. */
+internal val processStagingStores = StagingStores()
