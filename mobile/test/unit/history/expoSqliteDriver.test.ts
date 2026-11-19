@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NotADatabaseError } from "../../../src/db/driver.js";
 import { checkedKeyHex, type DatabaseKeyHex } from "../../../src/db/keyHex.js";
 import {
+  checkFileIntegrity,
   createExpoSqliteDriver,
   createOpenBackup,
   type ExpoDb,
@@ -441,5 +442,207 @@ describe("expo sqlite driver plain queries beside a transaction", () => {
     await expect(late).rejects.toThrow(/closed/);
     await closing;
     expect(events).toEqual(["close"]);
+  });
+});
+
+// Answers each statement by its text; an Error value is thrown. A close that fails is `closeFails`.
+function checkDb(
+  answers: Record<string, unknown[] | Error>,
+  log: string[] = [],
+  closeFails?: Error,
+): ExpoDb {
+  const unused = async () => {
+    throw new Error("not used by the check");
+  };
+  return {
+    async execAsync(sql) {
+      log.push(sql);
+      const answer = answers[sql];
+      if (answer instanceof Error) throw answer;
+    },
+    async getAllAsync<T>(sql: string) {
+      log.push(sql);
+      const answer = answers[sql] ?? [];
+      if (answer instanceof Error) throw answer;
+      return answer as T[];
+    },
+    async closeAsync() {
+      log.push("close");
+      if (closeFails) throw closeFails;
+    },
+    runAsync: unused,
+    withExclusiveTransactionAsync: unused,
+  };
+}
+
+describe("checkFileIntegrity", () => {
+  const OK = [{ integrity_check: "ok" }];
+  const CIC = "PRAGMA cipher_integrity_check";
+  const page = (n: string) => ({ cipher_integrity_check: n });
+  const check = (
+    answers: Record<string, unknown[] | Error>,
+    log: string[] = [],
+    closeFails?: Error,
+  ) =>
+    checkFileIntegrity({
+      name: "x.db",
+      keyHex: KEY,
+      open: async () => checkDb(answers, log, closeFails),
+    });
+
+  it("keys the connection first, asks nothing but the two checks and closes it", async () => {
+    const log: string[] = [];
+    await check({ "PRAGMA integrity_check": OK }, log);
+    expect(log).toEqual([PRAGMA, CIC, "PRAGMA integrity_check", "close"]);
+  });
+
+  it("calls a file intact when no page fails and integrity_check says ok", async () => {
+    await expect(check({ "PRAGMA integrity_check": OK })).resolves.toBe("intact");
+  });
+
+  it("calls a file damaged when SQLCipher names a page, without asking SQLite, and closes", async () => {
+    const log: string[] = [];
+    const rows = [page("HMAC verification failed for page 41")];
+    await expect(check({ [CIC]: rows }, log)).resolves.toBe("damaged");
+    expect(log).not.toContain("PRAGMA integrity_check");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("calls a file damaged when a page has the wrong size (a file cut inside a page)", async () => {
+    const rows = [page("page 101 has an invalid size of 1000 bytes (expected 4096 bytes)")];
+    await expect(check({ [CIC]: rows })).resolves.toBe("damaged");
+  });
+
+  it("calls a file damaged when integrity_check reports a problem instead of ok", async () => {
+    const report = [{ integrity_check: "*** in database main ***\nTree 2 page 201: bad" }];
+    await expect(check({ "PRAGMA integrity_check": report })).resolves.toBe("damaged");
+    await expect(check({ "PRAGMA integrity_check": [] })).resolves.toBe("damaged");
+    await expect(
+      check({ "PRAGMA integrity_check": [{ integrity_check: "ok" }, { integrity_check: "ok" }] }),
+    ).resolves.toBe("damaged");
+  });
+
+  it("gives no verdict when page 1 fails, which a wrong key shows as every page failing", async () => {
+    const everyPage = [
+      page("HMAC verification failed for page 1"),
+      page("HMAC verification failed for page 2"),
+    ];
+    const log: string[] = [];
+    await expect(check({ [CIC]: everyPage }, log)).rejects.toBeInstanceOf(NotADatabaseError);
+    expect(log).not.toContain("PRAGMA integrity_check");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it.each([
+    "error reading 4096 bytes from file page 7 at offset 24576",
+    "unable to derive keys",
+    "HMAC operation failed for page 7",
+    "failed to determine file size",
+    "(OOM)",
+  ])(
+    "gives no verdict when SQLCipher answers with a row that is not a page report (%s)",
+    async (row) => {
+      const log: string[] = [];
+      await expect(check({ [CIC]: [page(row)] }, log)).rejects.toThrow("not a page report");
+      expect(log.at(-1)).toBe("close");
+    },
+  );
+
+  it.each([
+    "Tree 2 page 7: unable to get the page. error code=10",
+    "Tree 2 page 7: unable to get the page. error code=266",
+    "Tree 2 page 7: unable to get the page. error code=522",
+    "Failed to read ptrmap key=7",
+  ])("gives no verdict when integrity_check reports a read fault (%s)", async (row) => {
+    const log: string[] = [];
+    await expect(
+      check({ "PRAGMA integrity_check": [{ integrity_check: row }] }, log),
+    ).rejects.toThrow("could not read a page");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("still calls the file damaged when integrity_check cannot get a page because it is corrupt (code 11)", async () => {
+    const row = "Tree 2 page 7: unable to get the page. error code=11";
+    await expect(check({ "PRAGMA integrity_check": [{ integrity_check: row }] })).resolves.toBe(
+      "damaged",
+    );
+  });
+
+  it("gives no verdict, and closes, when integrity_check throws", async () => {
+    const log: string[] = [];
+    const cut = new Error("Error code 11: database disk image is malformed");
+    await expect(check({ "PRAGMA integrity_check": cut }, log)).rejects.toThrow("malformed");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it.each([
+    ["cipher_integrity_check", CIC],
+    ["the key statement", PRAGMA],
+  ])("closes when %s throws", async (_, statement) => {
+    const log: string[] = [];
+    await expect(check({ [statement]: new Error("boom") }, log)).rejects.toThrow("boom");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it.each(["10", "12", "100", "199"])(
+    "calls a file damaged when only page %s fails its HMAC, not taking it for page 1",
+    async (n) => {
+      const rows = [page(`HMAC verification failed for page ${n}`)];
+      await expect(check({ [CIC]: rows })).resolves.toBe("damaged");
+    },
+  );
+
+  it("gives no verdict when a page report comes with a row that is not one", async () => {
+    const rows = [
+      page("HMAC verification failed for page 41"),
+      page("error reading 4096 bytes from file page 7 at offset 24576"),
+    ];
+    await expect(check({ [CIC]: rows })).rejects.toThrow("not a page report");
+  });
+
+  it("keeps the verdict when the close fails, and logs only the error class", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const rows = [page("HMAC verification failed for page 41")];
+      const closeFails = new RangeError("cannot close /data/x");
+      await expect(check({ [CIC]: rows }, [], closeFails)).resolves.toBe("damaged");
+      expect(warn).toHaveBeenCalledWith("crossfog: database close failed", "RangeError");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("/data/x");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("opens a new connection of its own by default, not the cached one of a failed open", async () => {
+    vi.resetModules();
+    const calls: unknown[][] = [];
+    vi.doMock("expo-sqlite", () => ({
+      openDatabaseAsync: async (...args: unknown[]) => {
+        calls.push(args);
+        return checkDb({ "PRAGMA integrity_check": OK });
+      },
+    }));
+    try {
+      const fresh = await import("../../../src/platform/expoSqliteDriver.js");
+      await fresh.checkFileIntegrity({ name: "x.db", keyHex: KEY });
+      expect(calls).toEqual([["x.db", { useNewConnection: true }]]);
+    } finally {
+      vi.doUnmock("expo-sqlite");
+    }
+  });
+
+  it("refuses a key that is not 64 hex digits before it opens anything", async () => {
+    let opened = false;
+    await expect(
+      checkFileIntegrity({
+        name: "x.db",
+        keyHex: "zz" as DatabaseKeyHex,
+        open: async () => {
+          opened = true;
+          return checkDb({});
+        },
+      }),
+    ).rejects.toThrow("64 hex digits");
+    expect(opened).toBe(false);
   });
 });

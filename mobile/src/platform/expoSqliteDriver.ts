@@ -23,6 +23,17 @@ export interface ExpoSqliteDriverOptions {
   open?: (name: string) => Promise<ExpoDb>;
 }
 
+// What SQLite's integrity_check says when a page read failed with a code other than SQLITE_CORRUPT (11).
+const READ_FAULT = /unable to get the page\. error code=(?!11\b)\d+|Failed to read ptrmap/;
+
+// What SQLCipher's cipher_integrity_check says of a page it read and found bad.
+const PAGE_REPORT = /^(HMAC verification failed for page \d+|page \d+ has an invalid size of .*)$/;
+
+async function openNewConnection(name: string): Promise<ExpoDb> {
+  const { openDatabaseAsync } = await import("expo-sqlite");
+  return (await openDatabaseAsync(name, { useNewConnection: true })) as unknown as ExpoDb;
+}
+
 async function defaultOpen(name: string): Promise<ExpoDb> {
   const { openDatabaseAsync } = await import("expo-sqlite");
   return (await openDatabaseAsync(name)) as unknown as ExpoDb;
@@ -83,6 +94,63 @@ function wrap(db: ExpoDb): SqlTx {
     },
     all: (sql, params = []) => db.getAllAsync(sql, params),
   };
+}
+
+/**
+ * What the database's own checks say about a file: "damaged" when SQLCipher reports a page that
+ * fails its HMAC or has the wrong size (`cipher_integrity_check` returns one row per such page) or
+ * SQLite's `integrity_check` answers anything but its single row "ok". It writes nothing and opens
+ * a new connection (the driver's open reads sqlite_master and sets WAL, which touch the file under
+ * test, and a cached connection of the failed open would already be keyed).
+ *
+ * A check that cannot run is no verdict and rejects, so the caller never takes it for one:
+ * - `NotADatabaseError` when page 1 fails its HMAC, which is what a wrong key looks like, because
+ *   under a wrong key `cipher_integrity_check` lists every page of a good file;
+ * - an error when `cipher_integrity_check` answers with a row that reports neither of those two
+ *   failures (it reports a failed read, a failed key derivation or an out of memory as a row, and
+ *   none of those says anything about the file);
+ * - an error when `integrity_check` reports a page it failed to read for a reason other than
+ *   corruption;
+ * - whatever `integrity_check` throws when it cannot read the file (it throws, not reports, on a
+ *   file cut at a page boundary).
+ */
+export async function checkFileIntegrity(opts: {
+  name: string;
+  keyHex: DatabaseKeyHex;
+  open?: (name: string) => Promise<ExpoDb>;
+}): Promise<"intact" | "damaged"> {
+  if (!/^[0-9a-f]{64}$/.test(opts.keyHex)) throw new Error("database key must be 64 hex digits");
+  const db = await (opts.open ?? openNewConnection)(opts.name);
+  try {
+    await db.execAsync(`PRAGMA key = "x'${opts.keyHex}'"`);
+    const pages = await db.getAllAsync<Record<string, unknown>>(
+      "PRAGMA cipher_integrity_check",
+      [],
+    );
+    const reports = pages.map((row) => String(Object.values(row)[0]));
+    if (reports.some((r) => r === "HMAC verification failed for page 1")) {
+      throw new NotADatabaseError("page 1 does not verify with this key");
+    }
+    if (reports.some((r) => !PAGE_REPORT.test(r))) {
+      throw new Error("cipher_integrity_check answered with something that is not a page report");
+    }
+    if (reports.length > 0) return "damaged";
+    const rows = await db.getAllAsync<Record<string, unknown>>("PRAGMA integrity_check", []);
+    // SQLite reports a page it failed to read for a reason other than corruption (a read fault) as a
+    // row too; that says nothing about the file.
+    if (rows.some((row) => READ_FAULT.test(String(Object.values(row)[0])))) {
+      throw new Error("integrity_check could not read a page");
+    }
+    const only = rows.length === 1 ? Object.values(rows[0] ?? {}) : [];
+    return only.length === 1 && only[0] === "ok" ? "intact" : "damaged";
+  } finally {
+    await db.closeAsync().catch((closeError: unknown) => {
+      console.warn(
+        "crossfog: database close failed",
+        closeError instanceof Error ? closeError.name : "unknown",
+      );
+    });
+  }
 }
 
 export async function createExpoSqliteDriver(opts: ExpoSqliteDriverOptions): Promise<SqlDriver> {

@@ -46,7 +46,16 @@ vi.mock("../../../src/platform/platformModule.js", () => ({
   getDatabaseKeyHex: () => readKey(),
   resetKeys,
 }));
+let checkFile: (contents: string) => Promise<"intact" | "damaged">;
+const checked: string[] = [];
+const checkedKeys: string[] = [];
 vi.mock("../../../src/platform/expoSqliteDriver.js", () => ({
+  checkFileIntegrity: async ({ name, keyHex }: { name: string; keyHex: string }) => {
+    const contents = disk.get(name) ?? "";
+    checked.push(contents);
+    checkedKeys.push(keyHex);
+    return checkFile(contents);
+  },
   createExpoSqliteDriver: async ({ name }: { name: string }) => {
     const contents = disk.get(name) ?? "";
     opened.push(contents);
@@ -89,8 +98,11 @@ async function openAgain() {
 beforeEach(() => {
   readKey = async () => checkedKeyHex("ab".repeat(32));
   migrateFile = async () => 1;
+  checkFile = async () => "intact";
   disk.clear();
   opened.length = 0;
+  checked.length = 0;
+  checkedKeys.length = 0;
 });
 
 describe("createDatabase with a key that does not open the file", () => {
@@ -113,6 +125,7 @@ describe("createDatabase with a key that does not open the file", () => {
     expect((await createDatabase()).kind).toBe("ready");
     expect(opened).toEqual(["restored", "old"]);
     expect(disk.get(LIVE_DB)).toBe("old");
+    expect(checked).toEqual([]);
   });
 
   it("reports key-lost when the put-back copy does not open either", async () => {
@@ -131,6 +144,7 @@ describe("createDatabase with a key that does not open the file", () => {
       throw new Error("disk full");
     };
     await expect(createDatabase()).rejects.toThrow("disk full");
+    expect(checked).toEqual([]);
   });
 
   it("rejects, never reporting key-lost, when the native side cannot reach the key", async () => {
@@ -200,34 +214,126 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     },
   );
 
-  it.each([
-    ["is from a newer app", () => new NewerSchemaError(9)],
-    ["is corrupt", () => new Error("database disk image is malformed")],
-    ["is corrupt (by code)", () => new Error("SQLITE_CORRUPT: database corrupt")],
-  ])("puts the replaced copy back when the restored file %s", async (_, error) => {
+  it("puts the replaced copy back when the restored file is from a newer app, without running the check", async () => {
     migrateFile = async (contents) => {
-      if (contents === "restored") throw error();
+      if (contents === "restored") throw new NewerSchemaError(9);
       return 1;
     };
     expect((await createDatabase()).kind).toBe("ready");
     expect(opened).toEqual(["restored", "old"]);
     expect(disk.get(LIVE_DB)).toBe("old");
     expect(disk.has(REPLACED_DB)).toBe(false);
+    expect(checked).toEqual([]);
   });
 
-  it("puts the replaced copy back when the driver's own open finds the restored file corrupt", async () => {
-    openFile = async (contents) => {
-      if (contents === "restored") throw new Error("database disk image is malformed");
-      return driver();
+  it.each([
+    ["the migration", "migration"],
+    ["the driver's open", "open"],
+  ])(
+    "puts the replaced copy back when the check finds the file damaged, whatever the error from %s says",
+    async (_, where) => {
+      checkFile = async (contents) => (contents === "restored" ? "damaged" : "intact");
+      const fail = new Error("Error code 1: SQL logic error");
+      if (where === "migration") {
+        migrateFile = async (contents) => {
+          if (contents === "restored") throw fail;
+          return 1;
+        };
+      } else {
+        openFile = async (contents) => {
+          if (contents === "restored") throw fail;
+          return driver();
+        };
+      }
+      expect((await createDatabase()).kind).toBe("ready");
+      expect(checked).toEqual(["restored"]);
+      expect(opened).toEqual(["restored", "old"]);
+      expect(disk.get(LIVE_DB)).toBe("old");
+      expect(disk.has(REPLACED_DB)).toBe(false);
+    },
+  );
+
+  it.each([
+    "database disk image is malformed",
+    "SQLITE_CORRUPT: database corrupt",
+    "Error code 11: database disk image is malformed",
+    "Error code 1: SQL logic error",
+  ])(
+    "keeps both files when the error reads as corrupt (%s) but the check finds the file intact",
+    async (message) => {
+      migrateFile = async (contents) => {
+        if (contents === "restored") throw new Error(message);
+        return 1;
+      };
+      await expect(createDatabase()).rejects.toThrow(message);
+      expect(checked).toEqual(["restored"]);
+      expect(disk.get(LIVE_DB)).toBe("restored");
+      expect(disk.get(REPLACED_DB)).toBe("old");
+    },
+  );
+
+  it("keeps both files, logging the check's error class, when the check cannot run", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      checkFile = async () => {
+        throw new RangeError("Error code 11: database disk image is malformed at /data/x");
+      };
+      migrateFile = async () => {
+        throw new Error("database disk image is malformed");
+      };
+      await expect(createDatabase()).rejects.toThrow("malformed");
+      expect(disk.get(LIVE_DB)).toBe("restored");
+      expect(disk.get(REPLACED_DB)).toBe("old");
+      expect(warn).toHaveBeenCalledWith("crossfog: restore integrity-check", "RangeError");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("/data/x");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("runs the check with the device key", async () => {
+    checkFile = async () => "damaged";
+    migrateFile = async (contents) => {
+      if (contents === "restored") throw new Error("anything");
+      return 1;
     };
-    expect((await createDatabase()).kind).toBe("ready");
-    expect(opened).toEqual(["restored", "old"]);
-    expect(disk.get(LIVE_DB)).toBe("old");
+    readKey = async () => checkedKeyHex("12".repeat(32));
+    await createDatabase();
+    expect(checkedKeys).toEqual(["12".repeat(32)]);
+  });
+
+  it("keeps both files when the check finds no verdict because the key does not open the file", async () => {
+    checkFile = async () => {
+      throw new NotADb("page 1 does not verify with this key");
+    };
+    migrateFile = async () => {
+      throw new Error("Error code 1: SQL logic error");
+    };
+    await expect(createDatabase()).rejects.toThrow("SQL logic error");
+    expect(disk.get(LIVE_DB)).toBe("restored");
+    expect(disk.get(REPLACED_DB)).toBe("old");
+  });
+
+  it("keeps both files when the key cannot be read again for the check", async () => {
+    migrateFile = async () => {
+      throw new Error("database disk image is malformed");
+    };
+    let reads = 0;
+    readKey = async () => {
+      // The open reads the key first; the check asks again after the failure.
+      if (++reads > 1) throw new KeyUnavailableError();
+      return checkedKeyHex("ab".repeat(32));
+    };
+    await expect(createDatabase()).rejects.toThrow("malformed");
+    expect(checked).toEqual([]);
+    expect(disk.get(LIVE_DB)).toBe("restored");
+    expect(disk.get(REPLACED_DB)).toBe("old");
   });
 
   it("logs only the error class when it puts the replaced copy back", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
+      checkFile = async () => "damaged";
       migrateFile = async (contents) => {
         if (contents === "restored") throw new Error("database disk image is malformed at /data/x");
         return 1;
