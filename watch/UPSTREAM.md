@@ -8,7 +8,7 @@
 
 ## Themes removed for their licence (#498)
 
-Removed from `assets/theme/`: Elevate, Elevate Winter, Elevate Winter White (CC BY-NC-SA 4.0), Hike-Ride-Sight, OS Map, Tiramisu, Voluntary (CC BY-NC-SA 3.0) and French Kiss (no licence on record), with Elevate's own `ele-res/`, root `Elevate.xml` and `read_me_elevate.txt`, their notices in `licenses/`, `assets/licenses/` and `res/raw*`, and their strings. Kept: OpenHiking (CC BY-SA, the default theme now) and `hiking-3d`. The map still has the Mapsforge library's built-in styles (Classic and the others in `MapsforgeThemeCatalog.options`). A stored choice of a removed theme falls back to the default (`MapsforgeThemeCatalog.bundledThemeOrDefault`).
+Removed from `assets/theme/`: Elevate, Elevate Winter, Elevate Winter White (CC BY-NC-SA 4.0), Hike-Ride-Sight, OS Map, Tiramisu, Voluntary (CC BY-NC-SA 3.0) and French Kiss (no licence on record), with Elevate's own `ele-res/`, root `Elevate.xml` and `read_me_elevate.txt`, their notices in `licenses/`, `assets/licenses/` and `res/raw*`, and their strings. Kept: OpenHiking (CC BY-SA, the default theme now) and `hiking-3d`, an original theme with no author or licence line of its own: upstream's only commit for it is `53b3fea77` (2026-11-07, "Add dedicated watch 3D hiking theme", AdrienGrp, the repository's owner), so it falls under the tree's MIT licence (see `licenses/HIKING_3D_THEME.md`). The map still has the Mapsforge library's built-in styles (Classic and the others in `MapsforgeThemeCatalog.options`). A stored choice of a removed theme falls back to the default (`MapsforgeThemeCatalog.bundledThemeOrDefault`).
 
 ## What was copied
 
