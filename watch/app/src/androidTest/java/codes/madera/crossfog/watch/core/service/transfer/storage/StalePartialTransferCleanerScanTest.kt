@@ -13,7 +13,7 @@ class StalePartialTransferCleanerScanTest {
     @Test
     fun scanCountsFragmentsAndBundleArchivesAndTheirBytesButNotOtherFiles() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        // The app's own startup clean-up runs in this process; do not race it for old leftovers.
+        // Remove old leftovers first, so the app's own startup clean-up cannot delete one between the two scans.
         StalePartialTransferCleaner.cleanStale(context)
         val before = StalePartialTransferCleaner.scan(context)
         val gpx = context.getDir("gpx", Context.MODE_PRIVATE)
