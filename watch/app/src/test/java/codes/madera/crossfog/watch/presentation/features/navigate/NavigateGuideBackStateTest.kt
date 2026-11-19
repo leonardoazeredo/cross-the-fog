@@ -28,8 +28,8 @@ class NavigateGuideBackStateTest {
     // Points east along latitude 48: the second is about 186 m along, the third about 22 m past it, the last about 745 m in all.
     private val route = listOf(LatLong(48.0, 11.0), LatLong(48.0, 11.0025), LatLong(48.0, 11.0028), LatLong(48.0, 11.01))
 
-    // North of the route by about 55 m, a quarter of the way along it.
-    private val here = LatLong(48.0005, 11.0025)
+    // North of the route by about 55 m, about 171 m along it: inside the first segment, so no vertex decides the projection.
+    private val here = LatLong(48.0005, 11.0023)
 
     @Test
     fun anEmptyRouteReturnsTheBaseStateUnchanged() {
@@ -56,9 +56,9 @@ class NavigateGuideBackStateTest {
         val state = buildBrouterGuideBackState(base, active = true, route = route, currentLocation = here)
 
         assertNotNull(state.distanceToRouteMeters)
-        assertEquals(559.0, state.distanceToRouteMeters!!, 8.0)
+        assertEquals(574.0, state.distanceToRouteMeters!!, 8.0)
         // The target is the first point at least 20 m past the projection: the third one, not the end of the route.
-        assertEquals(158f, state.bearingToRouteDegrees!!, 2f)
+        assertEquals(146f, state.bearingToRouteDegrees!!, 2f)
         // Nothing else in the state is touched.
         assertEquals(
             base.copy(distanceToRouteMeters = state.distanceToRouteMeters, bearingToRouteDegrees = state.bearingToRouteDegrees),
