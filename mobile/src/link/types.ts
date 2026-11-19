@@ -24,8 +24,8 @@ export interface WatchLinkEvents {
   linkStatus: LinkStatus;
   /** `revision` is the one the watch saved; absent from a watch that sends none. */
   routeSaved: { routeId: string; revision?: string | undefined };
-  /** The route failed on the phone every time and left the queue without being deleted; the user sends it again. */
-  routeSetAside: { routeId: string };
+  /** The route failed on the phone every time and left the queue without being deleted; the user sends it again. `revision` is the one that left, when it could be read. */
+  routeSetAside: { routeId: string; revision?: string | undefined };
 }
 
 export interface WatchLink {

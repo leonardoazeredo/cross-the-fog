@@ -51,8 +51,12 @@ internal class OutboxRoutes(
 
   override fun markDelivered(routeId: String, revision: String): Boolean {
     synchronized(store) {
+      // A route that cannot be opened now cannot be compared, so nothing is marked; the watch has it
+      // already, and the queue offers whatever can still be read.
       val current = try {
         store.read(routeId)?.let { Frames.parseRouteOffer(it) }
+      } catch (e: UnreadableItemException) {
+        null
       } catch (e: FrameException) {
         null
       } ?: return false
@@ -64,18 +68,29 @@ internal class OutboxRoutes(
     return true
   }
 
-  /** Takes a route out of the queue without deleting it, and forgets its counts. */
-  fun setAside(id: String) {
+  /**
+   * Takes a route out of the queue without deleting it, and forgets its counts. Returns the revision of
+   * the route that left, or null when it is gone or cannot be opened, so the page can tell which send
+   * this answers.
+   */
+  fun setAside(id: String): String? =
     synchronized(store) {
+      val revision = try {
+        store.read(id)?.let { Frames.parseRouteOffer(it) }?.takeIf { it.routeId == id }?.revision
+      } catch (e: UnreadableItemException) {
+        null
+      } catch (e: FrameException) {
+        null
+      }
       store.setAside(id)
       ledger.forget(id)
+      revision
     }
-  }
 }
 
 /**
  * Where an activity the watch sent is kept until the page hands it off. It answers [SaveResult.ALREADY_HELD]
- * only for an activity still staged: one the page already released is staged again, and the page's own
+ * only for an activity still staged and readable: one the page already released is staged again, and the page's own
  * store, which ignores an id it holds, keeps it from becoming a second walk.
  */
 internal class StagingSink(
@@ -84,7 +99,14 @@ internal class StagingSink(
 ) : ActivitySink {
   override fun store(offer: ActivityOffer): SaveResult {
     synchronized(store) {
-      if (offer.activityId in store.list()) return SaveResult.ALREADY_HELD
+      // Held only if it can be read: a copy sealed under a lost key, or damaged, would tell the watch
+      // it can delete its own copy while the page can never use this one.
+      val held = try {
+        store.read(offer.activityId) != null
+      } catch (e: UnreadableItemException) {
+        false
+      }
+      if (held) return SaveResult.ALREADY_HELD
       store.stage(offer.activityId, Messages.encode(offer))
     }
     onStaged(offer.activityId)
@@ -100,7 +122,7 @@ internal class StagingSink(
 internal class LedgerEvents(
   private val ledger: ItemLedger,
   private val routes: OutboxRoutes,
-  private val onRouteSetAside: (routeId: String) -> Unit,
+  private val onRouteSetAside: (routeId: String, revision: String?) -> Unit,
 ) : LinkEvents {
   override fun ready() = Unit
 
@@ -109,8 +131,8 @@ internal class LedgerEvents(
   override fun closedWith(info: CloseInfo) {
     for (action in ledger.onClosed(info)) {
       if (action is LedgerAction.SetAside && action.item.kind == ItemKind.ROUTE) {
-        routes.setAside(action.item.id)
-        onRouteSetAside(action.item.id)
+        val revision = routes.setAside(action.item.id)
+        onRouteSetAside(action.item.id, revision)
       }
     }
   }

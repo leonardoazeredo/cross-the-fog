@@ -8,5 +8,5 @@ export type PlatformNativeEvents = {
   /** `revision` is the one of the route the watch saved, as the 64 hex characters the wire carries. */
   routeSaved(event: { routeId: string; revision: string }): void;
   /** A route that failed on the phone every time and was moved out of the queue, not deleted. */
-  routeSetAside(event: { routeId: string }): void;
+  routeSetAside(event: { routeId: string; revision?: string }): void;
 };

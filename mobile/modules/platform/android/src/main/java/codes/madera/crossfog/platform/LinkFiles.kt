@@ -49,6 +49,8 @@ internal class FilePinStore(private val dir: File, private val syncDir: (File) -
 
   @Synchronized
   override fun clear() {
+    // No directory means no pin was ever written, and there is nothing to sync.
+    if (!dir.isDirectory) return
     if (!file.delete() && file.exists()) throw IOException("cannot delete the pin")
     syncDir(dir)
   }

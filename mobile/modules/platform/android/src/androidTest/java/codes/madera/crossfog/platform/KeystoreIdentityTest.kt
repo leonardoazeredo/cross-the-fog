@@ -157,10 +157,16 @@ class KeystoreIdentityTest {
     val qr = offer.payload(ByteArray(32) { 5 }, "rfcomm")
     val watchOut = Pipe()
     val phoneOut = Pipe()
-    val watchSession = Sessions.pairingWatch(watchOut, watch, offer, watchPins, clock, config, Events())
-    val phoneSession = Sessions.pairingPhone(phoneOut, phone, qr, phonePins, clock, config, Events())
+    val watchEvents = Events()
+    val phoneEvents = Events()
+    val watchSession = Sessions.pairingWatch(watchOut, watch, offer, watchPins, clock, config, watchEvents)
+    val phoneSession = Sessions.pairingPhone(phoneOut, phone, qr, phonePins, clock, config, phoneEvents)
     run(watchSession, watchOut, phoneSession, phoneOut)
     assertNull(watchPins.pin)
     assertNull(phonePins.pin)
+    // the phone refused the key before any signing was wasted on a pairing that could not finish
+    assertTrue(phoneEvents.ends.none { it.reason == CloseReason.PAIRING_COMPLETE })
+    assertTrue(watchEvents.ends.none { it.reason == CloseReason.PAIRING_COMPLETE })
+    assertEquals(1, phoneEvents.ends.size)
   }
 }

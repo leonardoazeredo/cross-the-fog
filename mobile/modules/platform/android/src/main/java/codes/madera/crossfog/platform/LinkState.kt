@@ -27,6 +27,7 @@ internal fun pairCallFailure(e: Exception): Failure? =
 internal class LinkState(
   private val pins: PinStore,
   private val identityPresent: () -> Boolean = { true },
+  private val onChange: (LinkStatus) -> Unit = {},
   private val transport: ((QrPayload) -> Unit)? = null,
 ) {
   fun status(): LinkStatus {
@@ -49,8 +50,9 @@ internal class LinkState(
         pins.clear()
       } catch (e: Exception) {
         // The next status asks again.
+        return LinkStatus(paired = false, reachable = false)
       }
-      return LinkStatus(paired = false, reachable = false)
+      return LinkStatus(paired = false, reachable = false).also(onChange)
     }
     return LinkStatus(paired = true, reachable = false)
   }
@@ -61,5 +63,8 @@ internal class LinkState(
     send(payload)
   }
 
-  fun unpair() = pins.clear()
+  fun unpair() {
+    pins.clear()
+    onChange(LinkStatus(paired = false, reachable = false))
+  }
 }

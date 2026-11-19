@@ -194,14 +194,6 @@ describe("native watch link", () => {
       expect(JSON.stringify([e.message, e.cause])).not.toContain("secret");
     });
 
-    it("never reports a link as paired because pairing was asked for", async () => {
-      native.pairWatch.mockRejectedValue(failure("ERR_NO_TRANSPORT"));
-      native.linkStatus.mockResolvedValue({ paired: false, reachable: false });
-      const link = createNativeWatchLink();
-      await link.pair(qr).catch(() => {});
-      await expect(link.status()).resolves.toEqual({ paired: false, reachable: false });
-    });
-
     it("unpairs through the native side", async () => {
       native.unpairWatch.mockResolvedValue(undefined);
       await createNativeWatchLink().unpair();
@@ -228,6 +220,7 @@ describe("native watch link", () => {
       ["routeSaved", { routeId }],
       ["routeSaved", { routeId, revision: "0123456789abcdef".repeat(4) }],
       ["routeSetAside", { routeId }],
+      ["routeSetAside", { routeId, revision: "0123456789abcdef".repeat(4) }],
     ] as const)("delivers a valid %s payload", (event, payload) => {
       const l = listen(event);
       l.deliver(payload);

@@ -45,6 +45,24 @@ class LinkFilesTest {
   }
 
   @Test
+  fun clearingAfterAWriteSyncsTheDirectory() {
+    val synced = mutableListOf<File>()
+    val store = FilePinStore(dir, { synced += it })
+    store.put(pin)
+    synced.clear()
+    store.clear()
+    assertEquals(listOf(dir), synced)
+  }
+
+  @Test
+  fun clearingWhenNothingWasEverWrittenNeedsNoDirectory() {
+    // a directory sync on a directory that does not exist throws, as the real one does
+    val strict = { d: File -> if (!d.isDirectory) throw IOException("no such directory") }
+    FilePinStore(dir, strict).clear()
+    assertNull(FilePinStore(dir, strict).get())
+  }
+
+  @Test
   fun aPinOfTheWrongSizeIsRefused() {
     val store = FilePinStore(dir, {})
     assertThrows(IllegalArgumentException::class.java) { store.put(ByteArray(31)) }
@@ -71,12 +89,21 @@ class LinkFilesTest {
   }
 
   @Test
-  fun aPutThatFailsMidWayLeavesTheOldPin() {
+  fun aPutThatFailsBeforeTheRenameLeavesTheOldPinExactly() {
+    val store = FilePinStore(dir, {})
+    store.put(pin)
+    // the temporary file cannot be created, so the write fails before anything replaces the pin
+    File(dir, "${StoredNames.LINK_PIN_FILE}.tmp").mkdir()
+    assertThrows(IOException::class.java) { store.put(ByteArray(32) { 9 }) }
+    assertArrayEquals(pin, FilePinStore(dir, {}).get())
+  }
+
+  @Test
+  fun aPutWhoseDirectorySyncFailsStillNeverReadsAHalfWrittenPin() {
     val store = FilePinStore(dir, {})
     store.put(pin)
     val failing = FilePinStore(dir, { throw IOException("sync failed") })
     assertThrows(IOException::class.java) { failing.put(ByteArray(32) { 9 }) }
-    // the directory sync is the last step, so the new file may already be in place; what must hold is that no half-written pin is ever read
     val read = FilePinStore(dir, {}).get()
     assertTrue(read != null && (read.contentEquals(pin) || read.contentEquals(ByteArray(32) { 9 })))
   }
@@ -120,9 +147,12 @@ class LinkFilesTest {
   }
 
   @Test
-  fun theDirectoryEntryIsSyncedAfterAWrite() {
-    var synced = 0
-    FilePinStore(dir, { synced++ }).put(pin)
-    assertTrue(synced >= 1)
+  fun theLinkDirectoryIsSyncedAfterEveryWriteNotOnlyTheFirst() {
+    val synced = mutableListOf<File>()
+    val store = FilePinStore(dir, { synced += it })
+    store.put(pin)
+    synced.clear()
+    store.put(ByteArray(32) { 9 })
+    assertEquals(listOf(dir), synced)
   }
 }

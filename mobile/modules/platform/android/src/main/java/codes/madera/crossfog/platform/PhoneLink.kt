@@ -20,7 +20,9 @@ internal class PhoneLink(
 ) {
   private val ledger = ItemLedger(FileLedgerStore(linkDir, syncDir), ItemKind.ROUTE)
 
-  val state = LinkState(FilePinStore(linkDir, syncDir), identityPresent)
+  val state = LinkState(FilePinStore(linkDir, syncDir), identityPresent, onChange = { status ->
+    emit("linkStatus", mapOf("paired" to status.paired, "reachable" to status.reachable))
+  })
 
   val routes = OutboxRoutes(outbox, ledger) { id, revision ->
     emit("routeSaved", mapOf("routeId" to id, "revision" to revision))
@@ -28,5 +30,7 @@ internal class PhoneLink(
 
   val sink = StagingSink(staging) { id -> emit("activityStaged", mapOf("activityId" to id)) }
 
-  val events = LedgerEvents(ledger, routes) { id -> emit("routeSetAside", mapOf("routeId" to id)) }
+  val events = LedgerEvents(ledger, routes) { id, revision ->
+    emit("routeSetAside", buildMap { put("routeId", id); if (revision != null) put("revision", revision) })
+  }
 }

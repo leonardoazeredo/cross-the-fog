@@ -52,6 +52,18 @@ class PhoneLinkTest {
   fun aRouteSetAsideIsAnnouncedWithItsId() {
     val l = link()
     l.routes.queue(a, routeJson())
+    val revision = l.routes.nextQueued()!!.revision
+    repeat(3) {
+      l.events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
+    }
+    assertEquals(listOf("routeSetAside" to mapOf<String, Any?>("routeId" to a, "revision" to revision)), emitted)
+  }
+
+  @Test
+  fun aRouteSetAsideThatCouldNotBeOpenedIsAnnouncedWithoutARevision() {
+    val l = link()
+    File(tmp.root, "outbox").mkdirs()
+    stores.forDir(File(tmp.root, "outbox"), { key }, {}).stage(a, "not json".toByteArray())
     repeat(3) {
       l.events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
     }
@@ -72,6 +84,14 @@ class PhoneLinkTest {
     File(tmp.root, "outbox/$b.bin").setLastModified(2_000_000)
     // the restart remembered a's demotion, so b is offered first although a is older
     assertEquals(b, second.routes.nextQueued()!!.routeId)
+  }
+
+  @Test
+  fun unpairingIsAnnouncedAsALinkStatus() {
+    val l = link()
+    FilePinStore(File(tmp.root, "link"), {}).put(ByteArray(32) { 1 })
+    l.state.unpair()
+    assertEquals(listOf("linkStatus" to mapOf<String, Any?>("paired" to false, "reachable" to false)), emitted)
   }
 
   @Test

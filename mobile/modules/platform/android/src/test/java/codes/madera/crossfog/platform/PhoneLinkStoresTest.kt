@@ -185,17 +185,55 @@ class PhoneLinkStoresTest {
   }
 
   @Test
-  fun aFailedReleaseIsAnErrorAndReportsNothing() {
-    val dir = outboxDir
-    val r = OutboxRoutes(StagingStore(dir, key, {}), ledger()) { id, rev -> saved += id to rev }
+  fun aFailedReleaseIsAnErrorAndReportsAndConfirmsNothing() {
+    val l = ledger()
+    val r = routes(ledger = l)
     r.queue(a, routeJson(a))
-    val route = r.nextQueued()!!
-    // a directory in place of the file cannot be deleted by the store
-    File(dir, "$a.bin").delete()
-    File(dir, "$a.bin").mkdir()
-    File(dir, "$a.bin/x").writeText("x")
-    assertThrows(Exception::class.java) { r.markDelivered(route.routeId, route.revision) }
+    r.queue(b, routeJson(b))
+    File(outboxDir, "$a.bin").setLastModified(1_000_000)
+    File(outboxDir, "$b.bin").setLastModified(2_000_000)
+    repeat(3) { l.onClosed(unconfirmed(a)) }
+    val route = outboxStore().read(a)!!.let { Frames.parseRouteOffer(it) }
+    // the file reads fine, but the release then cannot delete the temporary name: a directory with content
+    File(outboxDir, "$a.tmp").mkdir()
+    File(outboxDir, "$a.tmp/x").writeText("x")
+    assertThrows(java.io.IOException::class.java) { r.markDelivered(a, route.revision) }
     assertTrue(saved.isEmpty())
+    // the failed delivery did not reset a's demotion: b is still offered first
+    assertEquals(b, r.nextQueued()!!.routeId)
+  }
+
+  @Test
+  fun aRouteThatCannotBeOpenedWhenItIsConfirmedIsNotMarkedDeliveredAndDoesNotThrow() {
+    val r = routes()
+    r.queue(a, routeJson(a))
+    val revision = r.nextQueued()!!.revision
+    StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+    assertFalse(r.markDelivered(a, revision))
+    assertTrue(saved.isEmpty())
+  }
+
+  @Test
+  fun aConfirmationRacingARequeueNeverLosesTheEdit() {
+    val r = routes()
+    val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+    try {
+      repeat(200) { n ->
+        r.queue(a, routeJson(a, "<gpx>rev1-$n</gpx>"))
+        val rev1 = r.nextQueued()!!.revision
+        val go = java.util.concurrent.CountDownLatch(1)
+        val edit = pool.submit { go.await(); r.queue(a, routeJson(a, "<gpx>rev2-$n</gpx>")) }
+        val confirm = pool.submit { go.await(); r.markDelivered(a, rev1) }
+        go.countDown()
+        edit.get()
+        confirm.get()
+        // either order is fine, but the edited route must be there afterwards, and rev1 must not be reported for it
+        assertEquals("<gpx>rev2-$n</gpx>", r.nextQueued()!!.gpx)
+        r.setAside(a)
+      }
+    } finally {
+      pool.shutdownNow()
+    }
   }
 
   @Test
@@ -225,8 +263,65 @@ class PhoneLinkStoresTest {
   }
 
   @Test
+  fun aRouteSetAsideAndQueuedAgainStartsWithFreshCounts() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val events = LedgerEvents(l, r) { _, _ -> }
+    r.queue(a, routeJson(a))
+    repeat(3) {
+      events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
+    }
+    assertNull(r.nextQueued())
+    r.queue(a, routeJson(a, "<gpx>again</gpx>"))
+    repeat(2) {
+      events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
+    }
+    assertEquals(a, r.nextQueued()!!.routeId)
+  }
+
+  @Test
+  fun aRouteSetAsideTwiceKeepsTheLaterCopy() {
+    val r = routes()
+    r.queue(a, routeJson(a))
+    r.setAside(a)
+    r.queue(a, routeJson(a, "<gpx>later</gpx>"))
+    r.setAside(a)
+    assertEquals(
+      "<gpx>later</gpx>",
+      Frames.parseRouteOffer(outboxStore().readAside(a)!!).gpx,
+    )
+  }
+
+  @Test
+  fun anAsideCopyThatIsGoneReadsAsNullAndADamagedOneIsUnreadable() {
+    val r = routes()
+    assertNull(outboxStore().readAside(a))
+    r.queue(a, routeJson(a))
+    r.setAside(a)
+    File(outboxDir, "aside/$a.bin").writeBytes(ByteArray(40))
+    assertThrows(UnreadableItemException::class.java) { outboxStore().readAside(a) }
+  }
+
+  @Test
   fun settingAsideARouteThatIsGoneIsNotAnError() {
-    routes().setAside(a)
+    assertNull(routes().setAside(a))
+  }
+
+  @Test
+  fun settingAsideReturnsTheRevisionOfTheRouteThatLeft() {
+    val r = routes()
+    r.queue(a, routeJson(a))
+    val revision = r.nextQueued()!!.revision
+    assertEquals(revision, r.setAside(a))
+  }
+
+  @Test
+  fun settingAsideARouteThatCannotBeOpenedStillMovesItAndReturnsNoRevision() {
+    val r = routes()
+    outboxStore().stage(a, "not json".toByteArray())
+    assertNull(r.setAside(a))
+    assertEquals(emptyList<String>(), outboxStore().list())
+    assertTrue(File(outboxDir, "aside/$a.bin").isFile)
   }
 
   // ---- the staging store as the phone endpoint's activity sink
@@ -240,6 +335,29 @@ class PhoneLinkStoresTest {
     assertEquals(listOf(a), staged)
     assertEquals(listOf(a), stagingStore().list())
     assertEquals(a, Frames.parseActivityOffer(stagingStore().read(a)!!).activityId)
+  }
+
+  @Test
+  fun aStagedCopyThatCannotBeOpenedIsStagedAgainSoTheWalkIsNotLost() {
+    // sealed under a key that was since replaced
+    StagingStore(stagingDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, "x".toByteArray())
+    assertEquals(SaveResult.SAVED, sink().store(activity(a)))
+    assertEquals(listOf(a), staged)
+    assertEquals(a, Frames.parseActivityOffer(stagingStore().read(a)!!).activityId)
+  }
+
+  @Test
+  fun everyFieldOfTheOfferComesBackFromTheStagedFile() {
+    val full = ActivityOffer(a, b, "enc-9", "<gpx>full</gpx>")
+    sink().store(full)
+    val back = Frames.parseActivityOffer(stagingStore().read(a)!!)
+    assertEquals(full.activityId, back.activityId)
+    assertEquals(full.routeId, back.routeId)
+    assertEquals(full.encoderVersion, back.encoderVersion)
+    assertEquals(full.gpx, back.gpx)
+    val without = ActivityOffer(c, null, "enc-9", "<gpx>x</gpx>")
+    sink().store(without)
+    assertNull(Frames.parseActivityOffer(stagingStore().read(c)!!).routeId)
   }
 
   @Test
@@ -272,28 +390,20 @@ class PhoneLinkStoresTest {
     assertTrue(staged.isEmpty())
   }
 
-  @Test
-  fun theSinkAndTheModulesStagingAreOneStore() {
-    val stores = StagingStores()
-    val one = stores.forDir(stagingDir, { key }, {})
-    val sinkSide = StagingSink(stores.forDir(stagingDir, { key }, {})) { staged += it }
-    sinkSide.store(activity(a))
-    assertEquals(listOf(a), one.list())
-  }
-
   // ---- the ledger's actions applied to the outbox
 
   @Test
   fun aRouteSetAsideByTheLedgerLeavesTheQueueAndIsAnnounced() {
     val l = ledger()
     val r = routes(ledger = l)
-    val asides = mutableListOf<String>()
-    val events = LedgerEvents(l, r) { asides += it }
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
     r.queue(a, routeJson(a))
+    val revision = r.nextQueued()!!.revision
     repeat(3) {
       events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
     }
-    assertEquals(listOf(a), asides)
+    assertEquals(listOf(a to revision), asides)
     assertNull(r.nextQueued())
     assertTrue(File(outboxDir, "aside/$a.bin").isFile)
   }
@@ -302,8 +412,8 @@ class PhoneLinkStoresTest {
   fun aDemotionAnnouncesNothingAndKeepsTheRouteQueued() {
     val l = ledger()
     val r = routes(ledger = l)
-    val asides = mutableListOf<String>()
-    val events = LedgerEvents(l, r) { asides += it }
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
     r.queue(a, routeJson(a))
     repeat(3) { events.closedWith(unconfirmed(a)) }
     assertTrue(asides.isEmpty())

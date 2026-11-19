@@ -10,18 +10,14 @@ import {
   type WatchLinkEvents,
 } from "./types.js";
 
+const routeRevision = z.string().regex(/^[0-9a-f]{64}$/);
+
 // Native values cross a trust boundary (offers come from the watch), so each one is parsed.
 const eventSchemas: { [E in keyof WatchLinkEvents]: z.ZodType<WatchLinkEvents[E]> } = {
   activityStaged: z.object({ activityId: z.uuid() }),
   linkStatus: linkStatusSchema,
-  routeSetAside: z.object({ routeId: z.uuid() }),
-  routeSaved: z.object({
-    routeId: z.uuid(),
-    revision: z
-      .string()
-      .regex(/^[0-9a-f]{64}$/)
-      .optional(),
-  }),
+  routeSetAside: z.object({ routeId: z.uuid(), revision: routeRevision.optional() }),
+  routeSaved: z.object({ routeId: z.uuid(), revision: routeRevision.optional() }),
 };
 
 export type PairFailure = "no-transport" | "invalid-qr" | "failed";

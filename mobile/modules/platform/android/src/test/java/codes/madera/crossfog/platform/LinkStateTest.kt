@@ -92,6 +92,33 @@ class LinkStateTest {
     val state = LinkState(Pins()) { payload -> seen = payload.hint }
     state.pair(qr)
     assertEquals("rfcomm", seen)
+    val failing = LinkState(Pins()) { throw java.io.IOException("radio off") }
+    assertThrows(java.io.IOException::class.java) { failing.pair(qr) }
+  }
+
+  @Test
+  fun unpairingAnnouncesTheNewStatus() {
+    val seen = mutableListOf<Pair<Boolean, Boolean>>()
+    val state = LinkState(Pins(hash), onChange = { seen += it.paired to it.reachable })
+    state.unpair()
+    assertEquals(listOf(false to false), seen)
+  }
+
+  @Test
+  fun aPinClearedBecauseItsIdentityIsGoneIsAnnouncedOnce() {
+    val seen = mutableListOf<Boolean>()
+    val state = LinkState(Pins(hash), identityPresent = { false }, onChange = { seen += it.paired })
+    state.status()
+    state.status()
+    assertEquals(listOf(false), seen)
+  }
+
+  @Test
+  fun aStatusThatChangesNothingAnnouncesNothing() {
+    val seen = mutableListOf<Boolean>()
+    LinkState(Pins(hash), onChange = { seen += it.paired }).status()
+    LinkState(Pins(), onChange = { seen += it.paired }).status()
+    assertTrue(seen.isEmpty())
   }
 
   @Test

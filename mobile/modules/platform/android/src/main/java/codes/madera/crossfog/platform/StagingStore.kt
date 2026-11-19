@@ -54,7 +54,8 @@ class StagingStore(
 
   /**
    * Moves an item out of the listing without deleting it: it stays sealed under the same key and id,
-   * readable through [readAside]. Setting aside an item that is gone is not an error.
+   * readable through [readAside]. Setting aside an item that is gone is not an error. An item set aside
+   * again under the same id replaces the earlier copy: the id names one route, and the later copy is its latest content.
    */
   @Synchronized
   fun setAside(id: String) {
