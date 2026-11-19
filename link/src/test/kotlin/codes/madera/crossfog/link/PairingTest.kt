@@ -11,6 +11,13 @@ class PairingTest {
   private fun done(p: PairRig) = p.rig.run()
 
   @Test
+  fun theProofIsHmacSha256OfTheLabelAndBothKeyHashesKeyedWithTheCode() {
+    // The expected value comes from Python's hmac module, not from this code.
+    val proof = Pairing.proof(ByteArray(16) { (it + 1).toByte() }, ByteArray(32) { 0xaa.toByte() }, ByteArray(32) { 0xbb.toByte() })
+    assertEquals("420c5f182eac0c0cac796e244115a8ebf54d078113a2f270a6443caf606c8f0e", Pairing.hex(proof))
+  }
+
+  @Test
   fun aRightCodePairsBothEndsAndSpendsTheCode() {
     val p = PairRig()
     done(p)

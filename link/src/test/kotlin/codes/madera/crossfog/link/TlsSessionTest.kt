@@ -42,6 +42,17 @@ class TlsSessionTest {
   }
 
   @Test
+  fun aClientThatLosesTheStreamAfterItsHandshakeWithNoAlertAndNoMessageIsToldItWasRefused() {
+    val n = NormalRig()
+    n.rig.toClient = { if (n.watch.secured) null else it }
+    n.rig.run()
+    assertTrue(n.watch.secured)
+    n.watch.session.onTransportClosed()
+    assertEquals(TlsEnd.REFUSED, n.watch.end)
+    assertEquals(listOf(CloseReason.TLS_REFUSED), n.watch.events.closed)
+  }
+
+  @Test
   fun aServerThatIsNotThePinnedKeyIsRefusedByTheClientBeforeItsEndpointOpens() {
     val n = NormalRig(watchPins = MemoryPins(TestKeys.attacker.spkiHash()))
     n.rig.run()
@@ -120,6 +131,7 @@ class TlsSessionTest {
   fun plaintextBeforeTheHandshakeIsFinishedThrows() {
     val n = NormalRig()
     assertThrows(IllegalStateException::class.java) { n.watch.session.write(byteArrayOf(1)) }
+    assertEquals(0, n.watch.out.writes)
   }
 
   @Test

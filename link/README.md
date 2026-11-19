@@ -14,7 +14,7 @@ The Kotlin plugin version comes from whichever build includes the project, so `b
 Version 1, in `codes.madera.crossfog.link`:
 
 - `Framing`: a frame is a 4-byte big-endian length then the body; at most 16 MiB (`MAX_FRAME_BYTES`), no empty frame; the length is checked before a body byte is read.
-- `Messages`: the six messages as `{"v":1,"type":...}` JSON objects. Every field is checked for type, presence and bounds before a value exists; a refusal is a `ProtocolException` whose `error` is a `ProtocolError` and whose message never holds input.
+- `Messages`: the eleven messages (six for a normal session, five for pairing) as `{"v":1,"type":...}` JSON objects. Every field is checked for type, presence and bounds before a value exists; a refusal is a `ProtocolException` whose `error` is a `ProtocolError` and whose message never holds input.
 - `StrictJson`: a strict RFC 8259 check of the one object, run before org.json builds anything. Android's org.json skips comments, reads `0x1` and `01`, and keeps the last of two equal keys; the JVM artifact the tests run on does none of that, so the rule is decided here and is the same on both.
 - `Revision`: SHA-256 of a route's GPX text as UTF-8, 64 lowercase hex digits.
 - `Protocol`: the versions spoken and how two ends agree on one. A `hello` is always `v` 1 and lists every version its sender speaks; a v1 endpoint that gets no common version answers with its own `hello` and closes.
@@ -80,6 +80,33 @@ Version 1, in `codes.madera.crossfog.link`:
 ### Memory
 
 An endpoint keeps one id (and for a route a revision) of what it has offered, never the item. A send reads the item from the store, and `Messages.encode` builds the JSON text and its UTF-8 bytes from it; the length goes out as its own 4-byte write rather than joined to the body (`Framing.prefix`), so there is no third copy of the body. A receive holds one array of the frame's size while it arrives (`Framing.Decoder` allocates as bytes come, doubling, so while it grows it also holds the array it replaces) and then `Messages.parse` makes what it makes (the decoded text, the parsed fields). An item of 16 MiB is therefore held in several copies at the peak, as before; nothing in the endpoints adds one, and shrinking them is #478.
+
+## TLS and pairing
+
+Every byte of a session is inside mutually authenticated TLS 1.3, on the platform's TLS (`SSLEngine`); `link/` writes no cryptography, only `MessageDigest`, `Mac`, `SecureRandom` and `MessageDigest.isEqual`.
+
+- **Roles.** The TLS server is the watch in a pairing session (it shows the QR and listens) and the phone in a normal one (the phone listens). Which end is the TLS server is separate from which `Endpoint` it runs. A server always asks for a client certificate.
+- **`Tls.engine`** builds a fresh context per engine (no session cache spans sessions, so nothing is resumed and every handshake asks the trust manager), enables `TLSv1.3` only and sets no SNI or host name. `TlsSession` then refuses a session whose negotiated protocol is not `TLSv1.3`. The cipher suite list is the platform's: Conscrypt ignores a TLS 1.3 suite list ("any attempt to disable them via a call to setEnabledCipherSuites() is ignored", Conscrypt `CAPABILITIES.md`), so a list set here would only bind the JVM.
+- **`PinningTrustManager`** is the only trust decision and never reads the system store, dates, names or issuers. It accepts one certificate (a chain of two is refused) holding an EC P-256 key whose SHA-256 of the SPKI (`Spki.hash`) equals the pin, compared with `MessageDigest.isEqual`. Dates are ignored on purpose: the certificate only carries the key, a watch with a wrong clock must not lose its link, and a key is retired by pairing again. `pinned(PinStore)` reads the pin at each handshake, so unpairing and pairing again apply to the next session. The one other manager, `acceptingAnyKey()`, is the watch's in a pairing session: it records the phone's key hash and trusts nothing; the key is pinned only after the code proof.
+- **`Identity`** (certificate chain and a `PrivateKey` that may be non-extractable) and **`PinStore`** (`get`, `put` replacing in one step, `clear`; one peer per side) are the only things an app supplies for keys. Android Keystore keys fit without a change here.
+- **`TlsSession`** sits between the transport and an `Endpoint`: the caller feeds it transport bytes and an end of transport, and opens its endpoint in `onSecure()`. Each TLS record goes to the transport as soon as it is made, so `write` waits only as long as the transport's does (see `ByteStream`). Delegated tasks run inline. A handshake that does not finish within `LinkConfig.handshakeTimeoutMs` ends with `TIMEOUT`.
+- **How a session ends** (`TlsEnd`, mapped to `CloseReason`): `close_notify` is `PEER_CLOSED`; an end of stream without one after the handshake is `TLS_TRUNCATED`; a handshake or record failure is `TLS_FAILED` (the kind is on the session as `TlsFailure`, never exception text). In TLS 1.3 the client's handshake is finished before the server has checked the client certificate, so a client the server does not trust has a secure session and has written its hello before it learns it was refused. The server never reads those bytes (it fails before any application data and its endpoint never opens), and the client's alert or end of stream before any message from the server is `TLS_REFUSED`: that is how a watch learns it was unpaired.
+
+### Pairing
+
+The watch shows `crossfog:1:<watch key hash>:<code>:<hint>` as a QR (`QrPayload`: base64url without padding, at most 110 characters, hint `rfcomm` or `tcp:<ipv4>:<port>`), the phone scans it. `PairingOffer` holds the 16-byte code in the watch's memory for `LinkConfig.pairingWindowMs` (5 minutes) and counts tries across connections: three wrong destroy the code, a right one spends it. The phone's trust manager accepts only the key hash of the QR, so a relay with another key fails the handshake.
+
+| Message | From | Meaning |
+|---|---|---|
+| `pairRequest {proof}` | phone | `proof` is HMAC-SHA256 keyed with the code over the label `crossfog-pair-1`, the watch key hash and the phone key hash (`Pairing.proof`), 64 lowercase hex |
+| `pairAccepted` | watch | the proof matched and the code is spent; nothing is stored yet |
+| `pairRejected {reason}` | watch | `wrong_code`, `code_used`, `expired`, `too_many_tries` |
+| `pairConfirm` | phone | the phone holds the watch's key hash and will commit it when the watch is done |
+| `pairDone` | watch | the watch has stored the phone's key hash |
+
+Commit points: the **watch** replaces its pin when `pairConfirm` arrives, and the **phone** when `pairDone` arrives. Until then both pin stores are untouched, so a pairing that is refused or drops before the commit leaves a working pairing working. The one window is a drop after the watch committed and before the phone did: if the phone's key is unchanged the two pins are equal to the old ones and the old pairing still works; if the phone's key is new, the watch no longer trusts the old phone and pairing again closes it. A pairing session reads frames of at most `Pairing.MAX_FRAME_BYTES` (512) because the watch accepts any peer there. Pairing messages are v1 messages: a normal session refuses them and a pairing session refuses the others (`UNEXPECTED_MESSAGE`). There is no unpair message: each app clears its own `PinStore` (and the phone its companion association), and the other end learns from the next refused handshake.
+
+Not proven here: Conscrypt's engine and Keystore-backed keys behave as the JVM's do (Keystore keys need the `NONE` digest to sign for TLS). #483 runs these tests on Android.
 
 ## JSON
 
