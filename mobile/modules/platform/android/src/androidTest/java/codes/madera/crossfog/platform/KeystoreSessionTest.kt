@@ -151,12 +151,12 @@ class KeystoreSessionTest {
         watchOut.queue.removeFirst().let { phone.onBytes(it, 0, it.size) }
       }
       // A closed stream ends the socket at the other end, once what was written before it has been read.
-      if (phoneOut.closed && !watchToldOfClose) {
+      if (phoneOut.closed && phoneOut.queue.isEmpty() && !watchToldOfClose) {
         watchToldOfClose = true
         moved = true
         watch.onTransportClosed()
       }
-      if (watchOut.closed && !phoneToldOfClose) {
+      if (watchOut.closed && watchOut.queue.isEmpty() && !phoneToldOfClose) {
         phoneToldOfClose = true
         moved = true
         phone.onTransportClosed()
