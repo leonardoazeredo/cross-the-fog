@@ -8,6 +8,11 @@ export function needsPrebuild(settingsGradle: string | null): boolean {
   return settingsGradle === null || !settingsGradle.includes(LINK_MARKER);
 }
 
+/** The script's whole prebuild decision: no gradlew means no android/ worth keeping, whatever settings.gradle says. */
+export function shouldPrebuild(hasGradlew: boolean, settingsGradle: string | null): boolean {
+  return !hasGradlew || needsPrebuild(settingsGradle);
+}
+
 /** Where the generated settings.gradle points `:link`, relative to `android/`; the plugin writes the same path. */
 export const LINK_DIR_FROM_ANDROID = "../../link";
 

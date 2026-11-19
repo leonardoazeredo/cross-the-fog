@@ -9,9 +9,9 @@ import {
   LINK_DIR_FROM_ANDROID,
   linkMissingMessage,
   missingTooling,
-  needsPrebuild,
   noDeviceMessage,
   PLANS,
+  shouldPrebuild,
 } from "./androidEnv.js";
 
 const mode = process.argv[2] as AndroidTestMode | undefined;
@@ -72,7 +72,7 @@ if (!hasGradlew) {
 // config plugins to an existing android/ too, once (plugins/withLinkProject.cjs).
 const settingsFile = join(androidDir, "settings.gradle");
 const settings = existsSync(settingsFile) ? readFileSync(settingsFile, "utf8") : null;
-if (!hasGradlew || needsPrebuild(settings)) {
+if (shouldPrebuild(hasGradlew, settings)) {
   say("expo prebuild (about 2 s, no install)");
   if (
     run(
