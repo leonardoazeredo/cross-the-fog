@@ -82,6 +82,18 @@
       "error": "NOT_A_JSON_OBJECT"
     },
     {
+      "name": "unknown_field_negative_zero_point_zero",
+      "frame": "0000001e7b2276223a312c2274797065223a2270696e67222c2278223a2d302e307d",
+      "canonical": "{\"v\":1,\"type\":\"ping\"}",
+      "roundTrip": false
+    },
+    {
+      "name": "unknown_field_negative_zero_exponent",
+      "frame": "0000001e7b2276223a312c2274797065223a2270696e67222c2278223a2d3065307d",
+      "canonical": "{\"v\":1,\"type\":\"ping\"}",
+      "roundTrip": false
+    },
+    {
       "name": "version_negative_zero",
       "frame": "000000167b2276223a2d302c2274797065223a2270696e67227d",
       "error": "NOT_A_JSON_OBJECT"
