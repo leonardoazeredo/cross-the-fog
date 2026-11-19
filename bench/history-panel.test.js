@@ -183,6 +183,8 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     assert.equal(ok.chip.textContent, "On the watch", "only a failure shows a reason");
     why.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: why.sentRecords[0].revision });
     assert.equal(why.chip.textContent, "Waiting for watch", "a later status drops the reason");
+    why.ctl.routeStatus({ routeId: "r1", state: "failed", revision: why.sentRecords[0].revision });
+    assert.equal(why.chip.textContent, "Could not send", "a later failure without a reason does not bring the old one back");
     // A reason belongs to the send it answered: a new tap that then gets no answer reads as the general line.
     const again = control(() => {});
     again.tap();

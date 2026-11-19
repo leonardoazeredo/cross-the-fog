@@ -13,11 +13,13 @@ import org.junit.rules.TemporaryFolder
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Each call the module makes on a staging store, with the key lookup that builds the store throwing
- * what an unusable Keystore entry throws: all answer ERR_STAGING_KEY_UNUSABLE and nothing on disk
- * changes. A key that fails only at its first use is not simulated (a JDK cipher wraps what a fake
- * provider throws; the Android Keystore throws it from `Cipher.init` as is), and the module's own
- * lazy wiring, which resolves the store inside its `coded` block, is not run here.
+ * What each of the four calls (`stage`, `read`, `release`, the outbox's `queue`) answers when the key
+ * lookup that builds its store throws what an unusable Keystore entry throws: the code
+ * ERR_STAGING_KEY_UNUSABLE, nothing on disk changed, and the next call asks the key again. The lookup
+ * fails when the store is built, so the bodies of the calls are not entered. A key that fails only at
+ * its first use is not simulated (a JDK cipher wraps what a fake provider throws; the Android Keystore
+ * throws it from `Cipher.init` as is), and the module's own lazy wiring, which resolves the store
+ * inside its `coded` block, is not run here.
  */
 class StagingKeyUnusableTest {
   @get:Rule val tmp = TemporaryFolder()
