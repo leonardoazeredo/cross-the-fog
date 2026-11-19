@@ -56,7 +56,7 @@ describe("the pre-push hook's verify command", () => {
     expect(runsFor(file)).toBe(true);
   });
 
-  // A docs-only push has nothing to verify and would cost minutes.
+  // A push touching only paths outside those folders has nothing for verify to check and would cost a minute.
   it.skipIf(!hasLefthook).each(["docs/x.md", "README.md", "bench/y.js", "lefthook.yml"])(
     "is skipped for a push touching only %s",
     (file) => {
