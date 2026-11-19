@@ -18,16 +18,8 @@ This folder tracks third-party licensing and attribution for `GlanceMap` (watch 
   - Attribution and usage notes for map/theme/data/icon assets and imported POI data.
 - `OPENHIKING_THEME.md`
   - Dedicated note for the bundled OpenHiking theme snapshot and approval/license status.
-- `FRENCH_KISS_THEME.md`
-  - Dedicated note for the bundled French Kiss theme snapshot sourced from XCTrack and its approval status.
-- `TIRAMISU_THEME.md`
-  - Dedicated note for the bundled Tiramisu theme snapshot and its noncommercial compatibility status.
-- `HIKE_RIDE_SIGHT_THEME.md`
-  - Dedicated note for the bundled Hike, Ride & Sight theme snapshot and its approval/noncommercial compatibility status.
-- `VOLUNTARY_THEME.md`
-  - Dedicated note for the bundled Voluntary theme snapshot and its approval/noncommercial compatibility status.
-- `OS_MAP_THEME.md`
-  - Dedicated note for the bundled OS Map theme snapshot and its noncommercial compatibility status.
+- `HIKING_3D_THEME.md`
+  - Dedicated note for the bundled `hiking-3d` theme and its licence status.
 - `SERVICE_TERMS_AND_API_USAGE.md`
   - Service/API usage terms and limits (OpenAndroMaps, Refuges.info, Overpass, Google Play services).
 - `COMPANION_EXTERNAL_SOURCES.md`
@@ -48,4 +40,3 @@ This folder tracks third-party licensing and attribution for `GlanceMap` (watch 
 ## Notes
 
 - Google Play services artifacts are runtime dependencies but are not open-source artifacts in the same way as Apache/LGPL OSS projects. They are covered by Android/Google SDK terms.
-- OpenAndroMaps/Elevate redistribution terms must be reviewed carefully for every public release, including written-permission requirements where applicable.

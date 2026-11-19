@@ -55,14 +55,14 @@ class MapLabelTextScaleTest {
         val defaultCacheId =
             resolveMapRendererDesiredCacheId(
                 mapSignature = "MAP:demo",
-                themeSignature = "THEME:elevate",
+                themeSignature = "THEME:openhiking",
                 elevationLabelsMetric = true,
                 labelTextScale = 1.0f,
             )
         val extraLargeCacheId =
             resolveMapRendererDesiredCacheId(
                 mapSignature = "MAP:demo",
-                themeSignature = "THEME:elevate",
+                themeSignature = "THEME:openhiking",
                 elevationLabelsMetric = true,
                 labelTextScale = 1.75f,
             )
@@ -72,7 +72,7 @@ class MapLabelTextScaleTest {
             defaultCacheId,
             resolveMapRendererDesiredCacheId(
                 mapSignature = "MAP:demo",
-                themeSignature = "THEME:elevate",
+                themeSignature = "THEME:openhiking",
                 elevationLabelsMetric = true,
                 labelTextScale = 1.00f,
             ),

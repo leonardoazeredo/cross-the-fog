@@ -4,26 +4,18 @@ Ultima revisione: 2026-05-06
 
 Questo documento raccoglie vincoli legali e d'uso, esclusi quelli delle librerie, per servizi e fornitori esterni referenziati dall'app e dalla compilazione.
 
-## 1) OpenAndroMaps ed Elevate
+## 1) OpenAndroMaps
 
 Usato per:
 - Consigli per scaricare mappe nell'app companion.
-- Download tema Elevate e risorse locali di riserva nella compilazione/esecuzione dell'orologio.
 
 Riferimenti:
 - https://www.openandromaps.org/en/license
-- https://www.openandromaps.org/en/legend/elevate-mountain-hike-theme
 
 Note importanti sulle condizioni (dalla pagina licenza originale):
 - I collegamenti diretti alle mappe sono indicati come vietati.
 - Vendere mappe o includerle in un'app richiede il permesso scritto del fornitore.
 - L'integrazione dei temi "andromaps_" è generalmente consentita per servizi di aggiornamento gratuiti.
-- L'integrazione dei temi di Tobias, incluso Elevate, richiede il suo permesso scritto.
-
-Stato del progetto:
-- Il responsabile del progetto dichiara di aver ricevuto da OpenAndroMaps e Tobias Kuehn il permesso d'uso e integrazione di OpenAndroMaps/Elevate in GlanceMap.
-- Conservare i messaggi originali dell'accordo fuori dal repository pubblico.
-- Prima di cambiare visibilità GitHub, registrare date di richiesta/risposta e ambito approvato in note di rilascio private o una segnalazione interna.
 
 ## 2) Tema Mapsforge OpenHiking
 
@@ -46,29 +38,7 @@ Stato del progetto:
 - Conservare attribuzione e obblighi di condivisione allo stesso modo nella documentazione del progetto.
 - Documentare i dettagli della copia attuale in `licenses/OPENHIKING_THEME.md`.
 
-## 3) Tema Mapsforge Voluntary
-
-Usato per:
-- Risorse locali del tema Voluntary incluse nell'app orologio.
-- Riferimenti al sito e alla legenda del tema Voluntary nell'app companion.
-
-Riferimenti:
-- https://voluntary.nichesite.org/
-- https://voluntary.nichesite.org/downloads.html
-- https://voluntary.nichesite.org/key.html
-- https://voluntary.nichesite.org/credits.html
-
-Note sulle condizioni:
-- Il sito pubblico offre collegamenti diretti a download manuali e legenda, ma non è stata trovata un'API generale documentata.
-- Lo ZIP del tema scaricato ed esaminato il 2026-04-29 non conteneva un evidente file licenza/readme separato.
-- L'intestazione XML e la pagina crediti identificano la licenza del tema come CC BY-NC-SA 3.0.
-
-Stato del progetto:
-- Il responsabile del progetto ha confermato il 2026-04-29 l'approvazione dell'autore all'integrazione in GlanceMap.
-- Conservare attribuzione e obblighi di condivisione allo stesso modo nella documentazione del progetto.
-- Documentare i dettagli della copia attuale in `licenses/VOLUNTARY_THEME.md`.
-
-## 4) API e dati Refuges.info
+## 3) API e dati Refuges.info
 
 Usato per:
 - Chiamate API dell'app companion a:
@@ -83,7 +53,7 @@ Note sulle condizioni:
 - I contenuti delle pagine dei punti Refuges.info sono pubblicati sotto Creative Commons BY-SA.
 - Refuges.info riusa anche dati OpenStreetMap sotto ODbL ove applicabile.
 
-## 5) OpenStreetMap e Overpass
+## 4) OpenStreetMap e Overpass
 
 Usato per:
 - Attribuzione OSM nell'app.
@@ -105,7 +75,7 @@ Nota sulla politica d'uso:
   - meno di 10000 richieste/giorno
   - meno di 1 GB scaricato/giorno
 
-## 6) Motore percorsi e segmenti BRouter
+## 5) Motore percorsi e segmenti BRouter
 
 Usato per:
 - Calcolo percorsi offline nell'app orologio tramite moduli BRouter inclusi.
@@ -126,7 +96,7 @@ Nota del progetto:
 - Nelle pagine originali BRouter esaminate il 2026-03-20 non è stata identificata una pagina pubblica separata su condizioni del servizio o limiti di frequenza.
 - Deduzione del progetto: mantenere prudenti i download dell'app companion e ricontrollare le condizioni originali prima di automazioni su larga scala.
 
-## 7) DEM e fonti del terreno
+## 6) DEM e fonti del terreno
 
 Usato per:
 - Download DEM3 da:
@@ -141,7 +111,7 @@ Riferimenti:
 - https://www.mapzen.com/blog/terrain-tile-service/
 - https://www.mapzen.com/rights/
 
-## 8) Fonte icone POI in compilazione
+## 7) Fonte icone POI in compilazione
 
 Usato per:
 - Download icone SVG Maki in compilazione.
@@ -150,7 +120,7 @@ Riferimenti:
 - https://github.com/mapbox/maki
 - Licenza: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
 
-## 9) Contesto condizioni Google Play services
+## 8) Contesto condizioni Google Play services
 
 Usato per:
 - Dipendenze d'esecuzione `play-services-wearable` e `play-services-location`.
@@ -162,6 +132,6 @@ Riferimenti:
 Nota:
 - Si tratta di condizioni SDK/servizi Google, non licenze open source standard come Apache/LGPL.
 
-## 10) Dichiarazione di non affiliazione
+## 9) Dichiarazione di non affiliazione
 
 L'app rimanda a fornitori e siti esterni per comodità dell'utente. Salvo loro esplicita dichiarazione, GlanceMap non è ufficialmente affiliato né approvato da essi.

@@ -6,6 +6,10 @@
 - Commit: `47a04a97bed9874ab1d427d864f92b0754fa608c` (2026-11-15, "Merge pull request #121 from GlanceMap/codex/live-distance-follows-saved-track")
 - Licence: MIT, `LICENSE` (GlanceMap's text, unchanged), notices in `licenses/`.
 
+## Themes removed for their licence (#498)
+
+Removed from `assets/theme/`: Elevate, Elevate Winter, Elevate Winter White (CC BY-NC-SA 4.0), Hike-Ride-Sight, OS Map, Tiramisu, Voluntary (CC BY-NC-SA 3.0) and French Kiss (no licence on record), with Elevate's own `ele-res/`, root `Elevate.xml` and `read_me_elevate.txt`, their notices in `licenses/`, `assets/licenses/` and `res/raw*`, and their strings. Kept: OpenHiking (CC BY-SA, the default theme now) and `hiking-3d`, an original theme with no author or licence line of its own: upstream's only commit for it is `53b3fea77` (2026-11-07, "Add dedicated watch 3D hiking theme", AdrienGrp, the repository's owner), so it falls under the tree's MIT licence (see `licenses/HIKING_3D_THEME.md`). The map still has the Mapsforge library's built-in styles (Classic and the others in `MapsforgeThemeCatalog.options`). A stored choice of a removed theme falls back to the default (`MapsforgeThemeCatalog.bundledThemeOrDefault`).
+
 ## What was copied
 
 As imported, byte-identical to the pinned commit: `app/`, `third_party/brouter/`, `transfercontract/`, `licenses/`, `LICENSE`, `gradle/`, `gradle.properties`, `detekt.yml`, `build.gradle.kts`, `gradlew`, `gradlew.bat`. The tree has since been stripped (see below), so it no longer matches the pin.

@@ -1,9 +1,8 @@
 package codes.madera.crossfog.watch.data.repository.maps.theme
 
-import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog.ELEVATE_THEME_ID
 import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog.HIKING_3D_THEME_ID
 import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog.OPENHIKING_THEME_ID
-import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog.TIRAMISU_THEME_ID
+import codes.madera.crossfog.watch.domain.model.maps.theme.mapsforge.MapsforgeThemeCatalog.MAPSFORGE_THEME_ID
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -12,7 +11,7 @@ class Hiking3dThemeTransitionTest {
         currentThemeId: String,
         themeBeforeHiking3d: String?,
         enable: Boolean,
-    ) = hiking3dThemeTransition(currentThemeId, themeBeforeHiking3d, enable, fallbackThemeId = ELEVATE_THEME_ID)
+    ) = hiking3dThemeTransition(currentThemeId, themeBeforeHiking3d, enable, fallbackThemeId = OPENHIKING_THEME_ID)
 
     @Test
     fun `turning on selects the 3D theme and remembers the current theme`() {
@@ -33,7 +32,7 @@ class Hiking3dThemeTransitionTest {
     @Test
     fun `turning off without a remembered theme falls back to the default`() {
         assertEquals(
-            Hiking3dThemeTransition(ELEVATE_THEME_ID, null),
+            Hiking3dThemeTransition(OPENHIKING_THEME_ID, null),
             transition(HIKING_3D_THEME_ID, null, enable = false),
         )
     }
@@ -42,7 +41,7 @@ class Hiking3dThemeTransitionTest {
     fun `turning off keeps a theme the user picked meanwhile`() {
         assertEquals(
             Hiking3dThemeTransition(null, null),
-            transition(TIRAMISU_THEME_ID, OPENHIKING_THEME_ID, enable = false),
+            transition(MAPSFORGE_THEME_ID, OPENHIKING_THEME_ID, enable = false),
         )
     }
 

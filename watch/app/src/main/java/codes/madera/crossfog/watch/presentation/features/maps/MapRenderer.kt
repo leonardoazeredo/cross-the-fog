@@ -245,7 +245,7 @@ class MapRenderer(
     private var currentThemeFile: File? = null
     private var currentExternalTheme: RenderThemeSource.External? = null
     private var currentMapsforgeThemeName: String? = null
-    private var currentBundledThemeId: String = MapsforgeThemeCatalog.ELEVATE_THEME_ID
+    private var currentBundledThemeId: String = MapsforgeThemeCatalog.OPENHIKING_THEME_ID
     private var currentHillShadingEnabled: Boolean = true
     private var currentReliefOverlayEnabled: Boolean = false
     private var currentDemSource: DemSource = DemSource.DEFAULT
@@ -532,7 +532,7 @@ class MapRenderer(
             if (MapsforgeThemeCatalog.isBundledAssetTheme(bundledThemeId)) {
                 bundledThemeId
             } else {
-                MapsforgeThemeCatalog.ELEVATE_THEME_ID
+                MapsforgeThemeCatalog.OPENHIKING_THEME_ID
             }
         val request =
             ThemeConfigRequest(

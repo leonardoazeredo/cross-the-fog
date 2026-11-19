@@ -10,21 +10,31 @@ data class MapsforgeThemeOption(
 
 object MapsforgeThemeCatalog {
     const val MAPSFORGE_THEME_ID = "mapsforge"
-    const val ELEVATE_THEME_ID = "elevate"
-    const val ELEVATE_WINTER_THEME_ID = "elevate_winter"
-    const val ELEVATE_WINTER_WHITE_THEME_ID = "elevate_winter_white"
     const val OPENHIKING_THEME_ID = "openhiking"
-    const val FRENCH_KISS_THEME_ID = "frenchkiss"
-    const val TIRAMISU_THEME_ID = "tiramisu"
-    const val HIKE_RIDE_SIGHT_THEME_ID = "hike_ride_sight"
-    const val VOLUNTARY_THEME_ID = "voluntary"
-    const val OS_MAP_THEME_ID = "os_map"
-    const val OS_MAP_DAY_THEME_ID = "os_map_day"
-    const val OS_MAP_NIGHT_THEME_ID = "os_map_night"
 
     /** Minimal bundled theme tuned for draped 3D terrain; also selectable for the 2D map. */
     const val HIKING_3D_THEME_ID = "hiking_3d"
     private const val MAPSFORGE_THEME_PREFIX = "mapsforge:"
+
+    /**
+     * Bundled themes dropped for their licence (non-commercial or none on record). [isBundledAssetTheme]
+     * accepts none of them, so [bundledThemeOrDefault] never returns one and a stored choice of one
+     * resolves to [defaultThemeId].
+     */
+    private val REMOVED_BUNDLED_THEME_IDS =
+        setOf(
+            "elevate",
+            "elevate_winter",
+            "elevate_winter_white",
+            "frenchkiss",
+            "tiramisu",
+            "hike_ride_sight",
+            "voluntary",
+            "os_map",
+            "os_map_day",
+            "os_map_night",
+        )
+
     val LEGACY_HILLSHADING_THEME_ID = "$MAPSFORGE_THEME_PREFIX${MapsforgeThemes.HILLSHADING.name}"
     val DEFAULT_MAPSFORGE_STYLE_ID = "$MAPSFORGE_THEME_PREFIX${MapsforgeThemes.DEFAULT.name}"
     val DEFAULT_MAPSFORGE_THEME_ID = DEFAULT_MAPSFORGE_STYLE_ID
@@ -77,20 +87,23 @@ object MapsforgeThemeCatalog {
 
     fun isMapsforgeStyleId(themeId: String?): Boolean = optionById(themeId) != null
 
-    fun isElevateFamilyTheme(themeId: String?): Boolean =
-        themeId == ELEVATE_THEME_ID ||
-            themeId == ELEVATE_WINTER_THEME_ID ||
-            themeId == ELEVATE_WINTER_WHITE_THEME_ID
+    fun isBundledAssetTheme(themeId: String?): Boolean = themeId == OPENHIKING_THEME_ID || themeId == HIKING_3D_THEME_ID
 
-    fun isBundledAssetTheme(themeId: String?): Boolean =
-        isElevateFamilyTheme(themeId) ||
-            themeId == OPENHIKING_THEME_ID ||
-            themeId == FRENCH_KISS_THEME_ID ||
-            themeId == TIRAMISU_THEME_ID ||
-            themeId == HIKE_RIDE_SIGHT_THEME_ID ||
-            themeId == VOLUNTARY_THEME_ID ||
-            themeId == OS_MAP_THEME_ID ||
-            themeId == OS_MAP_DAY_THEME_ID ||
-            themeId == OS_MAP_NIGHT_THEME_ID ||
-            themeId == HIKING_3D_THEME_ID
+    fun isRemovedBundledTheme(themeId: String?): Boolean = themeId in REMOVED_BUNDLED_THEME_IDS
+
+    /** OpenHiking, or the built-in Classic style when OpenHiking's asset is missing. */
+    fun defaultThemeId(isAvailable: (String) -> Boolean): String =
+        if (isAvailable(OPENHIKING_THEME_ID)) OPENHIKING_THEME_ID else DEFAULT_MAPSFORGE_STYLE_ID
+
+    /**
+     * A stored bundled-theme choice if it still names a bundled theme whose asset is there, else the
+     * default; blank, unknown and removed ids all end up on the default.
+     */
+    fun bundledThemeOrDefault(
+        stored: String?,
+        isAvailable: (String) -> Boolean,
+    ): String {
+        val id = stored?.trim()
+        return if (isBundledAssetTheme(id) && isAvailable(id!!)) id else defaultThemeId(isAvailable)
+    }
 }

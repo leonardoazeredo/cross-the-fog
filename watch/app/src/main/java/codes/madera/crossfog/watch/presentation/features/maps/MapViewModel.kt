@@ -265,7 +265,7 @@ class MapViewModel(
     private var latestThemeFile: File? = null
     private var latestExternalTheme: RenderThemeSource.External? = null
     private var latestMapsforgeThemeName: String? = null
-    private var latestBundledThemeId: String = MapsforgeThemeCatalog.ELEVATE_THEME_ID
+    private var latestBundledThemeId: String = MapsforgeThemeCatalog.OPENHIKING_THEME_ID
     private var latestHillShadingEnabled: Boolean = false
     private var latestReliefOverlayEnabled: Boolean = false
     private var latestDemSource: DemSource = DemSource.DEFAULT
@@ -1052,7 +1052,7 @@ class MapViewModel(
                 latestExternalTheme = external
                 latestThemeFile = external.xmlFile
                 latestMapsforgeThemeName = null
-                latestBundledThemeId = MapsforgeThemeCatalog.ELEVATE_THEME_ID
+                latestBundledThemeId = MapsforgeThemeCatalog.OPENHIKING_THEME_ID
                 timingStatus = "external_theme"
             } else if (selection.mapsforgeThemeName != null) {
                 latestExternalTheme = null

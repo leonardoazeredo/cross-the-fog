@@ -101,7 +101,7 @@ class MapRendererCacheRetentionTest {
         computeMapRendererThemeSignature(
             file,
             null,
-            "elevate",
+            "openhiking",
             hillShadingEnabled = false,
         )
 
