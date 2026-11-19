@@ -19,6 +19,8 @@ export const COPY = {
   historyOpenFailed:
     "Your history could not be opened. Restart the app; if it persists, restore a backup.",
   routeNotSent: "The route couldn't be saved for the watch.",
+  stagingKeyUnusable:
+    "This phone's watch-transfer key can't be used, so the route wasn't sent. Nothing was deleted; walks on the watch stay there.",
   activityDeleteFailed: "Couldn't delete that activity.",
   historyListFailed: "Couldn't refresh your history. The list may be out of date.",
   historyKeyLost: "Your history key is gone; restore a backup to get it back",

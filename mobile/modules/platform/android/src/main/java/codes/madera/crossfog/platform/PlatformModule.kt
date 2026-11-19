@@ -171,9 +171,12 @@ class PlatformModule : Module() {
       block()
     } catch (e: Exception) {
       val failure = stagingCallFailure(e) ?: throw e
-      // No cause for a storage failure: a FileNotFoundException names the file, and so the id.
+      // No cause for a storage failure: a FileNotFoundException names the file, and so the id; nor for
+      // an unusable key, whose provider exception may name the alias. Only the class is logged.
+      val quiet = failure.code == STORAGE || failure.code == STAGING_KEY_UNUSABLE
       if (failure.code == STORAGE) Log.w(TAG, "staging store failed: ${e.javaClass.simpleName}")
-      throw CodedException(failure.code, failure.message, if (failure.code == STORAGE) null else e)
+      if (failure.code == STAGING_KEY_UNUSABLE) Log.w(TAG, "staging key cannot be used: ${e.javaClass.simpleName}")
+      throw CodedException(failure.code, failure.message, if (quiet) null else e)
     }
 
   private companion object {

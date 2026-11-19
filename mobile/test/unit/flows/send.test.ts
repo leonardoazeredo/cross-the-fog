@@ -5,6 +5,7 @@ import { COPY } from "../../../src/copy.js";
 import { createSendFlow } from "../../../src/flows/send.js";
 import { createMemoryRouteStore } from "../../../src/history/memoryStores.js";
 import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
+import { StagingKeyUnusableError } from "../../../src/link/stagingKeyError.js";
 import { route } from "../history/fixtures.js";
 
 // What the phone computes, written here with node:crypto; the shipping one is checked against link/'s vectors in revision.test.ts.
@@ -256,6 +257,37 @@ describe("send failures name their revision", () => {
       }
     },
   );
+});
+
+describe("a staging key the phone cannot use", () => {
+  it("says so plainly, with the revision of the GPX, when the route cannot be queued", async () => {
+    const link = createFakeWatchLink();
+    const sent: NativeToWeb[] = [];
+    const flow = createSendFlow({
+      revisionOf,
+      link: {
+        ...link,
+        queueRoute: async () => {
+          throw new StagingKeyUnusableError("cannot use the staging key");
+        },
+      },
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+    });
+    const r = route({ gpx: "<gpx>locked</gpx>" });
+    await flow.sendRoute(r);
+    expect(sent).toEqual([
+      {
+        v: 1,
+        type: "routeStatus",
+        routeId: r.id,
+        state: "failed",
+        why: COPY.stagingKeyUnusable,
+        revision: await revisionOf(r.gpx),
+      },
+    ]);
+    expect(COPY.stagingKeyUnusable).not.toBe(COPY.routeNotSent);
+  });
 });
 
 describe("send", () => {
