@@ -47,6 +47,20 @@ class RecordingOutboxHookTest {
     }
 
     @Test
+    fun anErrorFromBuildingTheLinkIsContainedToo() {
+        val hook = RecordingOutboxHook({ _, _ -> throw OutOfMemoryError("walk too big") }, "v") { logs += it }
+        hook.onSaved("<gpx>a</gpx>".toByteArray())
+        assertEquals(listOf("OutOfMemoryError"), logs)
+    }
+
+    @Test
+    fun theLinkIsResolvedInsideTheGuardSoItsFirstBuildCannotFailTheSave() {
+        val hook = createRecordingHook(log = { logs += it }) { throw IllegalStateException("no preferences") }
+        hook.onSaved("<gpx>a</gpx>".toByteArray())
+        assertEquals(listOf("IllegalStateException"), logs)
+    }
+
+    @Test
     fun aBlankEncoderVersionStillQueuesTheWalk() {
         val box = box()
         RecordingOutboxHook({ g, v -> box.add(g, v) }, "  ") { logs += it }.onSaved("<gpx>a</gpx>".toByteArray())

@@ -53,10 +53,22 @@ internal fun createWatchLink(
         routes = routes,
         pins = FilePinStore(linkDir, ::fsyncDirectory),
         identityPresent = { WatchKeystoreIdentity.exists() },
-        encoderVersion = BuildConfig.VERSION_NAME,
-        // Only the class of a failure is logged: a message could carry a place name.
-        log = { errorClass -> Log.w(TAG, "could not queue the recording: $errorClass") },
     )
 }
+
+/**
+ * The hook the recorder calls once a walk is saved. It resolves the link inside its own guard, so
+ * building the link for the first time cannot fail the save either. Only the class of a failure is
+ * logged: a message could carry a place name.
+ */
+internal fun createRecordingHook(
+    log: (String) -> Unit = { errorClass -> Log.w(TAG, "could not queue the recording: $errorClass") },
+    link: () -> WatchLink,
+): RecordingOutboxHook =
+    RecordingOutboxHook(
+        add = { gpx, version -> link().outbox.add(gpx, version) },
+        encoderVersion = BuildConfig.VERSION_NAME,
+        log = log,
+    )
 
 private const val TAG = "WatchLink"

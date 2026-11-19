@@ -14,7 +14,8 @@ internal data class WatchLinkStatus(
 /**
  * Takes a saved recording into the outbox. The recording is already on the watch when this runs, so
  * whatever goes wrong here (a full disk, a bug) is logged by class and goes no further: saving a walk
- * must never fail or wait on the link.
+ * must never fail or wait on the link. [add] is where the outbox is first built, so a failure there is
+ * contained as well.
  */
 internal class RecordingOutboxHook(
     private val add: (gpx: ByteArray, encoderVersion: String) -> Unit,
@@ -25,9 +26,10 @@ internal class RecordingOutboxHook(
     private val version = encoderVersion.trim().ifEmpty { "unknown" }.take(MAX_VERSION)
 
     fun onSaved(gpx: ByteArray) {
+        // Throwable: a walk is big to copy, and an out-of-memory here must not undo a recording already saved.
         try {
             add(gpx, version)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             log(e.javaClass.simpleName)
         }
     }
@@ -42,18 +44,14 @@ internal class RecordingOutboxHook(
  * it may send, the ledger, and the pairing state. Nothing here can pair or reach a phone; [status]
  * says so by reading what is stored.
  */
-@Suppress("LongParameterList")
 internal class WatchLink(
     val outbox: WatchOutbox,
     ledger: ItemLedger,
     val routes: WatchRoutes,
     private val pins: PinStore,
     private val identityPresent: () -> Boolean,
-    encoderVersion: String,
-    log: (String) -> Unit,
 ) {
     val events = WatchLinkEvents(ledger, outbox)
-    val recordingHook = RecordingOutboxHook({ gpx, version -> outbox.add(gpx, version) }, encoderVersion, log)
 
     /** Paired is a pin together with the Keystore key it was made for; a pin whose key is gone is cleared. */
     fun status(): WatchLinkStatus = WatchLinkStatus(paired = paired(), asideWalks = asideWalks())

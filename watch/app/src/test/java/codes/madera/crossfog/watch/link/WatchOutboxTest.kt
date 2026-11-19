@@ -81,10 +81,26 @@ class WatchOutboxTest {
         val box = outbox()
         box.add(gpx(1), "v", newId = ids(ID_A))
         box.add(gpx(2), "v", newId = ids(ID_B))
+        // damaged first: writing it changes its time, and the damaged one must be the oldest
+        File(dir, "$ID_A.json").writeText("not a message")
         File(dir, "$ID_A.json").setLastModified(1_000_000)
         File(dir, "$ID_B.json").setLastModified(2_000_000)
-        File(dir, "$ID_A.json").writeText("not a message")
         assertEquals(ID_B, box.next()!!.activityId)
+    }
+
+    @Test
+    fun aDamagedOldestWalkDoesNotLetADemotedOneJumpTheFreshOnes() {
+        val l = ledger()
+        val box = outbox(ledger = l)
+        box.add(gpx(1), "v", newId = ids(ID_A))
+        box.add(gpx(2), "v", newId = ids(ID_B))
+        box.add(gpx(3), "v", newId = ids(ID_C))
+        File(dir, "$ID_A.json").writeText("not a message")
+        File(dir, "$ID_A.json").setLastModified(1_000_000)
+        File(dir, "$ID_B.json").setLastModified(2_000_000)
+        File(dir, "$ID_C.json").setLastModified(3_000_000)
+        repeat(3) { l.onClosed(unconfirmed(ID_B)) }
+        assertEquals(ID_C, box.next()!!.activityId)
     }
 
     @Test

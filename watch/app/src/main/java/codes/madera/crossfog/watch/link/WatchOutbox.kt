@@ -41,13 +41,16 @@ internal class WatchOutbox(
 
     @Synchronized
     override fun next(): ActivityOffer? {
-        val queued = queuedIds()
-        val preferred = ledger.prefer(queued) ?: return null
-        // The preferred one first, then the rest in age order, so one unreadable file blocks none behind it.
-        for (id in listOf(preferred) + queued.filter { it != preferred }) {
-            readOffer(File(dir, "$id$SUFFIX"), id)?.let { return it }
+        // Asked again after each file that cannot be read, so one damaged file blocks none behind it and
+        // the order among the others is still the ledger's.
+        val remaining = queuedIds().toMutableList()
+        var offer: ActivityOffer? = null
+        while (offer == null && remaining.isNotEmpty()) {
+            val id = ledger.prefer(remaining) ?: break
+            remaining.remove(id)
+            offer = readOffer(File(dir, "$id$SUFFIX"), id)
         }
-        return null
+        return offer
     }
 
     @Synchronized

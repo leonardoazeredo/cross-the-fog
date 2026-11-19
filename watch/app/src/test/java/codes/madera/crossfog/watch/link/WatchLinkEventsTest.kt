@@ -17,7 +17,7 @@ class WatchLinkEventsTest {
     val tmp = TemporaryFolder()
 
     private val store = MemoryLedger()
-    private val ledger get() = ItemLedger(store, ItemKind.ACTIVITY)
+    private val ledger = ItemLedger(store, ItemKind.ACTIVITY)
 
     private fun box() = WatchOutbox(File(tmp.root, "outbox"), ledger, {})
 
@@ -58,8 +58,9 @@ class WatchLinkEventsTest {
     fun theCountsOutliveAnInstanceOfTheLedger() {
         val box = box()
         box.add("<gpx>a</gpx>".toByteArray(), "v", newId = { ID_A })
-        repeat(2) { WatchLinkEvents(ledger, box).closedWith(storeFailed(ID_A)) }
-        WatchLinkEvents(ledger, box).closedWith(storeFailed(ID_A))
+        // each session builds a new ledger over the same stored counts
+        repeat(2) { WatchLinkEvents(ItemLedger(store, ItemKind.ACTIVITY), box).closedWith(storeFailed(ID_A)) }
+        WatchLinkEvents(ItemLedger(store, ItemKind.ACTIVITY), box).closedWith(storeFailed(ID_A))
         assertEquals(1, box.asideCount())
     }
 

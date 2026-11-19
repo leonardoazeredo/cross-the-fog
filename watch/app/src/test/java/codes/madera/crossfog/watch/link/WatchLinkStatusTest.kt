@@ -26,8 +26,6 @@ class WatchLinkStatusTest {
             routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }),
             pins = pins,
             identityPresent = identityPresent,
-            encoderVersion = "v",
-            log = {},
         )
 
     @Test
@@ -60,16 +58,9 @@ class WatchLinkStatusTest {
     @Test
     fun walksSetAsideAreCounted() {
         val l = link()
-        l.recordingHook.onSaved("<gpx>a</gpx>".toByteArray())
+        l.outbox.add("<gpx>a</gpx>".toByteArray(), "v")
         val id = l.outbox.next()!!.activityId
         l.outbox.setAside(id)
         assertEquals(1, l.status().asideWalks)
-    }
-
-    @Test
-    fun aSavedRecordingIsInTheOutboxFromTheLinkItself() {
-        val l = link()
-        l.recordingHook.onSaved("<gpx>a</gpx>".toByteArray())
-        assertEquals("v", l.outbox.next()!!.encoderVersion)
     }
 }
