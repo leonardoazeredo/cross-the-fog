@@ -46,7 +46,6 @@ import codes.madera.crossfog.watch.core.service.location.policy.navigationRuntim
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
 import codes.madera.crossfog.watch.domain.sensors.resolveCompassHardwareCapability
 import codes.madera.crossfog.watch.domain.sensors.shouldShowCompassHardwareUnavailableNotice
-import codes.madera.crossfog.watch.presentation.WatchAppRatingPrompt
 import codes.madera.crossfog.watch.presentation.design.theme.GlanceMapTheme
 import codes.madera.crossfog.watch.presentation.features.download.DownloadScreen
 import codes.madera.crossfog.watch.presentation.features.download.DownloadSettingsScreen
@@ -1112,7 +1111,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 compassHardwareUnavailableNotice()
-                WatchAppRatingPrompt()
                 WearActionDialog(
                     visible = recordingStartWarning != null,
                     title = stringResource(R.string.recording_external_sensors_unavailable),
