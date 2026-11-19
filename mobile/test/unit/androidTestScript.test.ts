@@ -73,17 +73,23 @@ describe("prebuildNeeded reads the android/ directory", () => {
 // The script runs at import and exits the process, so it cannot be driven from a test; these two pin
 // that it asks the function above about its android/ and prebuilds without installing.
 describe("scripts/android-test.ts", () => {
+  // Comment lines are dropped so a commented-out call cannot satisfy a pattern.
   const script = readFileSync(
     resolve(fileURLToPath(import.meta.url), "../../../scripts/android-test.ts"),
     "utf8",
-  );
+  )
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("//"))
+    .join("\n");
 
-  it("asks prebuildNeeded about the android/ folder the script defines", () => {
-    expect(script).toMatch(/const androidDir = join\(mobile, "android"\);/);
-    expect(script).toMatch(/if \(prebuildNeeded\(androidDir\)\)/);
+  it("asks prebuildNeeded about the android/ folder under its own mobile/ directory", () => {
+    expect(script).toContain('const mobile = join(import.meta.dirname, "..");');
+    expect(script).toContain('const androidDir = join(mobile, "android");');
   });
 
-  it("prebuilds android only, without installing", () => {
-    expect(script).toMatch(/"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/);
+  it("prebuilds android without installing, and only inside the prebuildNeeded branch", () => {
+    expect(script).toMatch(
+      /if \(prebuildNeeded\(androidDir\)\) \{[^}]*?"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/,
+    );
   });
 });
