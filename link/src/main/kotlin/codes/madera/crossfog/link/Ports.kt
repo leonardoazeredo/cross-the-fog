@@ -75,7 +75,7 @@ enum class CloseReason {
   UNEXPECTED_MESSAGE,
   /** A store or sink threw; nothing was confirmed and the item stays queued. */
   STORE_FAILED,
-  /** An item that cannot be put on the wire (over the frame cap, or text that cannot be encoded). */
+  /** An item whose frame would be over the frame cap, so it can never be sent. */
   UNSENDABLE_ITEM,
   /** [Endpoint.close] was called. */
   LOCAL,
