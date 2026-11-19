@@ -56,9 +56,10 @@ class Peer(
   }
 }
 
-/** Two peers joined by memory, with a filter on each direction that a test can use to drop or change bytes. */
+/** How a [Rig] hands transport bytes to the other end. */
 enum class Chunking { WHOLE, ONE_BYTE, JOINED, SEVEN_BYTES }
 
+/** Two peers joined by memory, with a filter on each direction that a test can use to drop or change bytes. */
 class Rig(val server: Peer, val client: Peer) {
   /** How transport bytes reach the other end: as written, a byte at a time, all queued bytes as one read, or in 7-byte reads. Always at a nonzero offset. */
   var chunking = Chunking.WHOLE
@@ -140,7 +141,7 @@ class Rig(val server: Peer, val client: Peer) {
   }
 }
 
-/** A TLS 1.2 client over the same identity and trust, to show a peer that offers less is refused. */
+/** An engine for the given role that offers only [protocols] (TLS 1.2 by default), over the same identity and trust, to show a peer that offers less is refused. */
 fun tls12Engine(identity: Identity, trust: PinningTrustManager, client: Boolean, protocols: Array<String> = arrayOf("TLSv1.2")): SSLEngine {
   val context = SSLContext.getInstance("TLS")
   val keys = javax.net.ssl.KeyManagerFactory.getInstance("SunX509")

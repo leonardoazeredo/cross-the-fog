@@ -171,11 +171,11 @@ class TlsSession(
     try {
       if (!ended && engine.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) wrap(ByteBuffer.allocate(0))
     } catch (e: Exception) {
-      // the transport may be gone; the end below is what is reported
+      // the transport may be gone; the caller reports the failure that led here
     }
   }
 
-  /** One unwrap of the buffered bytes; false when the engine needs more of them. */
+  /** One unwrap of the buffered bytes; false when the engine needs more of them, or when the peer's close_notify ended the session. */
   private fun unwrap(): Boolean {
     if (netIn.isEmpty()) return false
     val src = ByteBuffer.wrap(netIn)

@@ -14,8 +14,9 @@ enum class TlsFailure { PIN, KEY, CHAIN, PROTOCOL, OTHER }
  * The only trust manager the link uses, and the only thing that decides whether a peer is trusted:
  * it never consults the system's trust store, dates, names, issuers, OCSP or CRLs. A certificate is
  * accepted when it is the one certificate presented, holds an EC P-256 key, and its key hash
- * ([Spki.hash]) is the one this manager was built to expect, compared in constant time. Dates are
- * ignored on purpose: the certificate is only a container for the key, and a watch with a wrong clock
+ * ([Spki.hash]) is the one this manager was built to expect, compared in constant time. The one
+ * exception is [acceptingAnyKey], which skips the comparison and only records the key hash (see there).
+ * Dates are ignored on purpose: the certificate is only a container for the key, and a watch with a wrong clock
  * must not lose its link; a key is retired by pairing again.
  *
  * It extends [X509ExtendedTrustManager] so JSSE does not wrap it with checks of its own.
