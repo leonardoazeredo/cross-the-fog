@@ -65,6 +65,14 @@ class MainScreenResponsiveTest {
     }
 
     @Test
+    fun mediumSquare_navigatesToGpx() {
+        launchMainScreen(config = MediumSquareWatch)
+        composeRule.onNodeWithText("GPX").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("GPX destination").assertIsDisplayed()
+    }
+
+    @Test
     fun mediumSquare_navigatesToSettings() {
         launchMainScreen(config = MediumSquareWatch)
         composeRule.onNodeWithContentDescription("Settings").performClick()
