@@ -18,6 +18,8 @@ This folder tracks third-party licensing and attribution for `GlanceMap` (watch 
   - Attribution and usage notes for map/theme/data/icon assets and imported POI data.
 - `OPENHIKING_THEME.md`
   - Dedicated note for the bundled OpenHiking theme snapshot and approval/license status.
+- `HIKING_3D_THEME.md`
+  - Dedicated note for the bundled `hiking-3d` theme and its licence status.
 - `SERVICE_TERMS_AND_API_USAGE.md`
   - Service/API usage terms and limits (OpenAndroMaps, Refuges.info, Overpass, Google Play services).
 - `COMPANION_EXTERNAL_SOURCES.md`
