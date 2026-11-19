@@ -53,15 +53,18 @@ class MemoryStream : ByteStream {
 class RecordingEvents : LinkEvents {
   val closed = mutableListOf<CloseReason>()
   val itemIds = mutableListOf<String?>()
+  val log = mutableListOf<String>()
   var ready = 0
 
   override fun ready() {
     ready++
+    log += "ready"
   }
 
   override fun closed(reason: CloseReason, itemId: String?) {
     closed += reason
     itemIds += itemId
+    log += "closed:$reason"
   }
 }
 

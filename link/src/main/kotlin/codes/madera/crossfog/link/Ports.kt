@@ -83,7 +83,7 @@ enum class CloseReason {
 
 /** What the caller wants to know about the link. */
 interface LinkEvents {
-  /** Hello exchanged and a version agreed; items flow from here on. */
+  /** Hello exchanged and a version agreed; items flow from here on. Always before [closed], including when the first item sent closes the session. */
   fun ready()
 
   /**

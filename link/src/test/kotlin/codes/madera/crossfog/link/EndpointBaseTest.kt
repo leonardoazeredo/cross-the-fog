@@ -268,6 +268,31 @@ class EndpointBaseTest {
   }
 
   @Test
+  fun readyIsReportedBeforeCloseWhenTheFirstItemSentClosesTheLink() {
+    val big = "a".repeat(Framing.MAX_FRAME_BYTES)
+    val unsendable = Solo().also { it.phoneRoutes.queue(RouteOffer(ROUTE_A, "big", "t", big)) }.let { it to it.phone() }
+    val unsendableWatch = Solo().also { it.outbox.queue(activity(ACT_1, gpx = big)) }.let { it to it.watch() }
+    val failingWrite = Solo().also { it.phoneRoutes.queue(route()) }.let { it to it.phone() }
+    val failingWriteWatch = Solo().also { it.outbox.queue(activity()) }.let { it to it.watch() }
+    val failingRead = Solo().also { it.outbox.failNext = true }.let { it to it.watch() }
+    val cases = listOf(
+      unsendable to "closed:UNSENDABLE_ITEM",
+      unsendableWatch to "closed:UNSENDABLE_ITEM",
+      failingWrite to "closed:WRITE_FAILED",
+      failingWriteWatch to "closed:WRITE_FAILED",
+      failingRead to "closed:STORE_FAILED",
+    )
+    for ((pair, expected) in cases) {
+      val (solo, endpoint) = pair
+      endpoint.open()
+      solo.stream.take()
+      if (expected == "closed:WRITE_FAILED") solo.stream.failWrites = true
+      endpoint.feed(HELLO)
+      assertEquals(listOf("ready", expected), solo.events.log)
+    }
+  }
+
+  @Test
   fun timeoutsMustBePositive() {
     assertFalse(runCatching { LinkConfig(helloTimeoutMs = 0) }.isSuccess)
     assertFalse(runCatching { LinkConfig(confirmTimeoutMs = -1) }.isSuccess)
