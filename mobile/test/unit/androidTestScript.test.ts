@@ -56,10 +56,16 @@ describe("prebuildNeeded reads the android/ directory", () => {
     expect(prebuildNeeded(dir)).toBe(false);
   });
 
-  it("does not look at settings.gradle.kts or a gradlew in a subdirectory", () => {
+  it("does not read settings.gradle.kts in place of settings.gradle", () => {
+    writeFileSync(join(dir, "gradlew"), "");
+    writeFileSync(join(dir, "settings.gradle.kts"), WITH_LINK);
+    expect(prebuildNeeded(dir)).toBe(true);
+  });
+
+  it("does not take a gradlew in a subdirectory for the project's own", () => {
     mkdirSync(join(dir, "app"));
     writeFileSync(join(dir, "app", "gradlew"), "");
-    writeFileSync(join(dir, "settings.gradle.kts"), WITH_LINK);
+    writeFileSync(join(dir, "settings.gradle"), WITH_LINK);
     expect(prebuildNeeded(dir)).toBe(true);
   });
 });
@@ -72,7 +78,7 @@ describe("scripts/android-test.ts", () => {
     "utf8",
   );
 
-  it("asks prebuildNeeded about the android/ it will run gradle in", () => {
+  it("asks prebuildNeeded about the android/ folder the script defines", () => {
     expect(script).toMatch(/const androidDir = join\(mobile, "android"\);/);
     expect(script).toMatch(/if \(prebuildNeeded\(androidDir\)\)/);
   });
