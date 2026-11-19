@@ -27,7 +27,6 @@ import javax.net.ssl.SSLEngineResult
 import javax.net.ssl.SSLException
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -195,12 +194,14 @@ class KeystoreSessionTest {
     val phoneEvents = Events()
     val phoneOut = Pipe()
     val watchOut = Pipe()
+    val watchRoutes = WatchRoutes()
     val phoneSession = Sessions.normalPhone(phoneOut, phone, Pins(other.spkiHash()), PhoneRoutes(route), sink, clock, config, phoneEvents)
-    val watchSession = Sessions.normalWatch(watchOut, watch, Pins(phone.spkiHash()), WatchRoutes(), Outbox(walk), clock, config, watchEvents)
+    val watchSession = Sessions.normalWatch(watchOut, watch, Pins(phone.spkiHash()), watchRoutes, Outbox(walk), clock, config, watchEvents)
     settle(watchSession, watchOut, phoneSession, phoneOut)
     assertTrue(sink.stored.isEmpty())
     assertEquals(0, phoneEvents.ready)
-    // TLS 1.3 lets the client finish first, so the refusal reaches it as an alert, never as a message.
+    // The client's handshake finishes first (TLS 1.3), so it learns of the refusal only afterwards, and no message from the phone reaches it.
+    assertTrue(watchRoutes.saved.isEmpty())
     assertEquals(listOf(CloseReason.TLS_REFUSED), watchEvents.ends.map { it.reason })
   }
 
@@ -216,8 +217,7 @@ class KeystoreSessionTest {
     settle(watchSession, watchOut, phoneSession, phoneOut)
     assertEquals(0, watchEvents.ready)
     assertTrue(sink.stored.isEmpty())
-    assertEquals(1, watchEvents.ends.size)
-    assertFalse(watchEvents.ends.single().reason == CloseReason.PEER_CLOSED)
+    assertEquals(listOf(CloseReason.TLS_FAILED), watchEvents.ends.map { it.reason })
   }
 
   /** A TLS client driven by hand against a phone session, so its negotiated protocol can be read. */
@@ -253,6 +253,7 @@ class KeystoreSessionTest {
             else -> return
           }
         }
+        error("the raw handshake did not settle")
       } catch (e: SSLException) {
         failure = e
       }
@@ -266,7 +267,7 @@ class KeystoreSessionTest {
   }
 
   @Test
-  fun conscryptNegotiatesTls13WithASuiteTheLinkAcceptsAndTheServerGoesReady() {
+  fun conscryptNegotiatesTls13WithASuiteTheLinkAcceptsAndTheServerDoesNotEnd() {
     val events = Events()
     val serverOut = Pipe()
     val server = Sessions.normalPhone(serverOut, phone, Pins(watch.spkiHash()), PhoneRoutes(route), Sink(), clock, config, events)
@@ -275,6 +276,8 @@ class KeystoreSessionTest {
     assertNull(client.failure)
     assertEquals("TLSv1.3", client.engine.session.protocol)
     assertTrue(client.engine.session.cipherSuite, client.engine.session.cipherSuite in setOf("TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"))
+    // The server is ready only after the endpoint hello, which a raw TLS client does not send; here it must simply not have ended.
+    assertTrue(events.ends.isEmpty())
     assertNotNull(client.engine.session.peerCertificates.firstOrNull())
     assertEquals(phone.spkiHash().toList(), codes.madera.crossfog.link.Spki.hash(client.engine.session.peerCertificates.first() as java.security.cert.X509Certificate).toList())
   }
@@ -291,5 +294,7 @@ class KeystoreSessionTest {
     assertEquals(listOf(CloseReason.TLS_FAILED), events.ends.map { it.reason })
     assertTrue(serverOut.closed)
     assertEquals("NONE", client.engine.session.protocol)
+    assertNull(client.failure)
+    assertEquals(SSLEngineResult.HandshakeStatus.NEED_UNWRAP, client.engine.handshakeStatus)
   }
 }
