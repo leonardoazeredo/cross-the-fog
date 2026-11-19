@@ -1677,7 +1677,6 @@
     <string name="settings_manual_stop_invalidates_benchmark">"Manual stop · invalidates benchmark"</string>
     <string name="settings_map_label_size">"Map label size"</string>
     <string name="settings_map_settings">"Map settings"</string>
-    <string name="settings_map_style">"Map style"</string>
     <string name="settings_map_theme">"Map theme"</string>
     <string name="settings_marked_hiking_routes">"Marked hiking routes"</string>
     <string name="settings_marker_style">"Marker style"</string>
@@ -1689,7 +1688,6 @@
     <string name="settings_mi_2">"%1$.1f mi"</string>
     <string name="settings_mm">"%1$s mm"</string>
     <string name="settings_mm_m">"%1$d mm · %2$s m"</string>
-    <string name="settings_mode">"Mode"</string>
     <string name="settings_move_s">"Move: %1$ss"</string>
     <string name="settings_mph">"mph"</string>
     <string name="settings_needed_to_find_sensors">"Needed to find sensors"</string>

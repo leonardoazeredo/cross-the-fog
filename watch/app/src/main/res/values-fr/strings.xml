@@ -1716,7 +1716,6 @@
     <string name="settings_manual_stop_invalidates_benchmark">"Arrêt manuel · invalide le test"</string>
     <string name="settings_map_label_size">"Taille des libellés de carte"</string>
     <string name="settings_map_settings">"Paramètres de carte"</string>
-    <string name="settings_map_style">"Style de carte"</string>
     <string name="settings_map_theme">"Thème de carte"</string>
     <string name="settings_marked_hiking_routes">"Itinéraires de randonnée balisés"</string>
     <string name="settings_marker_style">"Style du repère"</string>
@@ -1728,7 +1727,6 @@
     <string name="settings_mi_2">"%1$.1f mi"</string>
     <string name="settings_mm">"%1$s mm"</string>
     <string name="settings_mm_m">"%1$d mm · %2$s m"</string>
-    <string name="settings_mode">"Mode"</string>
     <string name="settings_move_s">"Bougez : %1$ss"</string>
     <string name="settings_mph">"mph"</string>
     <string name="settings_needed_to_find_sensors">"Requis pour trouver les capteurs"</string>
