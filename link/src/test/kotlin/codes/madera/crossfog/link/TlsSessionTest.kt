@@ -1,6 +1,7 @@
 package codes.madera.crossfog.link
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -25,6 +26,7 @@ class TlsSessionTest {
     assertEquals(0, n.phone.plainBytes)
     assertEquals(TlsEnd.FAILED, n.phone.end)
     assertEquals(TlsFailure.PIN, n.phone.session.failure)
+    assertEquals(TlsFailure.PIN, n.phone.failureAtEnd)
   }
 
   @Test
@@ -192,6 +194,7 @@ class TlsSessionTest {
     n.phone.session.onBytes(record, 0, record.size)
     n.rig.settle()
     assertEquals(TlsEnd.FAILED, n.phone.end)
+    assertNotNull(n.watch.end)
     assertTrue(n.watch.end != TlsEnd.REFUSED)
   }
 

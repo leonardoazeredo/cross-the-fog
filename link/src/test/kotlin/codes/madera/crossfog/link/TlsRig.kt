@@ -36,6 +36,7 @@ class Peer(
   var endpoint: Endpoint? = null
   var secured = false
   var end: TlsEnd? = null
+  var failureAtEnd: TlsFailure? = null
   var plainBytes = 0
 
   override fun onSecure() {
@@ -50,6 +51,7 @@ class Peer(
 
   override fun onEnd(end: TlsEnd) {
     this.end = end
+    failureAtEnd = session.failure
     if (end == TlsEnd.CLEAN) endpoint?.onClosed() else endpoint?.closeWith(end.reason)
   }
 }

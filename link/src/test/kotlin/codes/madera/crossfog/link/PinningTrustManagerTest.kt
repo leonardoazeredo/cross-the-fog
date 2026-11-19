@@ -129,6 +129,13 @@ class PinningTrustManagerTest {
   }
 
   @Test
+  fun aPinnedManagerKeepsNoPeerHash() {
+    val tm = PinningTrustManager.pinned(MemoryPins(watch.spkiHash()))
+    tm.checkServerTrusted(chain(watch), "ECDSA", noEngine)
+    assertNull(tm.peerHash)
+  }
+
+  @Test
   fun noIssuersAreNamedAndTheSystemStoreIsNotInvolved() {
     val tm = PinningTrustManager.pinned(MemoryPins())
     assertEquals(0, tm.acceptedIssuers.size)

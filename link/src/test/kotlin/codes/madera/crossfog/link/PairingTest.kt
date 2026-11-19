@@ -382,4 +382,54 @@ class PairingTest {
     phone.wake()
     assertEquals(1, stream.takeMessages().count { it is PairRequest })
   }
+
+  @Test
+  fun aSpentCodeStillSaysCodeUsedAfterTheWindow() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val offer = PairingOffer(clock, config)
+    val qr = offer.payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val w = TestKeys.watch.spkiHash()
+    val p = TestKeys.phone.spkiHash()
+    val proof = Pairing.hex(Pairing.proof(qr.code(), w, p))
+    assertNull(offer.attempt(proof, w, p))
+    clock.now = config.pairingWindowMs
+    assertEquals(PairRejection.CODE_USED, offer.attempt(proof, w, p))
+  }
+
+  @Test
+  fun theQrPrefixIsMatchedExactly() {
+    val good = PairingOffer(FakeClock(), LinkConfig()).payload(TestKeys.watch.spkiHash(), "rfcomm").encode()
+    assertNull(QrPayload.parse(good.replaceFirst("crossfog", "CROSSFOG")))
+  }
+
+  @Test
+  fun aWakeDoesNotPushTheWatchsWaitForTheRequestOut() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val ends = RecordingEvents()
+    val watch = watchEndpoint(MemoryPins(), PairingOffer(clock, config), ends, clock)
+    watch.open()
+    watch.feed(Hello(listOf(1)))
+    clock.now = config.confirmTimeoutMs - 1
+    watch.wake()
+    clock.now = config.confirmTimeoutMs
+    watch.tick()
+    assertEquals(listOf(CloseReason.TIMEOUT), ends.closed)
+  }
+
+  @Test
+  fun theWaitForTheConfirmationStartsWhenTheRequestWasAccepted() {
+    val clock = FakeClock()
+    val config = LinkConfig()
+    val offer = PairingOffer(clock, config)
+    val qr = offer.payload(TestKeys.watch.spkiHash(), "rfcomm")
+    val proof = Pairing.hex(Pairing.proof(qr.code(), TestKeys.watch.spkiHash(), TestKeys.phone.spkiHash()))
+    val watch = watchEndpoint(MemoryPins(), offer, RecordingEvents(), clock)
+    watch.open()
+    watch.feed(Hello(listOf(1)))
+    clock.now = config.confirmTimeoutMs - 1
+    watch.feed(PairRequest(proof))
+    assertEquals(clock.now + config.confirmTimeoutMs, watch.nextDeadline())
+  }
 }
