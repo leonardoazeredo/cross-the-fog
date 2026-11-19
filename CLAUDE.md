@@ -9,6 +9,7 @@ Defog: a browser-only tool that reads a Fog of World `Sync/` folder (or backup .
 ## Running and deploying
 
 - No build, package manager or linter; tests are plain Node scripts in `bench/*.test.js` (offline, synthetic data). `app/` is the site root: serve it with any static file server and open `index.html`.
+- `pnpm verify` in `mobile/` also builds and tests the watch app: `pnpm test:watch` runs `:app:testDebugUnitTest :link:test` in `watch/`, which covers `link/` under the watch build's Kotlin.
 - No GitHub Pages site: `app/` ships only inside the phone app in `mobile/` (bundled into `generated/web.ts` by `pnpm generate`).
 - `Sync/` (personal location history) is gitignored: never commit it or anything derived from it.
 - Third-party libs are vendored in `app/vendor/`; there is nothing to install.

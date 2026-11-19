@@ -6,6 +6,7 @@ import {
   type AndroidTestMode,
   attachedDevices,
   defaultAndroidHome,
+  gradleDirFor,
   LINK_DIR_FROM_ANDROID,
   linkMissingMessage,
   missingTooling,
@@ -15,8 +16,8 @@ import {
 } from "./androidEnv.js";
 
 const mode = process.argv[2] as AndroidTestMode | undefined;
-if (mode !== "jvm" && mode !== "device") {
-  console.error("Usage: tsx scripts/android-test.ts jvm|device");
+if (mode !== "jvm" && mode !== "device" && mode !== "watch") {
+  console.error("Usage: tsx scripts/android-test.ts jvm|device|watch");
   process.exit(2);
 }
 const plan = PLANS[mode];
@@ -59,10 +60,13 @@ if (plan.needsDevice) {
   }
 }
 
+// watch/ is committed with its own gradlew; only the phone's android/ is generated.
+const phone = plan.project === "phone";
+
 // android/ is generated and git-ignored, so a fresh checkout or worktree has none; a gate that skipped
 // without it would pass while testing nothing.
-const hasGradlew = existsSync(join(androidDir, "gradlew"));
-if (!hasGradlew) {
+const hasGradlew = !phone || existsSync(join(androidDir, "gradlew"));
+if (phone && !hasGradlew) {
   say("mobile/android is missing; generating the page (about 2 s)");
   if (run("pnpm", ["generate"], mobile, env) !== 0) process.exit(1);
 }
@@ -70,7 +74,7 @@ if (!hasGradlew) {
 // Prebuild only when android/ is missing or predates the shared link/ include: an android/ that was
 // prebuilt on purpose with other settings (CROSSFOG_E2E, say) is left as it is. Prebuild applies the
 // config plugins to an existing android/ too, once (plugins/withLinkProject.cjs).
-if (prebuildNeeded(androidDir)) {
+if (phone && prebuildNeeded(androidDir)) {
   say("expo prebuild (about 2 s, no install)");
   if (
     run(
@@ -86,14 +90,15 @@ if (prebuildNeeded(androidDir)) {
 
 // A missing link/ must stop the run here: the :link:test step would otherwise be the one that quietly does not exist.
 const linkDir = join(androidDir, LINK_DIR_FROM_ANDROID);
-if (!existsSync(join(linkDir, "build.gradle.kts"))) {
+if (phone && !existsSync(join(linkDir, "build.gradle.kts"))) {
   console.error(linkMissingMessage(linkDir));
   process.exit(1);
 }
 
+// A cold watch run compiles the whole app; the import measured 3 min 31 s for a full debug build.
 say(
-  `gradle ${plan.gradleTasks.join(" ")} (about 20 to 60 s; a first run on a new machine downloads Gradle's dependencies)`,
+  `gradle ${plan.gradleTasks.join(" ")} in ${phone ? "mobile/android" : "watch"} (about ${phone ? "20 to 60 s" : "35 to 90 s warm, up to 4 min cold"}; a first run on a new machine downloads Gradle's dependencies)`,
 );
-const status = run("./gradlew", plan.gradleTasks, androidDir, env);
+const status = run("./gradlew", plan.gradleTasks, gradleDirFor(plan, mobile), env);
 say(status === 0 ? "passed" : `failed (gradle exit ${status})`);
 process.exit(status);

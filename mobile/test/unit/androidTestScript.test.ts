@@ -89,7 +89,7 @@ describe("scripts/android-test.ts", () => {
 
   it("prebuilds android without installing, and only inside the prebuildNeeded branch", () => {
     expect(script).toMatch(
-      /if \(prebuildNeeded\(androidDir\)\) \{[^}]*?"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/,
+      /if \(phone && prebuildNeeded\(androidDir\)\) \{[^}]*?"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/,
     );
   });
 });
