@@ -17,8 +17,8 @@ object MapsforgeThemeCatalog {
     private const val MAPSFORGE_THEME_PREFIX = "mapsforge:"
 
     /**
-     * Bundled themes dropped for their licence (non-commercial or none on record). A stored choice of one
-     * of them, from an install made before the removal, falls back to [defaultThemeId].
+     * Bundled themes dropped for their licence (non-commercial or none on record). None is bundled, so
+     * [bundledThemeOrDefault] never returns one and a stored choice of one resolves to [defaultThemeId].
      */
     private val REMOVED_BUNDLED_THEME_IDS =
         setOf(

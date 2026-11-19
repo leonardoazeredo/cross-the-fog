@@ -136,7 +136,7 @@ class ThemeRepositoryImpl(
 
     private fun bundledThemeIds(): List<String> = listOf(THEME_ID_OPENHIKING, THEME_ID_HIKING_3D)
 
-    /** A bundled theme choice that survived [MapsforgeThemeCatalog.bundledThemeOrDefault], as a selectable theme id. */
+    /** [stored] when it names a kept bundled theme whose asset is present, else the default, as a selectable theme id. */
     private fun bundledChoiceOrDefault(stored: String?): String {
         val id =
             MapsforgeThemeCatalog.bundledThemeOrDefault(stored) {
