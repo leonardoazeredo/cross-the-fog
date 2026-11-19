@@ -164,6 +164,35 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
     refused.ctl.routeStatus({ routeId: "r1", state: "failed", revision: refused.sentRecords[0].revision });
     assert.equal(refused.chip.textContent, "Could not send");
 
+    // A failure that says why (the phone's staging key cannot be used) shows that text in place of the
+    // general line; a why that is not a non-empty string, or a status that is not a failure, does not.
+    const WHY = "The phone's transfer key can't be used. Nothing was deleted.";
+    const why = control(() => {});
+    why.tap();
+    why.ctl.routeStatus({ routeId: "r1", state: "failed", why: WHY, revision: why.sentRecords[0].revision });
+    assert.equal(why.chip.textContent, WHY, "a failure shows its reason");
+    for (const odd of ["", 5, null, {}]) {
+      const o = control(() => {});
+      o.tap();
+      o.ctl.routeStatus({ routeId: "r1", state: "failed", why: odd, revision: o.sentRecords[0].revision });
+      assert.equal(o.chip.textContent, "Could not send", "a reason that is no text is ignored");
+    }
+    const ok = control(() => {});
+    ok.tap();
+    ok.ctl.routeStatus({ routeId: "r1", state: "onWatch", why: WHY, revision: ok.sentRecords[0].revision });
+    assert.equal(ok.chip.textContent, "On the watch", "only a failure shows a reason");
+    why.ctl.routeStatus({ routeId: "r1", state: "waiting", revision: why.sentRecords[0].revision });
+    assert.equal(why.chip.textContent, "Waiting for watch", "a later status drops the reason");
+    why.ctl.routeStatus({ routeId: "r1", state: "failed", revision: why.sentRecords[0].revision });
+    assert.equal(why.chip.textContent, "Could not send", "a later failure without a reason does not bring the old one back");
+    // A reason belongs to the send it answered: a new tap that then gets no answer reads as the general line.
+    const again = control(() => {});
+    again.tap();
+    again.ctl.routeStatus({ routeId: "r1", state: "failed", why: WHY, revision: again.sentRecords[0].revision });
+    again.tap();
+    fire();
+    assert.equal(again.chip.textContent, "Could not send", "the reason of an earlier send is not shown for the next");
+
     // A hash that cannot be computed reads as a failed send, logs only the class and never throws from the tap.
     const brokenCtl = (() => {
       let onClick = null;

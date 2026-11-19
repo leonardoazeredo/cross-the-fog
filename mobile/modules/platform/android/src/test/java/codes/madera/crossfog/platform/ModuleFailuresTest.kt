@@ -3,7 +3,10 @@ package codes.madera.crossfog.platform
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import java.security.InvalidKeyException
 import java.security.KeyStoreException
+import java.security.UnrecoverableKeyException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -58,6 +61,22 @@ class ModuleFailuresTest {
   fun aBadFrameOrIdKeepsItsCode() {
     assertEquals("ERR_INVALID_FRAME", stagingCallFailure(FrameException("field x"))?.code)
     assertEquals("ERR_INVALID_ID", stagingCallFailure(IllegalArgumentException("id"))?.code)
+  }
+
+  @Test
+  fun anUnusableStagingKeyIsOneNamedFailure() {
+    for (e in listOf(UnrecoverableKeyException("alias $id"), KeyPermanentlyInvalidatedException("alias $id"))) {
+      val failure = stagingCallFailure(e)!!
+      assertEquals(e.toString(), "ERR_STAGING_KEY_UNUSABLE", failure.code)
+      assertEquals("the staging key cannot be used", failure.message)
+    }
+  }
+
+  @Test
+  fun otherKeystoreFailuresAreNotAnUnusableKey() {
+    for (e in listOf(KeyStoreException("busy"), InvalidKeyException("bad"))) {
+      assertEquals(e.toString(), null, stagingCallFailure(e))
+    }
   }
 
   @Test

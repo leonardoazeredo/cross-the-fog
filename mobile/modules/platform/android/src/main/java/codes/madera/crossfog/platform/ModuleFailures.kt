@@ -1,6 +1,7 @@
 package codes.madera.crossfog.platform
 
 import java.io.IOException
+import java.security.GeneralSecurityException
 
 /**
  * The code and message JS gets for a failed call. The message is ours, never the exception's when
@@ -14,6 +15,7 @@ internal const val INVALID_STATE = "ERR_INVALID_STATE"
 internal const val INVALID_ARGUMENT = "ERR_INVALID_ARGUMENT"
 internal const val STORAGE = "ERR_STORAGE"
 internal const val UNREADABLE = "ERR_UNREADABLE"
+internal const val STAGING_KEY_UNUSABLE = "ERR_STAGING_KEY_UNUSABLE"
 internal const val INVALID_FRAME = "ERR_INVALID_FRAME"
 internal const val INVALID_ID = "ERR_INVALID_ID"
 internal const val NOT_FOUND = "ERR_NOT_FOUND"
@@ -35,11 +37,19 @@ internal fun keyCallFailure(e: Exception): Failure =
 
 /**
  * A failed staging or outbox call, or null for anything else, which the caller rethrows as itself so
- * a bug keeps its class. UnreadableItemException is an IOException, so it is matched first.
+ * a bug keeps its class. UnreadableItemException is an IOException, so it is matched first. A staging
+ * Keystore entry that cannot be used (see [isUnusableKey]) is the named failure STAGING_KEY_UNUSABLE
+ * for every call that runs inside `coded` and so builds a store there (readActivity, release,
+ * queueRoute, the debug stageForTest, and unpair, which builds the link), whether the Keystore read
+ * or the first use of the key throws it. The listing, count and discard calls catch the same
+ * exceptions themselves and report an empty list or a count. Nothing is deleted and no new entry is
+ * minted over the unusable one, so the items sealed under it stay for a later try.
  */
 internal fun stagingCallFailure(e: Exception): Failure? =
   when (e) {
     is UnreadableItemException -> Failure(UNREADABLE, "the staged item cannot be read")
+    is GeneralSecurityException ->
+      if (isUnusableKey(e)) Failure(STAGING_KEY_UNUSABLE, "the staging key cannot be used") else null
     is IOException -> Failure(STORAGE, "the staging store failed")
     // Fixed text from Frames naming a field, never a value.
     is FrameException -> Failure(INVALID_FRAME, e.message ?: "invalid frame")

@@ -1,6 +1,7 @@
 import Platform, { type KeyState, type PlatformNativeEvents } from "../../modules/platform";
 import { checkedKeyHex, type DatabaseKeyHex } from "../db/keyHex.js";
 import type { KeyPresence } from "../db/keyState.js";
+import { StagingKeyUnusableError } from "../link/stagingKeyError.js";
 
 export type { KeyState, PlatformNativeEvents };
 
@@ -137,16 +138,31 @@ export function discardUnreadableRoutes(): Promise<unknown> {
   return Platform.discardUnreadableRoutes();
 }
 
+// The one staging code from `ModuleFailures.kt` that the page words on its own; any other passes through.
+const ERR_STAGING_KEY_UNUSABLE = "ERR_STAGING_KEY_UNUSABLE";
+
+async function stagingCall<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    const code = e instanceof Error ? (e as { code?: unknown }).code : undefined;
+    if (code === ERR_STAGING_KEY_UNUSABLE) {
+      throw new StagingKeyUnusableError("the staging key cannot be used", { cause: e });
+    }
+    throw e;
+  }
+}
+
 export function readActivity(id: string): Promise<string> {
-  return Platform.readActivity(id);
+  return stagingCall(() => Platform.readActivity(id));
 }
 
 export function releaseActivity(id: string): Promise<void> {
-  return Platform.release(id);
+  return stagingCall(() => Platform.release(id));
 }
 
 export function queueRoute(routeJson: string): Promise<void> {
-  return Platform.queueRoute(routeJson);
+  return stagingCall(() => Platform.queueRoute(routeJson));
 }
 
 /** Returns the function that removes the listener. */

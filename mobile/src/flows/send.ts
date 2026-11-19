@@ -1,6 +1,7 @@
 import type { NativeToWeb, RouteRecord } from "../bridge/protocol.js";
 import { COPY } from "../copy.js";
 import type { RouteStore } from "../history/types.js";
+import { StagingKeyUnusableError } from "../link/stagingKeyError.js";
 import type { LinkStatus, WatchLink } from "../link/types.js";
 import { warnClass } from "./warn.js";
 
@@ -93,7 +94,7 @@ export function createSendFlow(deps: SendDeps): SendFlow {
         // The page's own revision when it sent one, so a refusal for a wrong hash is a status it can match.
         send(
           routeStatus(route.id, "failed", {
-            why: COPY.routeNotSent,
+            why: e instanceof StagingKeyUnusableError ? COPY.stagingKeyUnusable : COPY.routeNotSent,
             revision: route.revision ?? revision,
           }),
         );

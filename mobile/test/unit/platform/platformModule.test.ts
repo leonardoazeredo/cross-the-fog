@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { checkedKeyHex, type DatabaseKeyHex } from "../../../src/db/keyHex.js";
+import { StagingKeyUnusableError } from "../../../src/link/stagingKeyError.js";
 
 const native = {
   getDatabaseKeyHex: vi.fn(),
@@ -225,5 +226,38 @@ describe("backup file functions", () => {
   ])("rejects a copy result with %s", async (_n, result) => {
     native.copyFromUri.mockResolvedValue(result);
     await expect(copyFromUri("u", "p")).rejects.toThrow("malformed copy result");
+  });
+});
+
+describe("a staging key the native side cannot use", () => {
+  const unusable = () =>
+    Object.assign(new Error("the staging key cannot be used"), {
+      code: "ERR_STAGING_KEY_UNUSABLE",
+    });
+
+  it.each([
+    ["readActivity", () => readActivity("a"), native.readActivity],
+    ["releaseActivity", () => releaseActivity("a"), native.release],
+    ["queueRoute", () => queueRoute("{}"), native.queueRoute],
+  ] as const)(
+    "%s rejects with StagingKeyUnusableError whose cause is the native error",
+    async (_n, call, fn) => {
+      const failure = unusable();
+      fn.mockRejectedValue(failure);
+      const err = await call().catch((e) => e);
+      expect(err).toBeInstanceOf(StagingKeyUnusableError);
+      expect(err.name).toBe("StagingKeyUnusableError");
+      expect(err.cause).toBe(failure);
+    },
+  );
+
+  it.each([
+    ["readActivity", () => readActivity("a"), native.readActivity],
+    ["releaseActivity", () => releaseActivity("a"), native.release],
+    ["queueRoute", () => queueRoute("{}"), native.queueRoute],
+  ] as const)("%s passes any other native failure through unchanged", async (_n, call, fn) => {
+    const failure = Object.assign(new Error("store failed"), { code: "ERR_STORAGE" });
+    fn.mockRejectedValue(failure);
+    await expect(call()).rejects.toBe(failure);
   });
 });
