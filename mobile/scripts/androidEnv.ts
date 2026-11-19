@@ -29,18 +29,40 @@ export function linkMissingMessage(linkDir: string): string {
   return `android-test: the shared module is not at ${linkDir} (the generated android/settings.gradle includes it from there). Run from a full checkout, or delete mobile/android so prebuild rewrites the include.`;
 }
 
-export type AndroidTestMode = "jvm" | "device";
+export type AndroidTestMode = "jvm" | "device" | "watch";
 
 export interface AndroidPlan {
   /** Passed to one Gradle run, in this order. */
   gradleTasks: string[];
   needsDevice: boolean;
+  /** Which Gradle build runs the tasks: the generated phone project, or the watch app's own. */
+  project: "phone" | "watch";
 }
 
 export const PLANS: Record<AndroidTestMode, AndroidPlan> = {
-  jvm: { gradleTasks: [":platform:testDebugUnitTest", ":link:test"], needsDevice: false },
-  device: { gradleTasks: [":platform:connectedDebugAndroidTest"], needsDevice: true },
+  jvm: {
+    gradleTasks: [":platform:testDebugUnitTest", ":link:test"],
+    needsDevice: false,
+    project: "phone",
+  },
+  device: {
+    gradleTasks: [":platform:connectedDebugAndroidTest"],
+    needsDevice: true,
+    project: "phone",
+  },
+  // The app's unit tests compile its debug sources; :link:test runs the shared module under the watch
+  // build's Kotlin, which the phone's run does not cover.
+  watch: {
+    gradleTasks: [":app:testDebugUnitTest", ":link:test"],
+    needsDevice: false,
+    project: "watch",
+  },
 };
+
+/** Where Gradle runs for a plan: the phone's generated android/, or the committed watch/ build. */
+export function gradleDirFor(plan: AndroidPlan, mobileDir: string): string {
+  return plan.project === "watch" ? join(mobileDir, "..", "watch") : join(mobileDir, "android");
+}
 
 /** The serials in the `device` state in `adb devices` output; an `offline` or `unauthorized` row is not a device to test on. */
 export function attachedDevices(adbOutput: string): string[] {

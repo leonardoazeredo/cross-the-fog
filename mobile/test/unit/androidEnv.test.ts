@@ -1,8 +1,12 @@
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   attachedDevices,
   defaultAndroidHome,
+  gradleDirFor,
   LINK_DIR_FROM_ANDROID,
   LINK_MARKER,
   linkMissingMessage,
@@ -17,11 +21,54 @@ describe("android test plans", () => {
     expect(PLANS.jvm).toEqual({
       gradleTasks: [":platform:testDebugUnitTest", ":link:test"],
       needsDevice: false,
+      project: "phone",
     });
     expect(PLANS.device).toEqual({
       gradleTasks: [":platform:connectedDebugAndroidTest"],
       needsDevice: true,
+      project: "phone",
     });
+  });
+
+  it("compiles the watch app and runs its unit tests and the shared link tests in the watch build, with no device", () => {
+    expect(PLANS.watch).toEqual({
+      gradleTasks: [":app:testDebugUnitTest", ":link:test"],
+      needsDevice: false,
+      project: "watch",
+    });
+  });
+});
+
+describe("gradleDirFor", () => {
+  const mobile = resolve(fileURLToPath(import.meta.url), "../../..");
+
+  it("runs the phone plans in the generated android/ and the watch plan in watch/, which has its own gradlew", () => {
+    expect(gradleDirFor(PLANS.jvm, mobile)).toBe(join(mobile, "android"));
+    expect(gradleDirFor(PLANS.device, mobile)).toBe(join(mobile, "android"));
+    const watch = gradleDirFor(PLANS.watch, mobile);
+    expect(watch).toBe(resolve(mobile, "..", "watch"));
+    expect(existsSync(join(watch, "gradlew"))).toBe(true);
+  });
+});
+
+describe("pnpm verify", () => {
+  const scripts = (
+    JSON.parse(
+      readFileSync(resolve(fileURLToPath(import.meta.url), "../../../package.json"), "utf8"),
+    ) as {
+      scripts: Record<string, string>;
+    }
+  ).scripts;
+
+  it("runs the watch tests, after the phone's", () => {
+    const steps = (scripts.verify ?? "").split(" && ");
+    expect(steps).toContain("pnpm test:android");
+    expect(steps).toContain("pnpm test:watch");
+    expect(steps.indexOf("pnpm test:watch")).toBeGreaterThan(steps.indexOf("pnpm test:android"));
+  });
+
+  it("has test:watch run the watch plan of the android script", () => {
+    expect(scripts["test:watch"]).toBe("tsx scripts/android-test.ts watch");
   });
 });
 

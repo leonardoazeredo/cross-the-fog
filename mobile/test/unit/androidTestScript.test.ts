@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LINK_MARKER, prebuildNeeded, shouldPrebuild } from "../../scripts/androidEnv.js";
+import { LINK_MARKER, PLANS, prebuildNeeded, shouldPrebuild } from "../../scripts/androidEnv.js";
 
 const WITH_LINK = `include ':app'\n${LINK_MARKER}\ninclude ':link'\n`;
 
@@ -89,7 +89,21 @@ describe("scripts/android-test.ts", () => {
 
   it("prebuilds android without installing, and only inside the prebuildNeeded branch", () => {
     expect(script).toMatch(
-      /if \(prebuildNeeded\(androidDir\)\) \{[^}]*?"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/,
+      /if \(phone && prebuildNeeded\(androidDir\)\) \{[^}]*?"prebuild",\s*"--platform",\s*"android",\s*"--no-install"/,
     );
+  });
+
+  it("accepts every plan's name as its argument", () => {
+    for (const name of Object.keys(PLANS)) {
+      expect(script).toMatch(new RegExp(`mode !== "${name}"`));
+    }
+  });
+
+  it("runs Gradle in the directory the plan names, and treats only the phone project as generated", () => {
+    expect(script).toContain('run("./gradlew", plan.gradleTasks, gradleDirFor(plan, mobile), env)');
+    expect(script).toContain('const phone = plan.project === "phone";');
+    expect(script).toContain('const hasGradlew = existsSync(join(androidDir, "gradlew"));');
+    expect(script).toContain("if (phone && !hasGradlew)");
+    expect(script).toContain('if (phone && !existsSync(join(linkDir, "build.gradle.kts")))');
   });
 });
