@@ -7,7 +7,7 @@ import { createMemoryRouteStore } from "../../../src/history/memoryStores.js";
 import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
 import { route } from "../history/fixtures.js";
 
-// What the phone computes, written here with node:crypto; the shipping one is checked against link/'s vectors in sha256.test.ts.
+// What the phone computes, written here with node:crypto; the shipping one is checked against link/'s vectors in revision.test.ts.
 const revisionOf = async (gpx: string) => createHash("sha256").update(gpx, "utf8").digest("hex");
 
 function setup(listen = true) {

@@ -429,7 +429,7 @@ describe("Send to watch", () => {
     expect(parseWebToNative(encode(sent[0] as WebToNative))).toEqual(sent[0]);
   });
 
-  // The case of #115: the route id is kept through an edit, so only the revision tells v1's answer from v2's.
+  // The route id is kept through an edit, so only the revision tells v1's answer from v2's.
   it("does not say 'On the watch' for v2 on a late answer for v1 of the same route id", () => {
     route.setFixedRoute(PINS(), COORDS, STATS);
     send.update();
