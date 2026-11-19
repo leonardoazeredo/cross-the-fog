@@ -1,6 +1,8 @@
 package codes.madera.crossfog.watch.presentation.features.navigate
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,6 +35,8 @@ class GuidanceDecisionPromptCardTest {
         composeRule.onNodeWithText("Off route").assertIsDisplayed()
         composeRule.onNodeWithText("45 m from GPX").assertIsDisplayed()
         composeRule.onNodeWithText("Guide").assertDoesNotExist()
+        // Whatever its label, a second button would be a way back.
+        composeRule.onAllNodes(hasClickAction()).assertCountEquals(1)
         composeRule.onNodeWithText("Ignore").performClick()
         composeRule.runOnIdle { assertEquals(1, dismissed) }
     }
@@ -53,6 +57,7 @@ class GuidanceDecisionPromptCardTest {
             }
         }
         composeRule.onNodeWithText("Close").assertIsDisplayed()
+        composeRule.onAllNodes(hasClickAction()).assertCountEquals(2)
         composeRule.onNodeWithText("Reverse").performClick()
         composeRule.runOnIdle { assertEquals(1, accepted) }
     }

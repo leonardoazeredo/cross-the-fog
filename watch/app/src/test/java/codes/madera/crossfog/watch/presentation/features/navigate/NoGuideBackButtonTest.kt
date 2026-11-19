@@ -12,7 +12,7 @@ import org.junit.Test
 class NoGuideBackButtonTest {
     // Whitespace and trailing-comma tolerant: the formatter breaks `acceptText =` and the call over lines.
     private val guideAcceptButton =
-        Regex("""acceptText\s*=\s*stringResource\(\s*R\.string\.navigate_guide\s*,?\s*\)""")
+        Regex("""acceptText\s*=\s*stringResource\(\s*(id\s*=\s*)?R\.string\.navigate_guide\s*,?\s*\)""")
 
     // Text only the removed guide-back offer used, in Kotlin sources.
     private val inSources =
@@ -23,10 +23,11 @@ class NoGuideBackButtonTest {
             "the guide-back card detail" to Regex("""R\.string\.navigate_create_route_to_gpx\b"""),
             "the guide-back shortcut icon" to Regex("""R\.string\.navigate_route_back_to_gpx\b"""),
             "a guide-back shortcut" to Regex("""GuideBackShortcut"""),
-            // The callback is still a parameter of the overlays, so a shortcut under any name would call it, or hand it
-            // to a card's accept button.
-            "a call to the guide-back callback" to Regex("""\bonGuideBackToRoute\s*\("""),
-            "the guide-back callback as an accept action" to Regex("""onAccept\s*=\s*onGuideBackToRoute\b"""),
+            // The callback is still a parameter of the overlays, so a shortcut under any name would call it or hand it
+            // to a button. Handing it on under its own name (`onGuideBackToRoute = onGuideBackToRoute`) stays allowed.
+            "a call to the guide-back callback" to Regex("""\bonGuideBackToRoute\s*(\(|\.invoke\b)"""),
+            "the guide-back callback handed to a button" to
+                Regex("""\b(onAccept|onClick|onTertiary)\s*=\s*onGuideBackToRoute\b"""),
         )
 
     private val removedStrings =
