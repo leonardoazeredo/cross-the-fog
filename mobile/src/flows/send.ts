@@ -6,8 +6,10 @@ import { warnClass } from "./warn.js";
 
 export interface SendDeps {
   link: Pick<WatchLink, "queueRoute" | "status" | "discardUnreadableRoutes" | "on">;
-  routes: Pick<RouteStore, "save" | "markSent">;
+  routes: Pick<RouteStore, "save" | "get" | "markSent">;
   send(msg: NativeToWeb): void;
+  /** The SHA-256 of a GPX as UTF-8 bytes, 64 lowercase hex digits (`gpxRevision`). */
+  revisionOf(gpx: string): Promise<string>;
 }
 
 export interface SendFlow {
@@ -23,8 +25,19 @@ const warn = (what: string, e: unknown) => warnClass("send", what, e);
 
 type RouteState = Extract<NativeToWeb, { type: "routeStatus" }>["state"];
 
-function routeStatus(routeId: string, state: RouteState, why?: string): NativeToWeb {
-  return { v: 1, type: "routeStatus", routeId, state, ...(why === undefined ? {} : { why }) };
+function routeStatus(
+  routeId: string,
+  state: RouteState,
+  extra: { why?: string | undefined; revision?: string | undefined } = {},
+): NativeToWeb {
+  return {
+    v: 1,
+    type: "routeStatus",
+    routeId,
+    state,
+    ...(extra.why === undefined ? {} : { why: extra.why }),
+    ...(extra.revision === undefined ? {} : { revision: extra.revision }),
+  };
 }
 
 function linkStatus({ paired, reachable }: LinkStatus, unsentRoutes = 0): NativeToWeb {
@@ -48,17 +61,45 @@ export function createSendFlow(deps: SendDeps): SendFlow {
     }
   }
 
+  // One at a time: a confirmation reads the stored route, waits for its hash and marks it, and a send that
+  // stores an edited route in that gap would be marked sent by the earlier revision's confirmation.
+  let tail: Promise<unknown> = Promise.resolve();
+  function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = tail.then(fn, fn);
+    tail = run.catch(() => undefined);
+    return run;
+  }
+
+  async function isStored(routeId: string, revision: string): Promise<boolean> {
+    const stored = await routes.get(routeId);
+    return stored !== null && (await deps.revisionOf(stored.gpx)) === revision;
+  }
+
   return {
     async sendRoute(route) {
+      let revision: string | undefined;
       try {
-        await routes.save(route);
-        await link.queueRoute(route);
+        revision = await deps.revisionOf(route.gpx);
+        // A page whose hash differs from the phone's would wait on a status it can never match.
+        if (route.revision !== undefined && route.revision !== revision) {
+          throw new Error("route revision is not the hash of its GPX");
+        }
+        await exclusive(async () => {
+          await routes.save(route);
+          await link.queueRoute(route);
+        });
       } catch (e) {
         warn("could not queue a route", e);
-        send(routeStatus(route.id, "failed", COPY.routeNotSent));
+        // The page's own revision when it sent one, so a refusal for a wrong hash is a status it can match.
+        send(
+          routeStatus(route.id, "failed", {
+            why: COPY.routeNotSent,
+            revision: route.revision ?? revision,
+          }),
+        );
         return;
       }
-      send(routeStatus(route.id, "waiting"));
+      send(routeStatus(route.id, "waiting", { revision }));
     },
 
     async sendStatus() {
@@ -81,15 +122,21 @@ export function createSendFlow(deps: SendDeps): SendFlow {
     },
 
     start() {
-      const offRoute = link.on("routeSaved", ({ routeId }) => {
+      const offRoute = link.on("routeSaved", ({ routeId, revision }) => {
         void (async () => {
           // The watch has the route whether or not the record could be marked, so the page hears it either way.
+          // A revision that is not the stored route's is a late answer for an earlier send of the same id, so
+          // it does not mark the edited route sent; one with no revision is taken for the route as it is.
           try {
-            await routes.markSent(routeId);
+            await exclusive(async () => {
+              if (revision === undefined || (await isStored(routeId, revision))) {
+                await routes.markSent(routeId);
+              }
+            });
           } catch (e) {
             warn("could not mark a route sent", e);
           }
-          send(routeStatus(routeId, "onWatch"));
+          send(routeStatus(routeId, "onWatch", { revision }));
         })();
       });
       const offStatus = link.on("linkStatus", (status) => send(linkStatus(status)));

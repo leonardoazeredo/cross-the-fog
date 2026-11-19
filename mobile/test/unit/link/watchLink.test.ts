@@ -172,6 +172,7 @@ describe("native watch link", () => {
       ["activityStaged", { activityId: id }],
       ["linkStatus", { paired: true, reachable: false }],
       ["routeSaved", { routeId }],
+      ["routeSaved", { routeId, revision: "0123456789abcdef".repeat(4) }],
     ] as const)("delivers a valid %s payload", (event, payload) => {
       const l = listen(event);
       l.deliver(payload);
@@ -188,6 +189,17 @@ describe("native watch link", () => {
       expect(JSON.stringify(warn.mock.calls)).not.toContain("secret");
       warn.mockRestore();
     });
+
+    it.each(["abc", "A".repeat(64), "g".repeat(64), 5, null])(
+      "drops a routeSaved whose revision is %j",
+      (revision) => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const l = listen("routeSaved");
+        l.deliver({ routeId, revision });
+        expect(l.seen).not.toHaveBeenCalled();
+        warn.mockRestore();
+      },
+    );
 
     it("returns the native unsubscribe", () => {
       const l = listen("linkStatus");

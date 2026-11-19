@@ -19,8 +19,8 @@ export interface FakeWatchLink extends WatchLink {
   /** A queued route the native side could not open; `discardUnreadableRoutes` removes and counts it. */
   stageUnreadableRoute(id: string): void;
   setStatus(status: LinkStatus): void;
-  /** The watch saved a queued route. */
-  confirmRoute(routeId: string): void;
+  /** The watch saved a queued route; without `revision` it speaks like a watch that sends none. */
+  confirmRoute(routeId: string, revision?: string): void;
   /** The latest route queued under each id; `confirmRoute` does not remove it. */
   queued(): RouteRecord[];
   /** Every UUID passed to `release`, in order, known or not; a malformed id is refused and not recorded. */
@@ -113,9 +113,9 @@ export function createFakeWatchLink(): FakeWatchLink {
       currentStatus = { ...status };
       emit("linkStatus", { ...currentStatus });
     },
-    confirmRoute(routeId) {
+    confirmRoute(routeId, revision) {
       if (!routes.has(routeId)) throw new Error("route is not queued");
-      emit("routeSaved", { routeId });
+      emit("routeSaved", { routeId, ...(revision === undefined ? {} : { revision }) });
     },
     queued: () => [...routes.values()].map((r) => structuredClone(r)),
     released: () => [...releasedIds],

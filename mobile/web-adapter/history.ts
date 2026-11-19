@@ -54,7 +54,12 @@ export interface CrossfogPageApi {
     setUnreadable?(count: number): void;
   };
   /** The Send button's answers from the phone. */
-  routeStatus?(msg: { routeId: string; state: string; why?: string | undefined }): void;
+  routeStatus?(msg: {
+    routeId: string;
+    state: string;
+    why?: string | undefined;
+    revision?: string | undefined;
+  }): void;
   linkStatus?(msg: {
     paired: boolean;
     reachable: boolean;

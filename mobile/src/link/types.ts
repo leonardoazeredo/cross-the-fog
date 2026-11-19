@@ -22,7 +22,8 @@ export type ActivityOffer = z.infer<typeof activityOfferSchema>;
 export interface WatchLinkEvents {
   activityStaged: { activityId: string };
   linkStatus: LinkStatus;
-  routeSaved: { routeId: string };
+  /** `revision` is the one the watch saved; absent from a watch that sends none. */
+  routeSaved: { routeId: string; revision?: string | undefined };
 }
 
 export interface WatchLink {

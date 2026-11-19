@@ -75,6 +75,18 @@ describe("fake watch link", () => {
     expect(() => link.confirmRoute("0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a00ff")).toThrow("not queued");
   });
 
+  it("confirmRoute carries a revision when given one and none otherwise", async () => {
+    const link = createFakeWatchLink();
+    const seen = vi.fn();
+    link.on("routeSaved", seen);
+    const route = routeRecord();
+    await link.queueRoute(route);
+    link.confirmRoute(route.id, "a".repeat(64));
+    expect(seen).toHaveBeenLastCalledWith({ routeId: route.id, revision: "a".repeat(64) });
+    link.confirmRoute(route.id);
+    expect(seen).toHaveBeenLastCalledWith({ routeId: route.id });
+  });
+
   it("starts unpaired and unreachable; setStatus changes it and emits linkStatus", async () => {
     const link = createFakeWatchLink();
     const seen = vi.fn();

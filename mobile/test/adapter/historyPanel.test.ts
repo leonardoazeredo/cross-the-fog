@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,7 +43,7 @@ interface Panel {
 }
 interface SendControl {
   update(): void;
-  routeStatus(msg: { routeId: string; state: string }): void;
+  routeStatus(msg: { routeId: string; state: string; revision?: string | undefined }): void;
   linkStatus(msg: { paired: boolean; reachable: boolean; unsentRoutes?: number }): void;
 }
 
@@ -93,6 +94,7 @@ beforeEach(() => {
   sent = [];
   shown = vi.fn();
   evalApp("vendor/leaflet.js");
+  evalApp("src/sha256.js");
   evalApp("src/history.js");
   evalApp("src/route.js");
   const w = window as unknown as Record<string, any>;
@@ -416,6 +418,50 @@ describe("Send to watch", () => {
     expect(msg.route.id).toBe(route.routeRecord()?.id);
     expect(msg.route).not.toHaveProperty("travelMode");
     expect(parseWebToNative(encode(msg))).toEqual(msg);
+  });
+
+  it("sends the SHA-256 of the GPX as the route's revision, as the phone and link/ compute it", () => {
+    route.setFixedRoute(PINS(), COORDS, STATS);
+    send.update();
+    click(sendBtn());
+    const { route: record } = sent[0] as Extract<WebToNative, { type: "sendRoute" }>;
+    expect(record.revision).toBe(createHash("sha256").update(record.gpx, "utf8").digest("hex"));
+    expect(parseWebToNative(encode(sent[0] as WebToNative))).toEqual(sent[0]);
+  });
+
+  // The route id is kept through an edit, so only the revision tells v1's answer from v2's.
+  it("does not say 'On the watch' for v2 on a late answer for v1 of the same route id", () => {
+    route.setFixedRoute(PINS(), COORDS, STATS);
+    send.update();
+    click(sendBtn());
+    const v1 = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route;
+    send.routeStatus({ routeId: v1.id, state: "waiting", revision: v1.revision });
+    expect(chip()).toBe("Waiting for watch");
+
+    route._applyRoute([...COORDS, [13.72, 51.002, 118]], STATS);
+    send.update();
+    expect(chip()).toBe("");
+    click(sendBtn());
+    const v2 = (sent[1] as Extract<WebToNative, { type: "sendRoute" }>).route;
+    expect(v2.id).toBe(v1.id);
+    expect(v2.revision).not.toBe(v1.revision);
+
+    send.routeStatus({ routeId: v1.id, state: "onWatch", revision: v1.revision });
+    expect(chip()).toBe("");
+    send.routeStatus({ routeId: v2.id, state: "waiting", revision: v2.revision });
+    send.routeStatus({ routeId: v1.id, state: "onWatch", revision: v1.revision });
+    expect(chip()).toBe("Waiting for watch");
+    send.routeStatus({ routeId: v2.id, state: "onWatch", revision: v2.revision });
+    expect(chip()).toBe("On the watch");
+  });
+
+  it("takes a status with no revision for the route id alone, as a build from before revisions sends it", () => {
+    route.setFixedRoute(PINS(), COORDS, STATS);
+    send.update();
+    click(sendBtn());
+    const id = (sent[0] as Extract<WebToNative, { type: "sendRoute" }>).route.id;
+    send.routeStatus({ routeId: id, state: "onWatch" });
+    expect(chip()).toBe("On the watch");
   });
 
   it("shows what the phone reports for the route it sent", () => {

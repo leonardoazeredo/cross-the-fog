@@ -36,7 +36,7 @@ import { createHistoryStores, withHistoryDb } from "./platform/historyStores.js"
 import { clearShareCopies, makeReleaseSource, shareExport } from "./platform/nativeHandlers.js";
 import { copyFromUri } from "./platform/platformModule.js";
 import { replaceDatabase } from "./platform/replaceDatabase.js";
-import { sha256Hex } from "./platform/sha256.js";
+import { gpxRevision, sha256Hex } from "./platform/sha256.js";
 import { PassphraseDialog, type PassphraseRequest } from "./ui/PassphraseDialog.js";
 import type { PassphraseAnswer } from "./ui/passphraseForm.js";
 
@@ -154,6 +154,7 @@ function buildController(
   void exportFlow.clear();
   clearShareCopies();
   const flows = createFlows({
+    revisionOf: gpxRevision,
     link: createNativeWatchLink(),
     ...createHistoryStores(),
     send,
