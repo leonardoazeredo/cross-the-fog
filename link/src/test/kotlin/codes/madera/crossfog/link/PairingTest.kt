@@ -432,4 +432,16 @@ class PairingTest {
     watch.feed(PairRequest(proof))
     assertEquals(clock.now + config.confirmTimeoutMs, watch.nextDeadline())
   }
+
+  @Test
+  fun aProofOffInOneDigitIsWrongWhicheverDigit() {
+    val w = TestKeys.watch.spkiHash()
+    val p = TestKeys.phone.spkiHash()
+    for (i in listOf(0, 7, 8, 31, 63)) {
+      val offer = PairingOffer(FakeClock(), LinkConfig())
+      val right = Pairing.hex(Pairing.proof(offer.payload(w, "rfcomm").code(), w, p))
+      val flipped = right.substring(0, i) + (if (right[i] == '0') '1' else '0') + right.substring(i + 1)
+      assertEquals("digit $i", PairRejection.WRONG_CODE, offer.attempt(flipped, w, p))
+    }
+  }
 }

@@ -129,6 +129,22 @@ class PinningTrustManagerTest {
   }
 
   @Test
+  fun thePinIsTheSha256OfTheCertificatesSpki() {
+    val spki = watch.chain[0].publicKey.encoded
+    assertArrayEquals(java.security.MessageDigest.getInstance("SHA-256").digest(spki), watch.spkiHash())
+  }
+
+  @Test
+  fun everyOverloadRefusesAnotherKey() {
+    val other = chain(TestKeys.attacker)
+    val tm = PinningTrustManager.pinned(MemoryPins(watch.spkiHash()))
+    assertThrows(CertificateException::class.java) { tm.checkServerTrusted(other, "ECDSA") }
+    assertThrows(CertificateException::class.java) { tm.checkClientTrusted(other, "ECDSA") }
+    assertThrows(CertificateException::class.java) { tm.checkServerTrusted(other, "ECDSA", null as java.net.Socket?) }
+    assertThrows(CertificateException::class.java) { tm.checkClientTrusted(other, "ECDSA", null as java.net.Socket?) }
+  }
+
+  @Test
   fun aPinnedManagerKeepsNoPeerHash() {
     val tm = PinningTrustManager.pinned(MemoryPins(watch.spkiHash()))
     tm.checkServerTrusted(chain(watch), "ECDSA", noEngine)

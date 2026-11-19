@@ -199,8 +199,10 @@ class TlsSessionTest {
   }
 
   @Test
-  fun theEngineIsLimitedToTls13() {
-    assertEquals(listOf("TLSv1.3"), Tls.engine(TestKeys.phone, PinningTrustManager.acceptingAnyKey(), false).enabledProtocols.toList())
+  fun bothEnginesAreLimitedToTls13() {
+    for (client in listOf(true, false)) {
+      assertEquals(listOf("TLSv1.3"), Tls.engine(TestKeys.phone, PinningTrustManager.acceptingAnyKey(), client).enabledProtocols.toList())
+    }
   }
 
   @Test
