@@ -85,6 +85,8 @@ class ReadMemoryTest {
       val text = randomText(random, 3000)
       assertEquals(expected(text), Revision.of(text))
     }
+    // Nothing to encode: the encoder is never flushed, and the digest is that of no bytes.
+    assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", Revision.of(""))
     // An unpaired surrogate is written as "?", as String.toByteArray does.
     for (text in listOf("\ud800", "a\udc00b", "x\ud83d", "\udc00😀")) assertEquals(expected(text), Revision.of(text))
   }
