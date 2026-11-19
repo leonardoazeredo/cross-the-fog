@@ -75,7 +75,7 @@ export function createDatabase(): Promise<HistoryDatabase> {
     // First open of the process: a replaced copy still beside the live file means a restore did not
     // finish, so it is kept until the live file has opened and migrated. If the live file's open
     // returns key-lost, the copy stays beside it. Only a live file restoredFileUnusable condemns (a typed
-    // outcome or a failed integrity check) is
+    // outcome or an integrity check that answers "damaged") is
     // deleted with its sidecars, and the copy moved back onto the live path and opened instead, so
     // the old file still gets its chance; that one reads as key-lost when the key is wrong. Any
     // other throw rejects with both files left in place and the next open decides again.
