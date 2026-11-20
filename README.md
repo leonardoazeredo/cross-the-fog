@@ -94,7 +94,7 @@ Open **<https://szalapak.github.io/defog/>** in your browser and click
 ```
 app/
   index.html        UI (map + sidebar: fog look / plan tabs)
-  src/parser.js     Fog of World format → visited cells (+ tile↔lat/lng math)
+  src/parser.ts     Fog of World format → visited cells (+ tile↔lat/lng math)
   src/fogLayer.js   Leaflet GridLayer that paints the fog, with the look/blend/widen options
   src/route.js      draw-your-own route tool (GPX export)
   src/routeLocal.js routes the tool's pins on the street map, with heights and estimates
@@ -109,7 +109,7 @@ Sync/
 
 The sync format was reverse-engineered by
 [CaviarChen/Fog-of-World-Data-Parser](https://github.com/CaviarChen/Fog-of-World-Data-Parser)
-(see also [Fog Machine](https://github.com/CaviarChen/fog-machine)). `parser.js` is a
+(see also [Fog Machine](https://github.com/CaviarChen/fog-machine)). `parser.ts` is a
 faithful browser port of that work. World = 512×512 Web-Mercator tiles; each tile file is
 zlib-compressed and holds a 128×128 block header indexing 64×64-bit bitmaps. One set bit =
 one defogged cell; the grid is 2²² cells wide, which lines up 1:1 with map pixels at zoom 14.

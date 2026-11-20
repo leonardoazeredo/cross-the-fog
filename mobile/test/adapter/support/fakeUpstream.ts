@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fflate from "fflate";
+import { hex as md5Hex } from "../../../../app/src/md5.ts";
+import * as parser from "../../../../app/src/parser.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -19,8 +21,8 @@ function findAppSrc(): string {
 
 const APP_SRC = findAppSrc();
 
-// installFakeUpstream loads the upstream app's unzip.js, parser.js and reveal.js into the
-// test window via eval (the same way the mobile webview hosts them) and wires
+// installFakeUpstream loads the upstream app's unzip.js and reveal.js into the
+// test window via eval and sets the parser and MD5 modules on it as engine.ts does (the same way the mobile webview hosts them) and wires
 // up the same "zip input change" listener the real app uses. pako is shimmed
 // with fflate since pako is not available in Node.
 export function installFakeUpstream(win: Window, doc: Document): void {
@@ -32,9 +34,20 @@ export function installFakeUpstream(win: Window, doc: Document): void {
   };
 
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "unzip.js"), "utf-8"));
-  (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "parser.js"), "utf-8"));
+  // The page's engine.ts assigns these two; the modules are imported here, so they are the code the page runs.
+  winAny.FogParser = {
+    FogMap: parser.FogMap,
+    parseTileId: parser.parseTileId,
+    tileToLngLat: parser.tileToLngLat,
+    cellToLngLat: parser.cellToLngLat,
+    lngLatToCell: parser.lngLatToCell,
+    WORLD_CELLS: parser.WORLD_CELLS,
+    MAP_WIDTH: parser.MAP_WIDTH,
+    BITS_PER_TILE_EDGE: parser.BITS_PER_TILE_EDGE,
+    FORMAT: parser.FORMAT,
+  };
+  winAny.MD5 = { hex: md5Hex };
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "reveal.js"), "utf-8"));
-  (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "md5.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "fogWriter.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(
     readFileSync(resolve(APP_SRC, "importMessages.js"), "utf-8"),

@@ -1,4 +1,4 @@
-// Fog of World Sync writer: a FogMap -> one zlib-compressed file per tile, in the format parser.js reads.
+// Fog of World Sync writer: a FogMap -> one zlib-compressed file per tile, in the format parser.ts reads.
 // Imported blocks keep the 10 region bits they came with; blocks the app created carry region 0.
 // Empty blocks and tiles are never written.
 (function (global) {
