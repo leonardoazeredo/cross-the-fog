@@ -176,7 +176,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
         const stopped = [], clicks = {};
         win.L = {
           latLng: (lat, lng) => fromWin({ lat, lng }),
-          polyline: (pts, o) => fromWin({ pts, o, addTo() { return this; } }),
+          polyline: (pts, o) => fromWin({ pts, o, addTo() { return this; }, setStyle() {}, bringToFront() {} }),
           latLngBounds: () => fromWin({ extend() { return this; } }),
           divIcon: (o) => fromWin(o),
           marker: (ll, o) => fromWin({ ll, o, addTo() { return this; }, on(type, fn) { clicks[type] = fn; } }),
@@ -192,7 +192,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
           t4.b = { getLatLng: () => ({ lat: 51, lng: 13.7 + 1000 / KX2 }) };
           assert.equal(t4._viaPoint(0.5, 1, 100).from, "window", "_viaPoint");
           assert.equal(t4._loopViasTri(S2, 0, 300)[0].from, "window", "_loopViasTri");
-          assert.ok(t4._loopBearings(S2, 5000).length > 0, "_loopBearings builds its candidates with the window's L");
+          assert.ok(t4._loopBearings(S2, 5000).length > 0, "_loopBearings runs with only the window's L: the global one throws on a read");
           assert.equal(t4._snapToNewStreets(S2, 600).from, "window", "_snapToNewStreets moves to a point built with the window's L");
           const joined = g.SuggestTool._internals.joinPins({ legs: [{ coords: [[13.7, 51]] }, { coords: [] }] }, S2, S2);
           assert.equal(joined[1].from, "window", "joinPins");
@@ -212,6 +212,19 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
           clicks.click(ev);
           assert.deepEqual(stopped, [ev], "DomEvent.stop is the window's");
           assert.equal(t5.a, null, "the click removed the pin");
+          // a whole A-to-B run over a small street map builds its midpoint and via points with the window's L
+          const ll2 = (x, y) => ({ lat: 51 + y / 110540, lon: 13.7 + x / KX2 });
+          const real = new g.StreetIndex({ newFrac: () => 1 });
+          real._anchor(51);
+          for (const [id, nodes, p, q] of [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]], [3, [1, 4], [0, 0], [0, 300]], [4, [4, 3], [0, 300], [1000, 0]]]) real._addWay({ id, nodes, geometry: [ll2(...p), ll2(...q)] });
+          real._cover(g.StreetIndex.tilesCovering({ s: 50.9, n: 51.1, w: 13.6, e: 13.8 }), "run");
+          const t6 = new g.SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => ({ area: 1, newPct: 1 }), streets: real });
+          t6.mode = "p2p";
+          const at2 = (x, y) => { const pt = win.L.latLng(51 + y / 110540, 13.7 + x / KX2); return { getLatLng: () => pt }; };
+          t6.a = at2(0, 0);
+          t6.b = at2(1000, 0);
+          await t6.suggest({ buffer: 0.15 });
+          assert.ok(t6.results.length > 0 && t6.lines.every((l) => l.solid.from === "window"), "a whole run draws with the window's L");
         } finally {
           global.L = stub;
         }
