@@ -2,7 +2,8 @@
 //   node bench/elevation.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { TileStore, Elevation } = global;
 
 const Z = 12;

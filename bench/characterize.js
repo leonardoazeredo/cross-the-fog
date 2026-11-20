@@ -2,7 +2,10 @@
 // Usage: node bench/characterize.js
 // Prints a density map per city plus suggested scenario centres (dense/medium/sparse).
 "use strict";
-const { loadSync, FogParser } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { loadSync } = require("./lib/fog.js");
+const { FogParser } = global;
 
 const CITIES = [
   { name: "Dresden", lat: 51.05, lng: 13.74, halfKm: 9 },

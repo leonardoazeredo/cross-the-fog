@@ -5,7 +5,9 @@
 // as a live request and fails the script. Heights are a synthetic curve, since the real source
 // fetches from the network; the page logs the real timing on a device.
 "use strict";
-const { SuggestTool, StreetIndex, FogParser } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool, StreetIndex, FogParser } = global;
 const cache = require("./lib/fetch-cache.js");
 const { installTileFetch } = require("./lib/tileFetch.js");
 const scenarios = require("./scenarios.js");

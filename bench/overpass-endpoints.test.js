@@ -8,7 +8,8 @@
 //   node bench/overpass-endpoints.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { Overpass, StreetIndex, StreetMessages } = global;
 // a made-up key that holds a character the URL must escape; NextGIS exists only with one
 const KEY = "test-key/0";

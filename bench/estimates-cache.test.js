@@ -5,7 +5,8 @@
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { Estimates } = global;
 const { compare, profileOf, hasElevation, WALK_PROFILE, TIME_TOLERANCE, DIST_TOLERANCE, ASCENT_TOLERANCE_M } = require("./lib/brouterCheck.js");
 

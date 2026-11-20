@@ -30,13 +30,11 @@ import { bindSuggestHost, type SuggestHost, SuggestTool } from "./suggest.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
-// The two pako builds the page loads: the deflate one is parked as pakoDeflate by pakoDeflate.js, the inflate one is window.pako.
-interface PakoInflate {
+// What the page uses of window.pako, the one build vendor/pako.min.js loads.
+interface Pako {
+  deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
   inflate(bytes: Uint8Array): Uint8Array;
   inflateRaw(bytes: Uint8Array): Uint8Array;
-}
-interface PakoDeflate {
-  deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
 export interface PageWindow
   extends OverpassHost,
@@ -44,8 +42,7 @@ export interface PageWindow
     StreetsHost,
     PlannerHost,
     SuggestHost {
-  pako?: PakoInflate;
-  pakoDeflate?: PakoDeflate;
+  pako?: Pako;
   indexedDB?: IDBFactory | null;
   [name: string]: unknown;
 }
@@ -60,26 +57,26 @@ export function pageGlobals(page: PageWindow) {
   bindPlannerHost(page);
   // and the suggestion tool, which reads `L` and `matchMedia` when it draws or places a pin
   bindSuggestHost(page);
-  // `deflate` defaults to the pako build the page loads (see pakoDeflate.js) and `inflate`, which reads every file
-  // back before it is handed out, to the inflate build left in window.pako; `opts` overrides either.
+  // `deflate` defaults to window.pako's, and `inflate`, which reads every file back before it is handed out, to
+  // window.pako's too; `opts` overrides either.
   const writeSync = (fogMap: FogMap, opts?: Partial<WriteOptions>): WrittenFile[] => {
     let deflate = opts?.deflate;
     if (!deflate) {
-      if (!page.pakoDeflate || typeof page.pakoDeflate.deflate !== "function") {
+      if (!page.pako || typeof page.pako.deflate !== "function") {
         throw new Error(
-          "writeSync needs a deflate function or the pako deflate build (vendor/pako_deflate.min.js, then src/pakoDeflate.js, before pako_inflate.min.js)",
+          "writeSync needs a deflate function or the pako build (vendor/pako.min.js)",
         );
       }
-      deflate = (buf) => (page.pakoDeflate as PakoDeflate).deflate(buf, { level: DEFLATE_LEVEL });
+      deflate = (buf) => (page.pako as Pako).deflate(buf, { level: DEFLATE_LEVEL });
     }
     let inflate = opts?.inflate;
     if (!inflate) {
       if (!page.pako || typeof page.pako.inflate !== "function") {
         throw new Error(
-          "writeSync needs an inflate function or the pako inflate build (vendor/pako_inflate.min.js) to check what it wrote",
+          "writeSync needs an inflate function or the pako build (vendor/pako.min.js) to check what it wrote",
         );
       }
-      inflate = (buf) => (page.pako as PakoInflate).inflate(buf);
+      inflate = (buf) => (page.pako as Pako).inflate(buf);
     }
     return writer.writeSync(fogMap, { deflate, inflate });
   };

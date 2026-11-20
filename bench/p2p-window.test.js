@@ -2,7 +2,9 @@
 //   node bench/p2p-window.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool } = global;
 const { p2pWindow, p2pCandidates } = SuggestTool._internals;
 
 const BASE = 6500, B = 0.15;

@@ -2,7 +2,8 @@
 //   node bench/street-cache.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { TileStore, StreetCache, StreetIndex } = global;
 
 const DAY = 24 * 3600 * 1000;

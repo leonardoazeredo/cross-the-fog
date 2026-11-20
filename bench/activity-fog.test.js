@@ -2,7 +2,8 @@
 //   node bench/activity-fog.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { FogMap, lngLatToCell } = global.FogParser;
 
 { // hasFog: an import or any overlay cell, and back to false after clearOverlay with no import

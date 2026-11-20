@@ -2,7 +2,9 @@
 //   node bench/retrace.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool } = global;
 const { overlapFrac, rankKey, RETRACE_WEIGHT, statsFromCoords } = SuggestTool._internals;
 
 const LAT = 51, KY = 111320, KX = 111320 * Math.cos(LAT * Math.PI / 180);

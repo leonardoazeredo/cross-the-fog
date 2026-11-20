@@ -2,7 +2,8 @@
 //   node bench/reveal.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { lngLatToCell, cellToLngLat, WORLD_CELLS } = global.FogParser;
 const { Reveal } = global;
 

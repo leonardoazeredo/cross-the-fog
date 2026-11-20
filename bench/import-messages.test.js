@@ -7,7 +7,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { FogParser, ImportMessages } = global;
 
 const FIX = path.join(__dirname, "fixtures", "fow");
@@ -96,7 +97,7 @@ function fnText(name) {
   assert.ok(start >= 0, `${name} not found in main.js`);
   return src.slice(start, src.indexOf("\n  }\n", start) + 4);
 }
-const realPako = require("../app/vendor/pako_inflate.min.js"); // the inflater the page ships: it returns nothing for a cut stream
+const realPako = require("../app/vendor/pako.min.js"); // the inflater the page ships: it returns nothing for a cut stream
 function loaders(files, unzip) {
   const shown = [], warns = [];
   const fogMap = new FogParser.FogMap();

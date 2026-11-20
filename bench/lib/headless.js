@@ -1,7 +1,9 @@
 // Run the app's SuggestTool headless: fake map, pinned markers, cached fetch.
 // Resolves with the tool's final results plus request/timing counters.
 "use strict";
-const { SuggestTool, StreetIndex, L } = require("./load.js");
+require("./host.js");
+require("../../app/src/engine.ts");
+const { SuggestTool, StreetIndex, L } = global;
 const { overlapFrac } = SuggestTool._internals;
 const cache = require("./fetch-cache.js");
 const { installTileFetch } = require("./tileFetch.js");

@@ -2,7 +2,8 @@
 //   node bench/route-local.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 require("../app/src/route.js");
 const { RouteTool, L } = global;
 

@@ -6,7 +6,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 global.window = global;
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { StreetMessages } = global;
 const { describe, progress } = StreetMessages;
 

@@ -2,8 +2,11 @@
 //   node bench/fog-gain.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
-const { gainOver } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { gainOver } = require("./lib/fog.js");
 const { createFogGain, distanceM, DEFOG_HALF_M } = require("../app/src/fogGain.ts");
 const { FogParser } = global;
 

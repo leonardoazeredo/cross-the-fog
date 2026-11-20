@@ -6,7 +6,9 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const { loadSync, gainOver } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { loadSync, gainOver } = require("./lib/fog.js");
 const { runSuggest } = require("./lib/headless.js");
 const { elongation, overlapFrac } = require("./lib/metrics.js");
 const scenarios = require("./scenarios.js");
