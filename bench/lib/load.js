@@ -7,7 +7,7 @@ const path = require("path");
 const zlib = require("zlib");
 
 global.window = global;
-require("./leaflet-stub.js"); // defines global.L, which suggest.ts reads from the host when it draws
+require("./leaflet-stub.js"); // defines global.L, which suggest.ts reads from the host at run time
 // the page's TypeScript modules (window.FogParser, MD5, FogWriter, FogZip, Reveal, Overpass, TileStore, StreetCache, StreetIndex, GraphPlanner, LocalRouter, RouteLocal, SuggestTool, StreetMessages, ImportMessages, Estimates, Elevation, Sha256, FogGain), which Node strips the types from itself
 require(path.join(__dirname, "..", "..", "app", "src", "engine.ts"));
 // bench/cache/ is keyed by request URL and query and holds overpass-api.de answers; asking that
