@@ -1,16 +1,9 @@
 // What the street index keeps: the tiles it holds, the ways and their scoring segments, the fog
 // scores, and the eviction near the cap. How tiles arrive is streetDownload.ts, which reaches this
 // only through the StreetSeam interface there.
-import {
-  type Rect,
-  type Tile,
-  type TileAnswer,
-  tileId,
-  tileOf,
-  type Vertex,
-  type Way,
-} from "./streetGrid.ts";
+import { type Tile, type TileAnswer, tileId, tileOf, type Vertex, type Way } from "./streetGrid.ts";
 
+// What snapPoint reads from the page, looked up on the host when it runs, never at load: pageGlobals.ts passes the
 // page's own object.
 export interface StreetsHost {
   L?: { latLng(lat: number, lng: number): unknown };

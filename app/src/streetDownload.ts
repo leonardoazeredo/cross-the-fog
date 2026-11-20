@@ -43,7 +43,6 @@ interface Claim {
   promise: Promise<unknown>;
   done: (via?: { cached?: boolean }) => void;
 }
-// The index as its methods see it: `this` in each prototype function below.
 // What the download needs of the street store, and all it touches of it.
 export interface StreetSeam {
   // whether the tile is held
@@ -207,7 +206,7 @@ export const overpassFetch = (
   // answered: callers replace them there
   statics: {
     rectQuery: (boxes: Rect[]) => string;
-    splitAnswer: (gj: any, tiles: Tile[]) => Map<string, TileAnswer>;
+    splitAnswer: (gj: unknown, tiles: Tile[]) => Map<string, TileAnswer>;
   },
 ): Promise<Map<string, TileAnswer | undefined>> => {
   opts = opts || {};
