@@ -24,6 +24,7 @@ As imported, byte-identical to the pinned commit: `app/`, `third_party/brouter/`
 
 - `settings.gradle.kts`: upstream's, with the three `include(...)` lines of the modules above that were not copied removed.
 - `.gitignore` and this file are new.
+- `app/src/main/AndroidManifest.xml`: `android:usesCleartextTraffic` is `false` (upstream's is `true`, for its LAN transfer and map sources that used plain HTTP). Every address the app downloads from is `https`, so no exception is listed; `ManifestCleartextTest` fails if the flag comes back or a network security config appears.
 
 ## Stripped after the import (#406)
 
