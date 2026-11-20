@@ -561,6 +561,34 @@ describe("checkFileIntegrity", () => {
     expect(log.at(-1)).toBe("close");
   });
 
+  it("gives no verdict when the read fault sits inside one row of newline-joined messages", async () => {
+    // SQLite returns integrity_check's messages as one row, prefixed, so a pattern anchored to the start or the end
+    // of the row would miss a fault that has messages on both sides of it.
+    const row = [
+      "*** in database main ***",
+      "Tree 2 page 5: btreeInitPage() returns error code 11",
+      "Tree 2 page 7: unable to get the page. error code=266",
+      "Page 9: never used",
+    ].join("\n");
+    const log: string[] = [];
+    await expect(
+      check({ "PRAGMA integrity_check": [{ integrity_check: row }] }, log),
+    ).rejects.toThrow("could not read a page");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("still calls the file damaged when a newline-joined row has corruption (code 11) and no read fault", async () => {
+    const row = [
+      "*** in database main ***",
+      "Tree 2 page 5: btreeInitPage() returns error code 11",
+      "Tree 2 page 7: unable to get the page. error code=11",
+      "Page 9: never used",
+    ].join("\n");
+    await expect(check({ "PRAGMA integrity_check": [{ integrity_check: row }] })).resolves.toBe(
+      "damaged",
+    );
+  });
+
   it("still calls the file damaged when integrity_check cannot get a page because it is corrupt (code 11)", async () => {
     const row = "Tree 2 page 7: unable to get the page. error code=11";
     await expect(check({ "PRAGMA integrity_check": [{ integrity_check: row }] })).resolves.toBe(
