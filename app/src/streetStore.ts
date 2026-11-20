@@ -87,7 +87,7 @@ export function StreetStore(this: StreetStoreSelf, opts: StoreOptions) {
   this.pieceWays = new Map();
   this.used = new Map(); // "x:y" of every piece read or under a run's rects, least recently used first
   this.runs = new Set(); // the "x:y" under the rects of each ensureRects still running: never evicted
-  this.holds = new Map(); // opts.holdAs -> the "x:y" under that caller's latest run: never evicted until its next one
+  this.holds = new Map(); // _protect's holdAs -> the "x:y" under that caller's latest run: never evicted until its next one
   this.version = 0; // bumped by every tile read into the index, so graphs built from this notice list changes
   this.kx = null;
   this.ky = 110540; // metre frame, anchored on first fetch

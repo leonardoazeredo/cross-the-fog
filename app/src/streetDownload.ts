@@ -696,9 +696,10 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
     return { shared, ask };
   };
   let settled = false;
-  // Settles once every shared tile is read or given up by the run bringing it. Rejects superseded
-  // when a shared tile lands or at a check every STALE_POLL_MS, and with the deadline at that check, leaving the other
-  // run's request alone: the run bringing the tile may take minutes, or never deliver.
+  // Settles once every shared tile is read or given up by the run bringing it. Rejects, as a download
+  // error whose cause is superseded, when a shared tile lands while this run is stale or at a check every
+  // STALE_POLL_MS, and with the deadline at that check, leaving the other run's request alone: the run
+  // bringing the tile may take minutes, or never deliver.
   const waitFor = (shared: Array<{ t: Tile; entry: Claim }>) =>
     new Promise<void>((resolveWait, rejectWait) => {
       let left = shared.length;
