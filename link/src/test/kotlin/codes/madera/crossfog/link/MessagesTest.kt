@@ -206,7 +206,6 @@ class MessagesTest {
     assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"p\\u\u0660\u0660\u0666\u0669ng\"}"))
     assertEquals(ProtocolError.NOT_A_JSON_OBJECT, errorOf("{\"v\":1,\"type\":\"p\\u\uFF10\uFF10\uFF16\uFF19ng\"}"))
     assertEquals(Ping, parse("{\"v\":1,\"type\":\"p\\u0069ng\"}"))
-    assertEquals(Ping, parse("{\"v\":1,\"type\":\"p\\u0069ng\"}".replace("0069", "0069")))
   }
 
   @Test
@@ -243,7 +242,23 @@ class MessagesTest {
       assertEquals(space, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""$space{"v":1,"type":"ping"}"""))
       assertEquals(space, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,$space"type":"ping"}"""))
     }
-    assertEquals(Ping, parse("""{"v":1,"type":"ping","x":1e0300}""".replace("1e0300", "1e300")))
+    // RFC 8259 allows leading zeros in an exponent: the parser must see them, so the text is not rewritten.
+    for (n in listOf("1e0300", "1E+0300", "1.5e-0002", "0e00")) {
+      assertEquals(n, Ping, parse("""{"v":1,"type":"ping","x":$n}"""))
+    }
+  }
+
+  @Test
+  fun aNumberOfExactlyTheLimitIsKeptAndOneMoreCharacterIsRefused() {
+    val limit = StrictJson.MAX_NUMBER_CHARS
+    val fits = listOf("1".repeat(limit), "-" + "1".repeat(limit - 1), "1." + "1".repeat(limit - 2), "1e" + "0".repeat(limit - 3) + "1")
+    for (n in fits) {
+      assertEquals(limit, n.length)
+      assertEquals(n, Ping, parse("""{"v":1,"type":"ping","x":$n}"""))
+      val over = n.replaceFirst("1", "11")
+      assertEquals(limit + 1, over.length)
+      assertEquals(over, ProtocolError.NOT_A_JSON_OBJECT, errorOf("""{"v":1,"type":"ping","x":$over}"""))
+    }
   }
 
   @Test
