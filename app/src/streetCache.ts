@@ -44,7 +44,7 @@ interface CallState {
 }
 
 // Own key format, not StreetIndex.tileId, so persisted keys do not follow changes to the
-// in-memory one. The leading version is the tile grid's: bump it whenever TILE_DEG in streets.ts
+// in-memory one. The leading version is the tile grid's: bump it whenever TILE_DEG in streetGrid.ts
 // changes, or answers fetched for the old grid are read as tiles of the new one.
 // The same prefix is the schema version of a stored entry: change the answer format and the prefix
 // together, and old entries are never read (sweepLegacy leaves them; they go only when LRU eviction reaches them, once the store is full).
@@ -57,7 +57,7 @@ const keyOf = (t: Tile) => KEY_VERSION + "run:" + idOf(t);
 const LEGACY_SWEEP_MAX = 256;
 // what a failed download carries (Overpass.post's reasons, and the default source's "streets-partial"
 // when some tiles arrived first): only these stand for an outage; any other throw is a bug and
-// must not be answered with old streets. Kept here, not read from streets.ts, which needs nothing from this file.
+// must not be answered with old streets. Kept here, not read from streetDownload.ts, which needs nothing from this file.
 const OUTAGE_REASONS = new Set([
   "busy",
   "blocked",

@@ -1041,7 +1041,7 @@ async function testCase(body) {
     await srv.reply(0);
     assert.deepEqual(await within(Promise.all([first, second])), [{ done: 1, total: 1 }, { done: 1, total: 1 }]);
     assert.deepEqual(reports, [{ done: 0, total: 1 }, { done: 1, total: 1 }]);
-    assert.equal(s.inFlight.size, 0, "nothing left in flight");
+    assert.ok(s.download.idle(), "nothing left in flight");
   });
   await testCase(async () => { // a tile in flight for a run that gives it up is asked again by the run waiting for it
     const answer = { ways: [], groups: {} };
@@ -1067,7 +1067,7 @@ async function testCase(body) {
     assert.ok(StreetIndex.isSuperseded(await within(first)));
     assert.deepEqual(await within(second), { done: 1, total: 1 }, "not stopped by the other run going stale");
     assert.deepEqual(calls, [1, 1], "asked again once given up");
-    assert.equal(s.inFlight.size, 0);
+    assert.ok(s.download.idle(), "nothing left in flight");
   });
   await testCase(async () => { // two runs waiting for a tile the first run gives up: one of them asks again, the other waits for it
     const answer = { ways: [], groups: {} };
@@ -1091,7 +1091,7 @@ async function testCase(body) {
     assert.ok(StreetIndex.isSuperseded(await within(first)));
     assert.deepEqual(await within(Promise.all([second, third])), [{ done: 1, total: 1 }, { done: 1, total: 1 }]);
     assert.deepEqual(calls, [1, 1], "asked again once, not once per waiting run");
-    assert.equal(s.inFlight.size, 0);
+    assert.ok(s.download.idle(), "nothing left in flight");
   });
   await testCase(async () => { // a bug thrown by the caller's stale() while the run waits for another run's tile rejects as itself
     const answer = { ways: [], groups: {} };
@@ -1400,7 +1400,7 @@ async function testCase(body) {
     assert.equal((await within(first)).reason, "offline");
     assert.deepEqual(await within(second), { done: 1, total: 1 });
     assert.deepEqual(calls, [1, 1], "asked again once the owner gave it up");
-    assert.equal(s.inFlight.size, 0);
+    assert.ok(s.download.idle(), "nothing left in flight");
   });
   await testCase(async () => { // a throw from onProgress during a busy wait that carries a street reason is still a bug: it rejects as itself
     const clock = fakeClock();
