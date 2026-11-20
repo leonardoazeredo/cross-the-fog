@@ -74,7 +74,12 @@ it("passes a module script's data-global to the reader and inlines what it retur
     },
     "var adapter = 1;",
   );
-  expect(seen).toContainEqual(["src/mod.ts", "Mod"]);
+  expect(seen).toEqual([
+    ["vendor/a.css", undefined],
+    ["src/mod.ts", "Mod"],
+    ["src/one.js", undefined],
+    ["src/two.js", undefined],
+  ]);
   const scripts = [...parse(out).querySelectorAll("script")].map((s) => s.textContent);
   expect(scripts).toEqual([
     "var adapter = 1;",

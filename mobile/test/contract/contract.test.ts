@@ -29,6 +29,14 @@ it("names a missing global", async () => {
   expect(failures).toContain("missing global FogZip.unzip");
 });
 
+it("names a missing module global when its script tag is gone", async () => {
+  const { failures } = await runContractCheck(
+    await build((h) => h.replace('<script src="src/sha256.ts" data-global="Sha256"></script>', "")),
+    fixture,
+  );
+  expect(failures).toContain("missing global Sha256.hex");
+});
+
 it("fails when the fixture's tile count doesn't match", async () => {
   const { failures } = await runContractCheck(await build(), { ...fixture, tiles: 3 });
   expect(failures.some((f) => f.startsWith("fixture load reported"))).toBe(true);
