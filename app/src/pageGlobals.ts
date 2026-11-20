@@ -101,9 +101,10 @@ export function pageGlobals(page: PageWindow) {
     StreetCache: { ...StreetCache },
     // the constructor itself, not a copy: other files construct it and call its statics
     StreetIndex,
-    // the constructors themselves, not copies: suggest.js and the tests build them with `new` and patch prototypes
+    // the constructors themselves, not copies: suggest.ts and the tests build them with `new` and patch prototypes
     GraphPlanner,
     LocalRouter,
+    // an object of functions, so a copy like the others
     RouteLocal: { ...RouteLocal },
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },

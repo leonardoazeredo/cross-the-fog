@@ -28,8 +28,7 @@ const SAMPLE_M = 25; // reward sampling step along an edge
 const CORRIDOR_M = 30; // full width Fog of World clears as you travel
 const POCKET_GRID_M = 300; // pocket = rewarding streets clustered at this scale
 const POCKET_MIN_M2 = 1200; // ignore pockets worth less than ~40 m of virgin street
-const MAX_POCKETS = 120; // keep NEAR pockets too: a tight cap left growth
-// starved (9 of 60 in reach at one field start)
+const MAX_POCKETS = 120; // generous, so pockets near the start stay in reach alongside the richest far ones
 const MAX_ANCHORS = 9; // start + up to 8 pockets per loop
 const RICH_PULL = 0.65; // how strongly connecting paths bend toward reward
 const REUSE_COST = 1.8; // cost multiplier for re-walking an edge the plan already used
@@ -150,7 +149,7 @@ GraphPlanner.prototype.build = function (this: Self) {
     if (!this.usable(w.id)) continue;
     for (let i = 0; i < w.nodes.length; i++) {
       const id = w.nodes[i];
-      // interior nodes count once per way; endpoints get +1 so a dead end still splits
+      // interior nodes count once per way; endpoints count twice, so a dead end still splits
       uses.set(id, (uses.get(id) || 0) + (i === 0 || i === w.nodes.length - 1 ? 2 : 1));
     }
   }
@@ -489,9 +488,8 @@ GraphPlanner.prototype._pockets = function (this: Self) {
   const out = [...cells.values()].filter((c) => c.m2 >= POCKET_MIN_M2);
   // value weights defoggable mass by purity (the still-fogged share of the
   // pocket's ways), so a sparse-but-virgin forest cell competes with a big
-  // half-cleared city cell instead of always losing on raw mass. This does
-  // NOT cost dense home areas: their top pockets are the same either way
-  // (verified: Neustadt unchanged); it only lets pure outliers seed a plan.
+  // half-cleared city cell instead of always losing on raw mass. Dense home
+  // areas keep the same top pockets; it only lets pure outliers seed a plan.
   for (const c of out) c.value = c.m2 * Math.min(1, c.m2 / (c.lenM * CORRIDOR_M));
   return out.sort((a, b) => b.value - a.value).slice(0, MAX_POCKETS);
 };
@@ -595,8 +593,8 @@ GraphPlanner.prototype.planLoop = function (
       dBack[p.node] <= distM * (1 + buffer) * 0.5,
   );
   // seeds are a UNION of two strategies. First, the richest pockets spread
-  // apart (the original approach): this fields a dense area's strong loops,
-  // which one-per-sector alone dropped (cost Neustadt ~18%). Second, the
+  // apart: this fields a dense area's strong loops, which one-per-sector
+  // alone would drop. Second, the
   // best pocket in each 60-degree sector not already covered: this gives
   // every direction, forest and river included, a trial it would otherwise
   // lose to the dense half of the compass. The honest ranking of the
@@ -632,8 +630,8 @@ GraphPlanner.prototype.planLoop = function (
     let m = this._materialize(anchors, true);
     // insert pockets one at a time, re-walking the loop after each; the
     // detour allowance comes from the WALKED length's real headroom, scaled
-    // by the learned plain-to-walked inflation (a global plain budget
-    // starved growth and plans arrived short)
+    // by the learned plain-to-walked inflation: a single plain-length budget
+    // would stop growth early and the plans would come out short
     for (let it = 0; it < MAX_ANCHORS && m && m.len < target * 0.96; it++) {
       const inflate = Math.min(
         1.4,
