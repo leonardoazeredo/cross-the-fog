@@ -1,7 +1,7 @@
 # BRouter fixtures
 
 Responses of the public BRouter server (`brouter-1.7.11-beta`), saved so `bench/estimates.test.js` can
-check `app/src/estimates.js` against BRouter's own distance, filtered ascent and time. Fetched once
+check `app/src/estimates.ts` against BRouter's own distance, filtered ascent and time. Fetched once
 with `curl` on 2026-10-20 from three public places chosen for their relief; none is near the owner's
 own areas, and nothing here comes from `bench/cache/` or `Sync/`.
 

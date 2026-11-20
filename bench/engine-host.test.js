@@ -81,8 +81,34 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       const s = await g.TileStore.open("db", "tiles", { timeoutMs: 60 });
       assert.equal(s.backend, "indexeddb", "the given window's IndexedDB");
     }
+    { // Elevation's default tile source and decoder read the given window's fetch, createImageBitmap and OffscreenCanvas, and Elevation.open its IndexedDB
+      delete global.indexedDB;
+      global.createImageBitmap = () => { throw new Error("read the global createImageBitmap"); };
+      global.OffscreenCanvas = class { constructor() { throw new Error("read the global OffscreenCanvas"); } };
+      const urls = [];
+      let closed = 0;
+      const win = {
+        fetch: async (url) => { urls.push(url); return { ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }; },
+        createImageBitmap: async () => ({ width: 1, height: 1, close() { closed++; } }),
+        OffscreenCanvas: class { getContext() { return { drawImage() {}, getImageData: () => ({ width: 1, height: 1, data: [128, 130, 0, 255] }) }; } },
+        indexedDB: createFakeIDB(),
+      };
+      const el = await pageGlobals(win).Elevation.open();
+      // the tile's one pixel is r 128, g 130, b 0: 130 m
+      assert.deepEqual(await el.elevationAt([[10, 10]]), [130], "decoded through the given window");
+      assert.equal(urls.length, 1, "fetched through the given window");
+      assert.equal(closed, 1, "the bitmap was closed");
+      const again = await pageGlobals(win).Elevation.open();
+      assert.deepEqual(await again.elevationAt([[10, 10]]), [130], "the tile came back from the given window's IndexedDB");
+      assert.equal(urls.length, 1, "the second open read it from the store, not the network");
+      const made = pageGlobals(win).Elevation.create({ store: pageGlobals(win).TileStore.memory() });
+      assert.deepEqual(await made.elevationAt([[10, 10]]), [130], "create uses the given window too");
+      assert.equal(urls.length, 2, "its own empty store went to the given window's fetch");
+    }
   } finally {
     console.warn = warn;
+    delete global.createImageBitmap;
+    delete global.OffscreenCanvas;
     global.fetch = realFetch;
     if (realIdb) global.indexedDB = realIdb; else delete global.indexedDB;
     if (hadNavigator) Object.defineProperty(global, "navigator", hadNavigator); else delete global.navigator;

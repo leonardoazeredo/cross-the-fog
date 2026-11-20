@@ -1,0 +1,200 @@
+// Distance, filtered ascent and walking time for a routed line, ported from BRouter (MIT, see
+// mobile/licenses/brouter-LICENSE.txt): CheapRuler, RoutingEngine.recalcTrack, StdPath.computeKinematic.
+// Arithmetic follows BRouter's int and float steps; bench/estimates.test.js holds the figures against its
+// recorded answers. Ascent differs by the filter choice noted at DEFAULT_ASCENT_FILTER_M.
+const SCALE_BUCKET = 100000; // ilat span of one cached cosine series
+const SCALE_BUCKETS = 1800;
+// BRouter picks 5 or 10 per node by its own elevation data (RoutingEngine.elevationFilter), which the phone
+// cannot know; 10 had half the mean ascent error of 5 over the local cache (see bench/estimates-cache.test.js)
+const DEFAULT_ASCENT_FILTER_M = 10;
+
+const MAX_WALK_SPEED = 6 / 3.6; // m/s, on the gentle downhill where Tobler's function peaks
+
+export type LonLat = readonly number[];
+
+const scaleCache: Array<[number, number]> = [];
+function scalesAt(ilat: number): [number, number] {
+  const i = Math.min(SCALE_BUCKETS - 1, Math.max(0, Math.floor(ilat / SCALE_BUCKET)));
+  if (!scaleCache[i]) {
+    // Chebyshev recurrence for cos(2x)..cos(5x), as CheapRuler does
+    const cos = Math.cos(((i * SCALE_BUCKET + SCALE_BUCKET / 2) * 1e-6 - 90) * (Math.PI / 180));
+    const cos2 = 2 * cos * cos - 1;
+    const cos3 = 2 * cos * cos2 - cos;
+    const cos4 = 2 * cos * cos3 - cos2;
+    const cos5 = 2 * cos * cos4 - cos3;
+    scaleCache[i] = [
+      (111.41513 * cos - 0.09455 * cos3 + 0.00012 * cos5) * 1e-3,
+      (111.13209 - 0.56605 * cos2 + 0.0012 * cos4) * 1e-3,
+    ];
+  }
+  return scaleCache[i];
+}
+
+const toIlon = (lon: number) => Math.round((lon + 180) * 1e6);
+const toIlat = (lat: number) => Math.round((lat + 90) * 1e6);
+
+// metres between two [lon, lat] points, rounded and at least 1 like OsmPathElement.calcDistance
+export function distanceM(a: LonLat, b: LonLat): number {
+  const ilon1 = toIlon(a[0] as number),
+    ilat1 = toIlat(a[1] as number),
+    ilon2 = toIlon(b[0] as number),
+    ilat2 = toIlat(b[1] as number);
+  const [kx, ky] = scalesAt(Math.floor((ilat1 + ilat2) / 2));
+  return Math.max(1, Math.round(Math.hypot((ilon1 - ilon2) * kx, (ilat1 - ilat2) * ky)));
+}
+
+// a missing height takes the previous one (a flat stretch); leading gaps take the first known one,
+// so a failed tile at the start does not read as a climb from sea level
+type Heights = ArrayLike<number | null | undefined> | null | undefined;
+
+function fillHeights(n: number, elevation: Heights): number[] {
+  const out: number[] = new Array(n);
+  let first = 0;
+  for (let i = 0; i < n; i++) {
+    const v = elevation && elevation[i];
+    if (Number.isFinite(v)) {
+      first = v as number;
+      break;
+    }
+  }
+  let prev = first;
+  for (let i = 0; i < n; i++) {
+    const v = elevation && elevation[i];
+    prev = Number.isFinite(v) ? (v as number) : prev;
+    out[i] = prev;
+  }
+  return out;
+}
+
+// RoutingEngine.recalcTrack: a climb counts at once, a descent is held back (down to -filter) and
+// cancels the next climbs, so surveying noise does not add up to ascent
+function filteredClimb(heights: number[], filterM: number): number {
+  let total = 0;
+  let buffer = 0;
+  for (let i = 1; i < heights.length; i++) {
+    buffer += (heights[i] as number) - (heights[i - 1] as number);
+    if (buffer > 0) {
+      total += buffer;
+      buffer = 0;
+    } else if (buffer < -filterM) buffer = -filterM;
+  }
+  return Math.trunc(total);
+}
+
+// StdPath.computeKinematic over every link; the buffer and the running time are floats in BRouter
+function travelSeconds(links: number[], heights: number[]): number {
+  const f32 = Math.fround;
+  let buffer = 0;
+  let total = 0;
+  for (let i = 0; i < links.length; i++) {
+    const dist = links[i] as number;
+    buffer = f32(buffer + ((heights[i + 1] as number) - (heights[i] as number)));
+    // calcIncline: the buffer decays by exp(-d/100): toward 0 inside +-3 m, toward the band edge outside it, so smoothing spans about 100 m
+    const shift = buffer > 3 ? -3 : buffer < -3 ? 3 : 0;
+    const next = f32((buffer + shift) * Math.exp(-dist / 100) - shift);
+    const incline = (buffer - next) / dist;
+    buffer = next;
+
+    // Tobler's hiking function
+    const speed = MAX_WALK_SPEED * Math.exp(-3.5 * Math.abs(incline + 0.05));
+    total = f32(total + f32(dist / speed));
+  }
+  return total;
+}
+
+// The filtered climb of a list of heights, for callers that have heights and no line.
+export interface EstimateOptions {
+  ascentFilterM?: number;
+}
+
+export function climb(
+  heights: Heights,
+  opts?: EstimateOptions,
+): { ascentM: number; descentM: number } {
+  const filterM = filterOf(opts);
+  const h = fillHeights((heights as ArrayLike<unknown>).length, heights);
+  return {
+    ascentM: filteredClimb(h, filterM),
+    descentM: filteredClimb(
+      h.map((x) => -x),
+      filterM,
+    ),
+  };
+}
+
+// The filter buffer must be a positive finite number: 0 forgets every descent at once, and NaN never caps the held-back descent, so it cancels all later climbs.
+function filterOf(opts?: EstimateOptions): number {
+  const f = opts && opts.ascentFilterM !== undefined ? opts.ascentFilterM : DEFAULT_ASCENT_FILTER_M;
+  if (typeof f !== "number" || !Number.isFinite(f) || f <= 0)
+    throw new TypeError("estimate: ascentFilterM must be a positive number");
+  return f;
+}
+
+// The {km, seconds, ascent, descent} the route editor shows. With no real height the climb is null:
+// heights of zero would claim flat ground.
+export function routeStats(est: Estimate): {
+  km: number;
+  seconds: number;
+  ascent: number | null;
+  descent: number | null;
+} {
+  const known = est.elevationKnown > 0;
+  return {
+    km: est.distanceM / 1000,
+    seconds: est.seconds,
+    ascent: known ? est.ascentM : null,
+    descent: known ? est.descentM : null,
+  };
+}
+
+// coords: [[lon, lat]]; elevation: metres per point (one per point, or empty), null where unknown, or omitted.
+// opts.ascentFilterM overrides the default buffer.
+export interface Estimate {
+  coords: number[][];
+  distanceM: number;
+  seconds: number;
+  ascentM: number;
+  descentM: number;
+  elevationKnown: number;
+}
+
+export function estimate(coords: LonLat[], elevation?: Heights, opts?: EstimateOptions): Estimate {
+  if (!Array.isArray(coords)) throw new TypeError("estimate: coords must be an array");
+  if (
+    elevation != null &&
+    (!Array.isArray(elevation) ||
+      (elevation.length && (elevation as ArrayLike<unknown>).length !== coords.length))
+  ) {
+    throw new TypeError("estimate: elevation needs one entry per point");
+  }
+  const pts = coords;
+  // one NaN would turn every total into NaN, which serialises as null
+  if (!pts.every((p) => p && Number.isFinite(p[0]) && Number.isFinite(p[1])))
+    throw new TypeError("estimate: every point needs a finite lon and lat");
+  const filterM = filterOf(opts);
+  const heights = fillHeights(pts.length, elevation);
+  const known = pts.reduce(
+    (n, _, i) => n + (Number.isFinite(elevation && elevation[i]) ? 1 : 0),
+    0,
+  );
+  const links: number[] = [];
+  let distance = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = distanceM(pts[i - 1] as LonLat, pts[i] as LonLat);
+    links.push(d);
+    distance += d;
+  }
+  const c = climb(heights, { ascentFilterM: filterM });
+  return {
+    coords: pts.map((p, i) => [p[0] as number, p[1] as number, heights[i] as number]),
+    distanceM: distance,
+    seconds: Math.round(travelSeconds(links, heights)),
+    ascentM: c.ascentM,
+    descentM: c.descentM,
+    // callers cannot otherwise tell flat ground from heights that never arrived
+    elevationKnown: known,
+  };
+}
+
+// What the page's `window.Estimates` is made of.
+export const Estimates = { estimate, climb, routeStats, distanceM };

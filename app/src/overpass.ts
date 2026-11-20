@@ -415,7 +415,7 @@ async function post(body: string, opts?: PostOptions): Promise<Answer> {
     : new Error("overpass: no endpoint to ask");
   err.reason = reason;
   const held = (urls as string[]).map(stateOf).filter((s) => s.until > Overpass._now());
-  // a 406 is this network's daily cap and streetMessages.js's BLOCKED_ADVICE tells the person to try
+  // a 406 is this network's daily cap and streetMessages.ts's BLOCKED_ADVICE tells the person to try
   // tomorrow, so a blocked retryAt is the block's own end, even when another endpoint's hold ends
   // sooner; nothing waits for it, since no caller sleeps on a blocked retryAt
   const until = held.filter((s) => reason !== "blocked" || s.why === "blocked").map((s) => s.until);

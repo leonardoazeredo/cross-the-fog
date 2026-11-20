@@ -114,7 +114,7 @@ function readSummary(text: string): GpxSummary | undefined {
   return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
-// CheapRuler's constants (WGS84), as in app/src/estimates.js but without its integer rounding: at 3 s sampling a step is only a few metres, and whole-metre rounding would distort it.
+// CheapRuler's constants (WGS84), as in app/src/estimates.ts but without its integer rounding: at 3 s sampling a step is only a few metres, and whole-metre rounding would distort it.
 function cheapDistanceM(a: TrackPoint, b: TrackPoint): number {
   const cos = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
   const cos2 = 2 * cos * cos - 1;

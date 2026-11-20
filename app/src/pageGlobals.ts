@@ -2,16 +2,26 @@
 // it is used (never when this file loads), so the modules themselves read no global. engine.ts passes `globalThis`;
 // the test loaders pass the window they build, so every host gets the same defaults and the same error texts.
 import {
+  create as createElevation,
+  Elevation,
+  type ElevationHost,
+  type ElevationOptions,
+  open as openElevation,
+} from "./elevation.ts";
+import { Estimates } from "./estimates.ts";
+import {
   DEFLATE_LEVEL,
   type WriteOptions,
   type WrittenFile,
   FogWriter as writer,
 } from "./fogWriter.ts";
+import { ImportMessages } from "./importMessages.ts";
 import { MD5 } from "./md5.ts";
 import { bindOverpassHost, Overpass, type OverpassHost } from "./overpass.ts";
 import { type FogMap, FogParser } from "./parser.ts";
 import { Reveal } from "./reveal.ts";
 import { StreetCache } from "./streetCache.ts";
+import { StreetMessages } from "./streetMessages.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
@@ -23,7 +33,7 @@ interface PakoInflate {
 interface PakoDeflate {
   deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
-export interface PageWindow extends OverpassHost {
+export interface PageWindow extends OverpassHost, ElevationHost {
   pako?: PakoInflate;
   pakoDeflate?: PakoDeflate;
   indexedDB?: IDBFactory | null;
@@ -81,5 +91,15 @@ export function pageGlobals(page: PageWindow) {
       memory,
     },
     StreetCache: { ...StreetCache },
+    StreetMessages: { ...StreetMessages },
+    ImportMessages: { ...ImportMessages },
+    Estimates: { ...Estimates },
+    // fetch, createImageBitmap, OffscreenCanvas and IndexedDB are looked up on `page` when a tile is fetched, decoded or
+    // stored, not when the page global is built
+    Elevation: {
+      ...Elevation,
+      create: (opts?: ElevationOptions) => createElevation(page, opts),
+      open: (opts?: ElevationOptions) => openElevation(page, opts),
+    },
   };
 }

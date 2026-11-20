@@ -8,7 +8,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 require("./lib/load.js");
-require("../app/src/importMessages.js");
 const { FogParser, ImportMessages } = global;
 
 const FIX = path.join(__dirname, "fixtures", "fow");
@@ -221,11 +220,11 @@ const last = (r) => r.shown[r.shown.length - 1];
     await r2.api.loadFromInput([asFile(goodTile(good[0])), asFile(cut(nameOf(1))), unreadable]);
     assert.equal(last(r2), "1 tiles loaded ✓, but 1 tile could not be read (damaged files) and 1 file couldn't be read (files kept only in the cloud aren't downloaded, so try the .zip instead).");
   }
-  { // the page loads the helper before main.js, and the phone's hook reads the count in a task queued by unzip, so
+  { // the page builds the helper in the engine script, before main.js, and the phone's hook reads the count in a task queued by unzip, so
     // nothing may yield to the event loop between the unzip and the count being published
     const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
     const at = (n) => html.indexOf(`src="src/${n}"`);
-    assert.ok(at("importMessages.js") > 0 && at("importMessages.js") < at("main.js"), "importMessages.js loads before main.js");
+    assert.ok(at("engine.ts") > 0 && at("engine.ts") < at("main.js"), "the engine script loads before main.js");
     const zipFn = fnText("loadFromZip");
     assert.doesNotMatch(zipFn.slice(zipFn.indexOf("return; }\n") + 1), /\bawait\b|setTimeout|requestAnimationFrame/, "loadFromZip yields after the unzip returned");
   }
