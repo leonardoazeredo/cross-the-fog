@@ -43,10 +43,10 @@ export function distanceM(a: LonLat, b: LonLat): number {
   return Math.max(1, Math.round(Math.hypot((ilon1 - ilon2) * kx, (ilat1 - ilat2) * ky)));
 }
 
-// a missing height takes the previous one (a flat stretch); leading gaps take the first known one,
-// so a failed tile at the start does not read as a climb from sea level
 type Heights = ArrayLike<number | null | undefined> | null | undefined;
 
+// a missing height takes the previous one (a flat stretch); leading gaps take the first known one,
+// so a failed tile at the start does not read as a climb from sea level
 function fillHeights(n: number, elevation: Heights): number[] {
   const out: number[] = new Array(n);
   let first = 0;
@@ -102,11 +102,11 @@ function travelSeconds(links: number[], heights: number[]): number {
   return total;
 }
 
-// The filtered climb of a list of heights, for callers that have heights and no line.
 export interface EstimateOptions {
   ascentFilterM?: number;
 }
 
+// The filtered climb of a list of heights, for callers that have heights and no line.
 export function climb(
   heights: Heights,
   opts?: EstimateOptions,
@@ -147,8 +147,6 @@ export function routeStats(est: Estimate): {
   };
 }
 
-// coords: [[lon, lat]]; elevation: metres per point (one per point, or empty), null where unknown, or omitted.
-// opts.ascentFilterM overrides the default buffer.
 export interface Estimate {
   coords: number[][];
   distanceM: number;
@@ -158,6 +156,8 @@ export interface Estimate {
   elevationKnown: number;
 }
 
+// coords: [[lon, lat]]; elevation: metres per point (one per point, or empty), null where unknown, or omitted.
+// opts.ascentFilterM overrides the default buffer.
 export function estimate(coords: LonLat[], elevation?: Heights, opts?: EstimateOptions): Estimate {
   if (!Array.isArray(coords)) throw new TypeError("estimate: coords must be an array");
   if (

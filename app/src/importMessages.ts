@@ -47,8 +47,6 @@ export interface Tally {
 
 export const tally = (): Tally => ({ added: 0, corrupt: 0, classes: new Set() });
 
-// A tile's file name is its id's own name (the id's letters plus a checksum of the id), so a plain word such as
-// "Snapshot" or "Config", which parseTileId also reads as an id, is not one.
 export interface DecodeEnv {
   fogMap: { addTile(name: string, data: Uint8Array): boolean };
   inflate(bytes: Uint8Array): Uint8Array | undefined;
@@ -56,6 +54,8 @@ export interface DecodeEnv {
   tileName(id: number): string;
 }
 
+// A tile's file name is its id's own name (the id's letters plus a checksum of the id), so a plain word such as
+// "Snapshot" or "Config", which parseTileId also reads as an id, is not one.
 export function isTileName(
   name: string,
   env: Pick<DecodeEnv, "parseTileId" | "tileName">,

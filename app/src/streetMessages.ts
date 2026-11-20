@@ -13,7 +13,6 @@ function wait(retryAt: number | null | undefined, now: number | undefined): stri
   return s <= 120 ? ` in about ${s} s` : ` in about ${Math.ceil(s / 60)} min`;
 }
 
-// Why the run stopped short, from the first failure's reason.
 interface Facts {
   reason?: string;
   done?: number;
@@ -22,6 +21,7 @@ interface Facts {
   cause?: { reason?: string } | null;
 }
 
+// Why the run stopped short, from the first failure's reason.
 function stopped(cause: Facts["cause"]): string {
   const reason = cause && cause.reason;
   return reason === "stalled"
