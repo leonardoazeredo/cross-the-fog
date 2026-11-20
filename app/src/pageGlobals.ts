@@ -94,8 +94,8 @@ export function pageGlobals(page: PageWindow) {
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },
     Estimates: { ...Estimates },
-    // fetch, createImageBitmap, OffscreenCanvas and IndexedDB are looked up on `page` when a tile is fetched, decoded or
-    // stored, not when the page global is built
+    // fetch, createImageBitmap and OffscreenCanvas are looked up on `page` when a tile is fetched or decoded, and
+    // IndexedDB when the store opens, never when the page global is built
     Elevation: {
       ...Elevation,
       create: (opts?: ElevationOptions) => createElevation(page, opts),

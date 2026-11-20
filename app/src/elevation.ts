@@ -113,7 +113,7 @@ export function create(host: ElevationHost, opts?: ElevationOptions) {
     console.warn("elevation tile not loaded, " + reason);
   }
 
-  // resolves to the decoded tile, or null when it can be neither read nor fetched
+  // resolves to the decoded tile, or null when it can be neither read from the store nor fetched and decoded
   async function loadTile(z: number, x: number, y: number): Promise<TileImage | null> {
     const key = `${z}/${x}/${y}`;
     let bytes: Uint8Array | undefined;
