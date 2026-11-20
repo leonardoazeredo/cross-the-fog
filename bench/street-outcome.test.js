@@ -1,4 +1,4 @@
-// StreetIndex.outcome: how a street download ended, sorted once; synthetic source, no network.
+// StreetIndex.prototype.outcome and sortOutcome: how a street download ended, sorted once; synthetic source, no network.
 //   node bench/street-outcome.test.js
 "use strict";
 const assert = require("node:assert/strict");
