@@ -85,6 +85,40 @@ const indexWith = (fetchStreets) => new StreetIndex({ newFrac: () => 1, fetchStr
     assert.deepEqual(logged, [["[route] streets unavailable", "offline"]], "only the request nobody replaced logs");
   }
 
+  // the callers' other rows through a stand-in `streets`: what is logged, emitted and returned, for a superseded run
+  // (nothing, on either console method), a bug on a request nobody replaced, and a thrown null
+  {
+    const logged = [], origErr = console.error, origWarn = console.warn;
+    console.error = (...a) => logged.push(["error", ...a]);
+    console.warn = (...a) => logged.push(["warn", ...a]);
+    const supersededRun = () => StreetIndex.downloadError(0, 2, { reason: "superseded" });
+    const route = (ensureRects, stale) => global.RouteLocal.create({ streets: { ensureRects }, streetGraph: () => null, elevation: {}, estimates: {} })(
+      [{ lat: 51.0, lng: 13.7 }, { lat: 51.0, lng: 13.71 }], () => {}, stale);
+    const load = async (ensureRects, stale) => {
+      const emitted = [];
+      const kept = await global.SuggestTool.prototype._loadStreets.call({ streets: { ensureRects } }, one, (s) => emitted.push(s), stale);
+      return [kept, emitted];
+    };
+    try {
+      assert.equal((await route(async () => { throw supersededRun(); }, () => false)).why.reason, "superseded");
+      assert.deepEqual(await load(async () => { throw supersededRun(); }, () => false), [false, []]);
+      assert.deepEqual(logged, [], "a superseded run logs nothing on either console method");
+
+      const internal = await route(async () => { throw boom; }, () => false);
+      assert.equal(internal.why.reason, "internal", "a bug on a request nobody replaced is internal, not superseded");
+      assert.deepEqual(await load(async () => { throw boom; }, () => false), [false, [{ error: true, reason: "internal" }]]);
+      assert.deepEqual(logged, [["error", "[route] reading streets threw", "TypeError"], ["error", "[suggest] reading streets threw", "TypeError"]]);
+
+      logged.length = 0;
+      assert.equal((await route(async () => { throw null; }, () => false)).why.reason, "internal");
+      assert.deepEqual(await load(async () => { throw null; }, () => false), [false, [{ error: true, reason: "internal" }]]);
+      assert.deepEqual(logged, [["error", "[route] reading streets threw", null], ["error", "[suggest] reading streets threw", undefined]]);
+    } finally {
+      console.error = origErr;
+      console.warn = origWarn;
+    }
+  }
+
   // never rejects
   for (const thrown of [undefined, null, "text", 0, boom]) {
     const out = await sortOutcome(async () => { throw thrown; });
