@@ -44,7 +44,7 @@ const RETRACE_REROUTE_MIN = 0.12; // p2p: retraced share above which a via route
 const MAX_RETRACE_REROUTES = 2; // re-routed return legs per run
 const MAX_P2P_M = 30000; // A and B farther apart than this need a street download past what we cap
 const MAX_LOOP_M = 30000; // longer loops reach past the capped street download (bearing squares reach ~0.3x the length)
-const MAX_LOOPS = 6; // first-batch bearings when the planner found no routes (the ranked list is at most six, so then only the other shapes are left for the second wave)
+const MAX_LOOPS = 6; // first-batch bearings when the planner found no routes, so that only the other shapes are left for the second wave
 // Square-ish loop shapes as [bearing offset, distance factor] vias around the compass bearing.
 // The same bearing at another shape takes the router over different streets, so a bearing whose
 // square jumps from far too short to far too long (a river crossing) can still land in tolerance.
@@ -1045,7 +1045,7 @@ function rankKey(gain: any, retrace: any) {
 
 // Cut "there and back" excursions that don't pull their weight: an excursion is a
 // stretch that returns to within 60 m of where it left the route. If the defog area
-// it contributes per metre is under 40% of the route's overall rate, splice it out.
+// it contributes per metre is under half of the route's overall rate, splice it out.
 // That catches dead-end re-walks of covered ground (rate ≈ 0) and marginal wiggles,
 // while keeping spurs INTO fog, which are ugly but often the point of the suggestion.
 // Returns { coords, blockedM }: coords is the spliced geometry (null if nothing was
