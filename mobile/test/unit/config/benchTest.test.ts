@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +42,29 @@ describe("the bench test runner", () => {
     expect(listed).not.toContain("compare.js");
   });
 
+  it("sorts by name whatever order the folder is read in, and keeps only the tests", () => {
+    const names = ["b.test.js", "run.js", "a.test.js", "c.test.json", "d.test.js.bak", "c.test.js"];
+    expect(benchTests("/bench", () => names)).toEqual([
+      "/bench/a.test.js",
+      "/bench/b.test.js",
+      "/bench/c.test.js",
+    ]);
+  });
+
+  it("runs each test from the repo root, in its own process", () => {
+    const dir = folder({
+      "a.test.js": `process.exit(process.cwd() === ${JSON.stringify(realpathSync(REPO))} ? 0 : 1)`,
+      "b.test.js":
+        "globalThis.shared = 1; process.exit(typeof globalThis.shared === 'number' ? 0 : 1)",
+      "c.test.js": "process.exit(typeof globalThis.shared === 'undefined' ? 0 : 1)",
+    });
+    try {
+      expect(runScript(dir).status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("passes when every test exits 0", () => {
     const dir = folder({ "a.test.js": "", "b.test.js": "console.log('fine')" });
     try {
@@ -49,7 +80,7 @@ describe("the bench test runner", () => {
     const marker = join(tmpdir(), `bench-test-ran-${process.pid}`);
     const dir = folder({
       "a.test.js": "",
-      "b.test.js": "console.error('the reason'); process.exit(3)",
+      "b.test.js": "console.log('on stdout'); console.error('the reason'); process.exit(3)",
       "c.test.js": `require('fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
     });
     try {
@@ -57,6 +88,7 @@ describe("the bench test runner", () => {
       expect(out.status).toBe(1);
       expect(out.stdout).toContain("b.test.js failed (2 of 3)");
       expect(out.stderr).toContain("the reason");
+      expect(out.stdout).toContain("on stdout");
       expect(existsSync(marker)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
