@@ -15,7 +15,7 @@ export interface StreetAnswer {
   groups: Record<string, unknown>;
 }
 type Stored = { answer: StreetAnswer; fetchedAt: number };
-// the run's options, passed to the network source as they are
+// the run's options: the network source gets them with `wait` wrapped to record a stop
 export interface RunOptions {
   wait?: (until: number) => Promise<boolean | undefined> | boolean | undefined;
   stale?: () => boolean;
@@ -51,7 +51,7 @@ interface CallState {
 const KEY_VERSION = "4:";
 const idOf = (t: Tile) => t.x + ":" + t.y;
 // "run" names the on-foot answer, the only one asked for now; it stays in the key so a phone's
-// cache keeps serving. Entries under the removed "bike" kind are never read and go by LRU eviction.
+// cache keeps serving. Entries under any other kind (such as "bike") are never read and go by LRU eviction.
 const keyOf = (t: Tile) => KEY_VERSION + "run:" + idOf(t);
 // old keys removed per open: the sweep must not hold up a store that still has hundreds
 const LEGACY_SWEEP_MAX = 256;

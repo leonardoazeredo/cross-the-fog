@@ -252,7 +252,7 @@ async function attempt(url: string, body: string): Promise<Attempt> {
   }
 }
 
-// Resolves with the JSON of the first endpoint, in order, whose body parses. Rejects with a fresh
+// Resolves with the JSON of the first endpoint, in order, whose body parses to a JSON object. Rejects with a fresh
 // error that copies the message and name of the error that earned the reason (kept as `cause`),
 // carrying `reason` and `retryAt`. The reasons are ranked by REASONS, most actionable first, and glossed here: blocked is a
 // 406 seen or an endpoint held after one; busy, 429, 502 or 504; stalled, no answer or a body that
