@@ -431,7 +431,7 @@ SuggestTool.prototype._snapToNewStreets = function (this: Self, ll: any, radiusM
   if (base === null || radiusM < 200) return ll;
   const { kx, ky } = metresPerDeg(ll.lat);
   // gentle keep-bias: in dense areas scores are high everywhere, so a strong
-  // bias (tried 1.15) freezes every via in place and the snapping no-ops
+  // bias would freeze every via in place and the snapping would do nothing
   let best = ll,
     bs = base * 1.05 + 600;
   const step = Math.max(150, radiusM / 3);
@@ -836,7 +836,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
     });
   // planner plans ADD to the via candidates, they don't replace them: the
   // geometric vias are proven earners and cutting them for weaker plans
-  // dropped p2p's best card. Trim only slightly to bound the run time.
+  // would drop p2p's best card. Trim only slightly to bound the run time.
   for (const v of this._pickVias(rawVias).slice(0, planned.length ? MAX_VIAS - 1 : MAX_VIAS))
     jobs.push(async () => {
       // Real streets inflate the straight-line ellipse the via was placed
@@ -844,9 +844,9 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       // back toward the line and re-ask, up to VIA_RETRIES times, each time
       // rescaling from the length just measured rather than from the first
       // guess: one shot assumes routed length grows evenly with the offset,
-      // and around a barrier like a river it doesn't. Where it did, every
-      // detour overshot twice over and was binned, leaving only the plain
-      // fastest route and the planner's walks.
+      // which fails around a barrier like a river: every detour then
+      // overshoots twice over and is binned, leaving only the plain fastest
+      // route and the planner's walks.
       let ll = v.latlng,
         d = v.d;
       let r = await this._route([A, ll, B]);
@@ -1272,7 +1272,7 @@ SuggestTool.prototype._suggestLoop = async function (this: Self, distM: any, buf
   // topologies: whatever the fog asks for). Only for distances the capped rect
   // reaches whole, and only where new ground is scarce enough that shape
   // matters: in mostly-virgin areas wide simple loops already defog near the
-  // ceiling and planned walks measured worse.
+  // ceiling and planned walks do not pay there.
   let planned = [];
   if (distM <= 16000) {
     try {
