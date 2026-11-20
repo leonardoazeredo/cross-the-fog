@@ -108,6 +108,12 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   expect(() => vm.runInContext("window.FogZip.unzip(deflatedZip)", context)).toThrow(
     /pako is not defined/,
   );
+  expect(
+    vm.runInContext(
+      "(() => { try { window.FogZip.unzip(deflatedZip); } catch (e) { return e.name; } })()",
+      context,
+    ),
+  ).toBe("ReferenceError");
   // pako that arrives after the engine ran is the one used: the lookup happens when unzip runs
   context.pako = { inflateRaw: inflateSync, inflate: unzlibSync };
   expect(

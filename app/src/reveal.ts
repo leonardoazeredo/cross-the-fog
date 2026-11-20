@@ -3,7 +3,6 @@
 // Pure: same track and rules, same cells. Results are only comparable within one RULES.version, so bump it on any change to the rules.
 import { cellToLngLat, lngLatToCell, WORLD_CELLS } from "./parser.ts";
 
-// Untuned placeholder numbers; the version is bumped whenever they change.
 export interface RevealRules {
   version: number;
   maxAccuracyM: number;
@@ -11,6 +10,8 @@ export interface RevealRules {
   maxGapM: number;
   halfWidthM: number;
 }
+
+// Untuned placeholder numbers; the version is bumped whenever they change.
 export const RULES: Readonly<RevealRules> = Object.freeze({
   version: 1,
   maxAccuracyM: 50,
@@ -55,15 +56,15 @@ function compact(keys: number[]): number[] {
   return out;
 }
 
-// Cells whose centre lies within halfWidthM metres of the segment a-b (a === b is a disc), pushed as keys.
-// Distances are in a flat frame at the segment's mean latitude. Longitudes are not wrapped here: a disc at the
-// antimeridian reaches past the grid edge, and the cells there are wrapped to the other side when stored.
 interface Point {
   t: number;
   lat: number;
   lon: number;
 }
 
+// Cells whose centre lies within halfWidthM metres of the segment a-b (a === b is a disc), pushed as keys.
+// Distances are in a flat frame at the segment's mean latitude. Longitudes are not wrapped here: a disc at the
+// antimeridian reaches past the grid edge, and the cells there are wrapped to the other side when stored.
 function addSegment(keys: number[], a: Point, b: Point, halfWidthM: number): void {
   const lat0 = (a.lat + b.lat) / 2;
   const { mPerLon, mPerLat } = flatFrame(lat0);

@@ -41,10 +41,6 @@ function extraBytes(bitmap: Uint8Array, extra: ArrayLike<number> | null | undefi
 
 const inTile = (v: number) => Number.isInteger(v) && v >= 0 && v < TILE_WIDTH;
 
-// blocks: [{bx, by, bitmap: 512 bytes, extra: 3 bytes | null}]. Returns the decompressed tile: the header with
-// 1-based indexes in header order, then the 515-byte blocks in that order. A block the format cannot hold (a
-// bitmap that is not 512 bytes, a position outside the tile, extra bytes that are not 3, a position given twice)
-// throws a RangeError.
 export interface WriterBlock {
   bx: number;
   by: number;
@@ -52,6 +48,10 @@ export interface WriterBlock {
   extra?: ArrayLike<number> | null | undefined;
 }
 
+// blocks: [{bx, by, bitmap: 512 bytes, extra: 3 bytes | null}]. Returns the decompressed tile: the header with
+// 1-based indexes in header order, then the 515-byte blocks in that order. A block the format cannot hold (a
+// bitmap that is not 512 bytes, a position outside the tile, extra bytes that are not 3, a position given twice)
+// throws a RangeError.
 export function writeTile(blocks: WriterBlock[]): Uint8Array {
   const seen = new Set<number>();
   for (const b of blocks) {
@@ -115,12 +115,13 @@ export interface WrittenFile {
 }
 
 // `deflate` compresses a tile (the page's is pako at DEFLATE_LEVEL) and `inflate` reads every file back before it
-// is handed out. Throws on a file that does not read back, so a broken export is never saved.
+// is handed out.
 export interface WriteOptions {
   deflate(raw: Uint8Array): Uint8Array;
   inflate(bytes: Uint8Array): Uint8Array;
 }
 
+// Throws on a file that does not read back, so a broken export is never saved.
 export function writeSync(fogMap: FogMap, opts: WriteOptions): WrittenFile[] {
   const { deflate, inflate } = opts;
   const files: WrittenFile[] = [];
