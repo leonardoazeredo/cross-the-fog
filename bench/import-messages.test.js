@@ -97,7 +97,7 @@ function fnText(name) {
   assert.ok(start >= 0, `${name} not found in main.js`);
   return src.slice(start, src.indexOf("\n  }\n", start) + 4);
 }
-const realPako = require("../app/vendor/pako_inflate.min.js"); // the inflater the page ships: it returns nothing for a cut stream
+const realPako = require("../app/vendor/pako.min.js"); // the inflater the page ships: it returns nothing for a cut stream
 function loaders(files, unzip) {
   const shown = [], warns = [];
   const fogMap = new FogParser.FogMap();

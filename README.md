@@ -101,7 +101,7 @@ app/
   src/suggest.ts    suggested routes: candidate generation, defog scoring, loop shaping
   src/unzip.ts      minimal ZIP reader so a Fog of World backup .zip loads directly
   src/main.js       wiring: data loading, style controls, route/suggest UI, persistence
-  vendor/           Leaflet + pako (zlib), vendored so there's nothing to install
+  vendor/           Leaflet + pako 2.1.0 (zlib, one build: pako.min.js), vendored so there's nothing to install
 Sync/               
 ```
 

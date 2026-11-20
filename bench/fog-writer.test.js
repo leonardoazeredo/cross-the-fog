@@ -11,9 +11,8 @@ require("./lib/host.js");
 require("../app/src/engine.ts");
 const { FogMap, parseTileId, MAP_WIDTH } = global.FogParser;
 const { MD5, FogWriter } = global;
-const pako = require("../app/vendor/pako_deflate.min.js");
-global.pakoDeflate = pako; // what pakoDeflate.js does in the page, so writeSync's default deflate works
-global.pako = require("../app/vendor/pako_inflate.min.js"); // the build the page leaves in window.pako, which writeSync reads its files back with
+const pako = require("../app/vendor/pako.min.js");
+global.pako = pako; // the build vendor/pako.min.js leaves in window.pako: writeSync's default deflate, and the inflate it reads its files back with
 const deflate5 = (buf) => pako.deflate(buf, { level: 5 });
 
 const HEADER = 32768, BLOCK = 515;
@@ -64,6 +63,10 @@ for (const [name, id] of FIXTURES) { // a tile Fog of World wrote comes back byt
   assert.equal(out.length, 1);
   assert.equal(out[0].name, name);
   sameBytes(out[0].bytes, file, `${name} through writeSync`);
+  // and through the page's own path: the default deflate and inflate, which are window.pako's
+  const page = FogWriter.writeSync(map);
+  assert.equal(page.length, 1);
+  sameBytes(page[0].bytes, file, `${name} through writeSync with the page's pako`);
   assert.equal(parseTileId(name), id);
 }
 { // Node's bundled zlib is a Chromium fork that may not match Fog of World's bytes, so this only reports; the byte-exact check is the pako one above
@@ -162,11 +165,13 @@ function cellsOf(files) {
   assert.equal(f.bytes[0], 0x78);
   assert.throws(() => FogWriter.writeSync(map, { deflate: () => undefined }), /no bytes/);
   // the page's texts when a pako build is missing, word for word (the checks sit in pageGlobals.ts)
-  const NEEDS_DEFLATE = /^writeSync needs a deflate function or the pako deflate build \(vendor\/pako_deflate\.min\.js, then src\/pakoDeflate\.js, before pako_inflate\.min\.js\)$/;
-  global.pakoDeflate = { inflate: pako.inflate }; // the inflate build parked by mistake
-  assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "a parked inflate build");
-  delete global.pakoDeflate;
-  try { assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "no deflate build"); } finally { global.pakoDeflate = pako; }
+  const NEEDS_DEFLATE = /^writeSync needs a deflate function or the pako build \(vendor\/pako\.min\.js\)$/;
+  global.pako = { inflate: pako.inflate }; // a pako that cannot deflate
+  try {
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "a pako with no deflate");
+    delete global.pako;
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "no pako");
+  } finally { global.pako = pako; }
 }
 { // writeTile refuses blocks the format cannot hold, rather than writing a tile Fog of World would misread
   const bitmap = new Uint8Array(512);
@@ -221,10 +226,11 @@ function cellsOf(files) {
   assert.throws(() => FogWriter.writeSync(map, { deflate: deflate5, inflate: () => { throw new Error("mine"); } }), /does not inflate/, "opts.inflate is used");
   const parked = global.pako;
   delete global.pako;
-  const NEEDS_INFLATE = /^writeSync needs an inflate function or the pako inflate build \(vendor\/pako_inflate\.min\.js\) to check what it wrote$/;
+  const NEEDS_INFLATE = /^writeSync needs an inflate function or the pako build \(vendor\/pako\.min\.js\) to check what it wrote$/;
   try {
-    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "no inflate build");
-    global.pako = {}; // a pako without inflate is the same mistake
+    // with the deflate handed in, the missing inflate is the one reported
+    assert.throws(() => FogWriter.writeSync(map, { deflate: deflate5 }), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "no pako");
+    global.pako = { deflate: pako.deflate }; // a pako without inflate is the same mistake
     assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "a pako with no inflate");
   } finally { global.pako = parked; }
 }
@@ -238,19 +244,10 @@ function cellsOf(files) {
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
 }
-{ // pakoDeflate.js parks the deflate build, and refuses at load when what it finds cannot deflate
-  const vm = require("node:vm");
-  const src = fs.readFileSync(path.join(__dirname, "..", "app", "src", "pakoDeflate.js"), "utf8");
-  const load = (pakoGlobal) => { const win = { pako: pakoGlobal }; vm.runInContext(src, vm.createContext({ window: win })); return win; };
-  assert.equal(load(pako).pakoDeflate, pako);
-  for (const [label, wrong] of [["missing", undefined], ["the inflate build", { inflate: () => null }]]) {
-    assert.throws(() => load(wrong), /pako_deflate/, label);
-  }
-}
-{ // both pako builds assign window.pako: the engine's unzip and main.js need the inflate build to be the one left in place
+{ // the one pako build loads before the engine, whose unzip and writeSync read window.pako when they run, and before main.js
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (src) => html.indexOf(`<script src="${src}"></script>`);
-  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
+  const order = ["vendor/pako.min.js", "src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
 }
 console.log("fog-writer.test.js ok");
