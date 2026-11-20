@@ -3,7 +3,7 @@ import * as esbuild from "esbuild";
 
 /**
  * One TypeScript file of the page, bundled as a classic script whose top-level `var` is its exports object, so
- * the page's other scripts reach it as `window.<globalName>` exactly as they reached the IIFE it replaced.
+ * the page's other scripts reach it as `window.<globalName>`, like any other page global.
  */
 export function bundleModule(file: string, globalName: string): string {
   const result = esbuild.buildSync({
