@@ -35,11 +35,6 @@ export interface CreateOptions {
   maxAgeMs?: number | null;
 }
 
-// Own key format, not StreetIndex.tileId, so persisted keys do not follow changes to the
-// in-memory one. The leading version is the tile grid's: bump it whenever TILE_DEG in streets.js
-// changes, or answers fetched for the old grid are read as tiles of the new one.
-// The same prefix is the schema version of a stored entry: change the answer format and the prefix
-// together, and old entries are never read (sweepLegacy leaves them; they go only when LRU eviction reaches them, once the store is full).
 // what one fetchStreets call counts about the store, see settle
 interface CallState {
   storeDown: boolean;
@@ -48,6 +43,11 @@ interface CallState {
   puts: Promise<unknown>[];
 }
 
+// Own key format, not StreetIndex.tileId, so persisted keys do not follow changes to the
+// in-memory one. The leading version is the tile grid's: bump it whenever TILE_DEG in streets.js
+// changes, or answers fetched for the old grid are read as tiles of the new one.
+// The same prefix is the schema version of a stored entry: change the answer format and the prefix
+// together, and old entries are never read (sweepLegacy leaves them; they go only when LRU eviction reaches them, once the store is full).
 const KEY_VERSION = "4:";
 const idOf = (t: Tile) => t.x + ":" + t.y;
 // "run" names the on-foot answer, the only one asked for now; it stays in the key so a phone's

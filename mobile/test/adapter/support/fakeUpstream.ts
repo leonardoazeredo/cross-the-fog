@@ -32,7 +32,7 @@ export function installFakeUpstream(win: Window, doc: Document): void {
     inflate: (data: Uint8Array) => fflate.unzlibSync(data),
   };
 
-  // The page's engine.ts assigns these (FogParser, MD5, FogWriter, FogZip, Reveal); the modules are imported here, so they are the code the page runs.
+  // The page's engine.ts assigns the converted modules' page globals this way (and binds Overpass to its window); the modules are imported here, so they are the code the page runs.
   Object.assign(winAny, pageGlobals(winAny as PageWindow));
   (winAny.eval as (code: string) => void)(
     readFileSync(resolve(APP_SRC, "importMessages.js"), "utf-8"),
