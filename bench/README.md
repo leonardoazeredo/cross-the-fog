@@ -10,9 +10,9 @@ node bench/run.js [out] [filter]    # run the app's SuggestTool on bench/scenari
 node bench/overpass.js [filter]     # street-network context (total vs undefogged km)
 ```
 
-- `lib/load.js` loads the real `app/src` parser + suggest code over a Leaflet stub,
+- A bench test requires `lib/host.js` (the Node global as `window`, a Leaflet stub as `L`) and then `app/src/engine.ts`,
   so benchmarks exercise the exact shipping algorithm.
-- The fog gain (`computeGain`, `cellIsNew`, `corridorNewFrac`, `SuggestTool`'s `newness`) is `app/src/fogGain.ts`, the module `main.js` uses too; `lib/load.js`'s `gainOver(fogMap)` builds it over a loaded fog map.
+- The fog gain (`computeGain`, `cellIsNew`, `corridorNewFrac`, `SuggestTool`'s `newness`) is `app/src/fogGain.ts`, the module `main.js` uses too; `lib/fog.js`'s `gainOver(fogMap)` builds it over a loaded fog map, and its `loadSync(dir)` reads a Sync folder.
 - Overpass responses are disk-cached in `bench/cache/` (gitignored): re-runs are free,
   reproducible, and kind to the public server. Delete the cache to re-measure live.
   Overpass answers 502 under load and the scenario then ends in the error state with
