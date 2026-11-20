@@ -64,12 +64,6 @@ data class GpxFileState(
 
 private fun Int.twoDigits(): String = toString().padStart(2, '0')
 
-data class GpxExportUiState(
-    val filePath: String? = null,
-    val isSending: Boolean = false,
-    val message: String? = null,
-)
-
 data class TrackPoint(
     val latLong: LatLong,
     val elevation: Double?,

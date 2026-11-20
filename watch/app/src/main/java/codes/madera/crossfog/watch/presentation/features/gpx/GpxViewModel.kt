@@ -134,9 +134,6 @@ class GpxViewModel(
     val elevationProfileLocationMarker: StateFlow<ElevationProfileLocationMarker?> =
         _elevationProfileLocationMarker.asStateFlow()
 
-    private val _exportUiState = MutableStateFlow(GpxExportUiState())
-    val exportUiState: StateFlow<GpxExportUiState> = _exportUiState.asStateFlow()
-
     private val _turnByTurnGuidanceSession = MutableStateFlow<GpxGuidanceSession?>(null)
     val turnByTurnGuidanceSession: StateFlow<GpxGuidanceSession?> = _turnByTurnGuidanceSession.asStateFlow()
 
@@ -1759,22 +1756,4 @@ private fun defaultCalorieModelForActivityProfile(activityProfile: String?): Str
         "cycling_physics_fallback_v1"
     } else {
         "pandolf_santee_segment_v2"
-    }
-
-private fun batchSendSummary(
-    sentCount: Int,
-    failedCount: Int,
-    resources: Resources,
-): String =
-    when {
-        failedCount == 0 -> {
-            resources.getQuantityString(R.plurals.gpx_sent_gpx_2, sentCount, sentCount)
-        }
-        sentCount == 0 -> resources.getString(R.string.gpx_send_failed)
-        else ->
-            resources.getString(
-                R.string.gpx_sent_failed,
-                resources.getQuantityString(R.plurals.gpx_sent_count, sentCount, sentCount),
-                resources.getQuantityString(R.plurals.gpx_failed_count, failedCount, failedCount),
-            )
     }
