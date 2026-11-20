@@ -21,10 +21,10 @@ function findAppSrc(): string {
 
 const APP_SRC = findAppSrc();
 
-// installFakeUpstream loads the upstream app's unzip.js and reveal.js into the
-// test window via eval and sets the parser and MD5 modules on it as engine.ts does (the same way the mobile webview hosts them) and wires
-// up the same "zip input change" listener the real app uses. pako is shimmed
-// with fflate since pako is not available in Node.
+// installFakeUpstream sets the parser and MD5 modules on the test window as engine.ts does, loads the
+// upstream app's unzip.js, reveal.js, fogWriter.js and importMessages.js into it via eval (the same way
+// the mobile webview hosts them) and wires up the same "zip input change" listener the real app uses.
+// pako is shimmed with fflate since pako is not available in Node.
 export function installFakeUpstream(win: Window, doc: Document): void {
   const winAny = win as unknown as Record<string, unknown>;
 

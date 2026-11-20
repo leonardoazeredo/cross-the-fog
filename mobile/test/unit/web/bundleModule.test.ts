@@ -67,7 +67,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("typeof window.FogGain.create", context)).toBe("function");
   expect(vm.runInContext("window.FogGain.DEFOG_HALF_M", context)).toBe(15);
-  // the parser and MD5 run in a context that has only TextEncoder: nothing they call is a page global
+  // the parser and MD5 run in a context with no page global but window and TextEncoder: nothing they call is one
   expect(vm.runInContext("Object.keys(window.FogParser).join()", context)).toBe(
     "FogMap,parseTileId,tileToLngLat,cellToLngLat,lngLatToCell,WORLD_CELLS,MAP_WIDTH,BITS_PER_TILE_EDGE,FORMAT",
   );

@@ -1,4 +1,4 @@
-// biome-ignore-all lint/style/noNonNullAssertion: every index below is bounded by its loop, and the check would cost a branch per read
+// biome-ignore-all lint/style/noNonNullAssertion: each index is in range by construction (a loop bound, an argument range or the header's own value), and a check would cost a branch per read
 // Fog of World sync-data parser (browser port of CaviarChen/Fog-of-World-Data-Parser).
 //
 // Format recap:
