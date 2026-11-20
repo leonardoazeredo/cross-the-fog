@@ -11,9 +11,6 @@ import org.mapsforge.core.model.LatLong
 internal class NavigateGuidanceGeometryCache {
     private var primaryKey: PrimaryKey? = null
     private var primaryValue: TurnByTurnGuidanceState? = null
-    private var nearestKey: LocationKey? = null
-    private var nearestValue: LatLong? = null
-    private var nearestValueComputed = false
 
     fun primaryState(
         session: GpxGuidanceSession?,
@@ -40,39 +37,11 @@ internal class NavigateGuidanceGeometryCache {
         }
     }
 
-    fun nearestRoutePoint(
-        session: GpxGuidanceSession?,
-        currentLocation: LatLong?,
-        compute: () -> LatLong?,
-    ): LatLong? {
-        val key =
-            LocationKey(
-                session = session,
-                latitude = currentLocation?.latitude,
-                longitude = currentLocation?.longitude,
-            )
-        if (nearestValueComputed && key == nearestKey) {
-            return nearestValue
-        }
-
-        return compute().also { value ->
-            nearestKey = key
-            nearestValue = value
-            nearestValueComputed = true
-        }
-    }
-
     private data class PrimaryKey(
         val session: GpxGuidanceSession?,
         val latitude: Double?,
         val longitude: Double?,
         val tuning: GpxGuidanceTuning,
         val previousDistanceFromStartMeters: Double?,
-    )
-
-    private data class LocationKey(
-        val session: GpxGuidanceSession?,
-        val latitude: Double?,
-        val longitude: Double?,
     )
 }

@@ -569,15 +569,6 @@ class SettingsViewModel(
                 SettingsRepository.DEFAULT_TURN_BY_TURN_SCREEN_OFF_FIXED_GPS_INTERVAL_SECONDS,
             )
 
-    val turnByTurnBrouterGuideBackEnabled: StateFlow<Boolean> =
-        settingsRepository.turnByTurnBrouterGuideBackEnabled
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
-    fun setTurnByTurnBrouterGuideBackEnabled(enabled: Boolean) =
-        viewModelScope.launch {
-            settingsRepository.setTurnByTurnBrouterGuideBackEnabled(enabled)
-        }
-
     val turnByTurnRouteStartBehavior: StateFlow<String> =
         settingsRepository.turnByTurnRouteStartBehavior
             .stateIn(

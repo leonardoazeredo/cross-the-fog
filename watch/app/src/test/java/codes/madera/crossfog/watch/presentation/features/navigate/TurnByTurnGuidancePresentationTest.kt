@@ -45,7 +45,6 @@ class TurnByTurnGuidancePresentationTest {
                 guidanceActive = true,
                 paused = false,
                 offRoute = false,
-                guideBackToRouteActive = false,
                 suppressed = false,
             )
         assertTrue(
