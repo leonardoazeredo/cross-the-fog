@@ -90,7 +90,7 @@ export function StreetStore(this: StreetStoreSelf, opts: StoreOptions) {
   this.holds = new Map(); // _protect's holdAs -> the "x:y" under that caller's latest run: never evicted until its next one
   this.version = 0; // bumped by every tile read into the index, so graphs built from this notice list changes
   this.kx = null;
-  this.ky = 110540; // metre frame, anchored on first fetch
+  this.ky = 110540; // metres per degree of latitude; kx, the other half of the metre frame, is anchored on the first fetch
 }
 
 const holds = (set: Set<string>, t: Tile) => set.has(tileId(t));
@@ -221,7 +221,7 @@ StreetStore.prototype.snapPoint = function (
   return host.L.latLng(Math.round(latlng.lat / g) * g, Math.round(latlng.lng / g) * g);
 };
 
-// One tile's answer ({x, y}) into the index; the version bump tells graphs built before it to rebuild.
+// One tile's answer, read from the tile `from`, into the index; the version bump tells graphs built before it to rebuild.
 // A way is held while any tile brings it, and splitAnswer hands a whole way to every tile it touches,
 // so a way across two tiles is added once and listed by both.
 StreetStore.prototype._read = function (this: StreetStoreSelf, answer: TileAnswer, from: Tile) {
