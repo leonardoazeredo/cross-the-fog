@@ -70,3 +70,6 @@ export function hex(string: string): string {
   }
   return out;
 }
+
+// What the page's `window.MD5` holds.
+export const MD5 = { hex };

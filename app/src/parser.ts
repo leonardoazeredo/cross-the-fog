@@ -487,3 +487,16 @@ export const FORMAT = Object.freeze({
   blockKey,
   popcount,
 });
+
+// What the page's `window.FogParser` holds: engine.ts assigns it, and the test loaders copy it, so the member list lives here only.
+export const FogParser = {
+  FogMap,
+  parseTileId,
+  tileToLngLat,
+  cellToLngLat,
+  lngLatToCell,
+  WORLD_CELLS,
+  MAP_WIDTH,
+  BITS_PER_TILE_EDGE,
+  FORMAT,
+};

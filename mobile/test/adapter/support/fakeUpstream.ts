@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fflate from "fflate";
-import { hex as md5Hex } from "../../../../app/src/md5.ts";
-import * as parser from "../../../../app/src/parser.ts";
+import { MD5 as md5Module } from "../../../../app/src/md5.ts";
+import { FogParser as fogParserModule } from "../../../../app/src/parser.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,18 +35,8 @@ export function installFakeUpstream(win: Window, doc: Document): void {
 
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "unzip.js"), "utf-8"));
   // The page's engine.ts assigns these two; the modules are imported here, so they are the code the page runs.
-  winAny.FogParser = {
-    FogMap: parser.FogMap,
-    parseTileId: parser.parseTileId,
-    tileToLngLat: parser.tileToLngLat,
-    cellToLngLat: parser.cellToLngLat,
-    lngLatToCell: parser.lngLatToCell,
-    WORLD_CELLS: parser.WORLD_CELLS,
-    MAP_WIDTH: parser.MAP_WIDTH,
-    BITS_PER_TILE_EDGE: parser.BITS_PER_TILE_EDGE,
-    FORMAT: parser.FORMAT,
-  };
-  winAny.MD5 = { hex: md5Hex };
+  winAny.FogParser = { ...fogParserModule };
+  winAny.MD5 = { ...md5Module };
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "reveal.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(readFileSync(resolve(APP_SRC, "fogWriter.js"), "utf-8"));
   (winAny.eval as (code: string) => void)(

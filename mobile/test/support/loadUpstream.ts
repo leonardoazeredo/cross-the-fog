@@ -3,8 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import * as fflate from "fflate";
-import { hex as md5Hex } from "../../../app/src/md5.ts";
-import * as parser from "../../../app/src/parser.ts";
+import { MD5 as md5Module } from "../../../app/src/md5.ts";
+import { FogParser as fogParserModule } from "../../../app/src/parser.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_SRC = resolve(__dirname, "../../../app/src");
@@ -37,18 +37,8 @@ function createUpstream(): UpstreamApi {
   const context = vm.createContext({ window, TextDecoder, TextEncoder, pako });
   vm.runInContext(readFileSync(`${APP_SRC}/unzip.js`, "utf-8"), context);
   // The page's engine.ts assigns these two; the modules are imported here, so they are the code the page runs.
-  window.FogParser = {
-    FogMap: parser.FogMap,
-    parseTileId: parser.parseTileId,
-    tileToLngLat: parser.tileToLngLat,
-    cellToLngLat: parser.cellToLngLat,
-    lngLatToCell: parser.lngLatToCell,
-    WORLD_CELLS: parser.WORLD_CELLS,
-    MAP_WIDTH: parser.MAP_WIDTH,
-    BITS_PER_TILE_EDGE: parser.BITS_PER_TILE_EDGE,
-    FORMAT: parser.FORMAT,
-  };
-  window.MD5 = { hex: md5Hex };
+  window.FogParser = { ...fogParserModule };
+  window.MD5 = { ...md5Module };
   // fogWriter.js names MD5 as a bare global, which a browser has and this context does not.
   context.MD5 = window.MD5;
   vm.runInContext(readFileSync(`${APP_SRC}/fogWriter.js`, "utf-8"), context);

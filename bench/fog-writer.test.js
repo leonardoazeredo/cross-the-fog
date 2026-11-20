@@ -224,7 +224,7 @@ function cellsOf(files) {
   const md5 = path.join(__dirname, "..", "app", "src", "md5.ts");
   // a fresh process, so the module is evaluated after Math.sin is perturbed
   const script = `const sin = Math.sin; Math.sin = (x) => sin(x) * (1 + 1e-9);
-    const { hex } = await import(${JSON.stringify("file://" + md5)}); process.stdout.write(hex("117660"));`;
+    const { hex } = await import(${JSON.stringify(require("node:url").pathToFileURL(md5).href)}); process.stdout.write(hex("117660"));`;
   const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
