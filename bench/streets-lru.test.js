@@ -32,31 +32,24 @@ function source({ fresh = {} }) {
   };
   return { fetchStreets, asked };
 }
-const segList = (s) => [...s.segs.values()].flat();
-const consistent = (s) => {
-  assert.equal(s.segCount, segList(s).length, "segCount counts the segments held");
-  assert.deepEqual([...s.wayIds].sort(), s.ways.map((w) => w.id).sort(), "wayIds names the ways held");
-};
-const held = (s, i) => s.tiles.has(pos(i));
+const wayIds = (s) => s.ways.map((w) => w.id).sort();
+// a piece is held when the index says it covers a point inside it
+const held = (s, i) => s.covered(51.01, lon(i, 0.01));
 
 (async () => {
   { // the least recently used piece goes: its segments come back, graphs hear of it, and a run asks for it again
     const src = source({ fresh: { [pos(0)]: answer(inPiece(1, 0)), [pos(1)]: answer(inPiece(2, 1)), [pos(2)]: answer(inPiece(3, 2)), [pos(3)]: answer(inPiece(4, 3)) } });
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: src.fetchStreets, maxSegs: MAX });
     for (const i of [0, 1, 2]) await s.ensureRects([rect(i)]);
-    assert.equal(s.segCount, 87);
     const version = s.version;
     await s.ensureRects([rect(3)]);
     assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [false, true, true, true]);
-    assert.deepEqual([...s.wayIds].sort(), [2, 3, 4]);
-    assert.equal(s.segCount, 87, "piece 0's 29 segments given back before piece 3's came in");
+    assert.deepEqual(wayIds(s), [2, 3, 4]);
     assert.ok(s.version > version);
     assert.equal(s.covered(51.01, lon(0, 0.01)), false, "an evicted piece is not held");
-    consistent(s);
     const before = src.asked.length;
     await s.ensureRects([rect(0)]);
     assert.deepEqual(src.asked.slice(before), [[pos(0)]], "the evicted piece is missing again");
-    consistent(s);
   }
   const four = { [pos(0)]: answer(inPiece(1, 0)), [pos(1)]: answer(inPiece(2, 1)), [pos(2)]: answer(inPiece(3, 2)), [pos(3)]: answer(inPiece(4, 3)), [pos(4)]: answer(inPiece(5, 4)) };
   { // a run over a held piece uses it: the next piece goes instead
@@ -65,7 +58,6 @@ const held = (s, i) => s.tiles.has(pos(i));
     await s.ensureRects([rect(0)]);
     await s.ensureRects([rect(3)]);
     assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [true, false, true, true]);
-    consistent(s);
   }
   { // a caller's held pieces stay until its next run; the run reading a piece never drops its own
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: source({ fresh: four }).fetchStreets, maxSegs: MAX });
@@ -77,7 +69,6 @@ const held = (s, i) => s.tiles.has(pos(i));
     const t = new StreetIndex({ newFrac: () => 1, fetchStreets: source({ fresh: four }).fetchStreets, maxSegs: MAX });
     await t.ensureRects([rect(0), rect(1), rect(2), rect(3)]);
     assert.deepEqual([0, 1, 2, 3].map((i) => held(t, i)), [true, true, true, true], "nothing it covers is evicted: the cap cuts in instead");
-    consistent(s); consistent(t);
   }
   { // a piece under a run still running is not evicted by another run's read
     let release;
@@ -93,7 +84,6 @@ const held = (s, i) => s.tiles.has(pos(i));
     assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [true, false, true, true]);
     release();
     await slow;
-    consistent(s);
   }
   { // a way two pieces list survives while either holds it, and goes with the second
     const shared = line(9, lon(0, 0.010), lon(1, 0.015)); // 0.030°, 42 segments
@@ -102,13 +92,10 @@ const held = (s, i) => s.tiles.has(pos(i));
     // a cap of 80 drops past 68 down to 56; piece 1 is read after piece 2, so 0 and then 2 are the oldest
     for (const i of [0, 2, 1, 3]) await s.ensureRects([rect(i)]);
     assert.deepEqual([0, 1, 2, 3].map((i) => held(s, i)), [false, true, false, true]);
-    assert.ok(s.wayIds.has(9), "piece 1 still lists the shared way");
-    assert.equal(s.segCount, 42 + 29);
+    assert.ok(wayIds(s).includes(9), "piece 1 still lists the shared way");
     await s.ensureRects([rect(4)]);
     assert.deepEqual([1, 3, 4].map((i) => held(s, i)), [false, true, true]);
-    assert.ok(!s.wayIds.has(9), "no piece lists it any more");
-    assert.equal(s.segCount, 29 + 29);
-    consistent(s);
+    assert.ok(!wayIds(s).includes(9), "no piece lists it any more");
   }
   { // a failed run, and a bad rect, protect nothing afterwards
     const plain = source({ fresh: four }).fetchStreets;
@@ -121,7 +108,6 @@ const held = (s, i) => s.tiles.has(pos(i));
     await assert.rejects(s.ensureRects(null), TypeError);
     for (const i of [2, 3, 4]) await s.ensureRects([rect(i)]);
     assert.equal(held(s, 1), false, "the failed run's piece goes like any other");
-    consistent(s);
   }
   { // a piece that brought no way still goes
     const s = new StreetIndex({ newFrac: () => 1, maxSegs: MAX, fetchStreets: source({ fresh: Object.assign({}, four, { [pos(0)]: answer() }) }).fetchStreets });
@@ -129,7 +115,6 @@ const held = (s, i) => s.tiles.has(pos(i));
     await s.ensureRects([rect(1), rect(2), rect(3)], { holdAs: "suggest" });
     await s.ensureRects([rect(4)]);
     assert.deepEqual([0, 1, 2, 3, 4].map((i) => held(s, i)), [false, true, true, true, true]);
-    consistent(s);
   }
   console.log("streets-lru.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });

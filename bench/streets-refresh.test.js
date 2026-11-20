@@ -27,20 +27,19 @@ function source(answers) {
   };
 }
 const index = (answers) => new StreetIndex({ newFrac: () => 1, fetchStreets: source(answers) });
-const segList = (s) => [...s.segs.values()].flat();
 const wayIdsOf = (s) => s.ways.map((w) => w.id).sort();
-// the index holds exactly what its ways say: every segment counted belongs to a way held
-const consistent = (s) => {
-  assert.equal(s.segCount, segList(s).length, "segCount counts the segments held");
-  assert.deepEqual([...s.wayIds].sort(), wayIdsOf(s), "wayIds names the ways held");
-};
 
 (async () => {
   { // a way two tiles list is held once
     const s = index({ "548:2040": answer([way(1, [1, 2], [0, 100], [400, 100]), way(7, [70, 71], [200, 100], [1900, 100])], { bike: [1, 7] }), "549:2040": answer([way(7, [70, 71], [200, 100], [1900, 100])], { bike: [7] }) });
     await s.ensureRects([both]);
     assert.deepEqual(wayIdsOf(s), [1, 7]);
-    consistent(s);
+    // the same two ways read from one tile alone: a way listed twice adds no segments
+    const one = index({ "548:2040": answer([way(1, [1, 2], [0, 100], [400, 100]), way(7, [70, 71], [200, 100], [1900, 100])]) });
+    await one.ensureRects([west]);
+    const at = ll(1000, 100);
+    assert.ok(one.newAreaM2({ lat: at.lat, lng: at.lon }, 3000) > 0);
+    assert.equal(s.newAreaM2({ lat: at.lat, lng: at.lon }, 3000), one.newAreaM2({ lat: at.lat, lng: at.lon }, 3000));
   }
   { // an answer that cannot be read whole still tells the graphs built before to rebuild
     const bad = { id: 1, nodes: [1, 2], geometry: [ll(0, 100), null] };

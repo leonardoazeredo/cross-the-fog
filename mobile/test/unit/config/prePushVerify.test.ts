@@ -61,7 +61,7 @@ describe("the pre-push hook's verify command", () => {
       "app/src/main.js",
       "app/index.html",
       "bench/engine-host.test.js",
-      "bench/lib/load.js",
+      "bench/lib/host.js",
       "mobile/package.json",
       "mobile/src/link/send.ts",
     ])("runs for a push touching %s", (file) => {

@@ -10,12 +10,12 @@ const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
 const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });
 const pin = (x, y) => { const p = global.L.latLng(51 + y / KY, 13.7 + x / KX); return { getLatLng: () => p }; };
 
-// ways: [id, [nodeA, nodeB], [x, y], [x, y]]; the whole area counts as already fetched
-function streetsWith(ways) {
+// ways: [id, [nodeA, nodeB], [x, y], [x, y]]; the whole area counts as already fetched unless fetched is false
+function streetsWith(ways, fetched = true) {
   const s = new StreetIndex({ newFrac: () => 1 });
   s._anchor(51);
   for (const [id, nodes, p, q] of ways) s._addWay({ id, nodes, geometry: [ll(...p), ll(...q)] });
-  s._cover(StreetIndex.tilesCovering({ s: 50.9, n: 51.1, w: 13.6, e: 13.8 }));
+  if (fetched) s._cover(StreetIndex.tilesCovering({ s: 50.9, n: 51.1, w: 13.6, e: 13.8 }));
   return s;
 }
 async function run(streets, a, b) {
@@ -30,8 +30,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
 
 (async () => {
   { // a failed download passes on its reason, counts and retry time, and none of its text
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     const remark = "runtime error: Query timed out in \"query\" at line 3 after 61 seconds.";
     const cause = Object.assign(new Error("overpass: " + remark), { reason: "busy", retryAt: 12345 });
     s.ensureRects = async () => { throw StreetIndex.downloadError(2, 5, cause); };
@@ -47,8 +46,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
   }
   { // a run replaced while its streets download: the run's stale reaches ensureRects (true once a
     // newer run started), and the failure it ends with is neither emitted nor logged
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     let handed = null, holdAs = null;
@@ -70,8 +68,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     assert.deepEqual(logged, []);
   }
   { // a bug while reading streets is not a failed download: the internal state, its class logged
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     s.ensureRects = async () => { throw new TypeError("cannot read tile 273:1020"); };
     const logged = [], orig = console.error;
     console.error = (...a) => logged.push(a);
@@ -81,8 +78,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     assert.deepEqual(r, { error: true, reason: "internal" });
   }
   { // a bug thrown while the run is stale is not shown (a newer run replaced it) but its class is logged
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     s.ensureRects = async () => { tool._runId++; throw new TypeError("cannot read tile 273:1020"); };
@@ -149,8 +145,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     assert.equal(last.reason, "too-long");
   }
   { // the loading state carries waitUntil while a busy server is waited out, and has none on a plain count
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     s.ensureRects = async (rects, opts) => {
@@ -166,8 +161,7 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]]]
     assert.ok(!("waitUntil" in dl[dl.length - 1]), "no waitUntil field on a plain count");
   }
   { // a replaced run whose download fails with a plain busy error: neither shown nor logged
-    const s = streetsWith(street);
-    s.tiles.clear();
+    const s = streetsWith(street, false);
     const tool = new SuggestTool(global.fakeMap(), { fogMap: { tileCount: 0, hasFog: () => false }, computeGain: () => null, streets: s });
     tool.mode = "p2p"; tool.a = pin(0, 0); tool.b = pin(1000, 0);
     s.ensureRects = async () => {

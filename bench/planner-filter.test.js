@@ -4,15 +4,15 @@
 const assert = require("node:assert/strict");
 require("./lib/host.js");
 require("../app/src/engine.ts");
-const { GraphPlanner, StreetIndex } = global;
+const { GraphPlanner } = global;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
 const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });
-const streets = new StreetIndex({ newFrac: () => 1 });
-streets.ways = [
+// the planner reads only the ways and the version of what it is given
+const streets = { version: 0, ways: [
   { id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] },
   { id: 11, nodes: [2, 3], geometry: [ll(500, 0), ll(1000, 0)] }
-];
+] };
 const refused = new Set([11]);
 
 { // the graph skips ways the predicate refuses, and edges remember their way
@@ -22,8 +22,7 @@ const refused = new Set([11]);
   assert.equal(p.edges[0].way, 10);
 }
 { // with no predicate every way is held, and one-way tags do not bind walkers
-  const st = new StreetIndex({ newFrac: () => 1 });
-  st.ways = [{ id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] }];
+  const st = { version: 0, ways: [{ id: 10, nodes: [1, 2], geometry: [ll(0, 0), ll(500, 0)] }] };
   const p = new GraphPlanner(st, () => 1);
   p.build();
   assert.equal(p.edges[0].dir, 0);
@@ -39,8 +38,7 @@ const refused = new Set([11]);
   assert.ok(!isFinite(p._plainTo(n1)[n2]), "2 cannot reach 1");
 }
 { // a change in what the predicate refuses reaches the graph once the index's version moves
-  const st = new StreetIndex({ newFrac: () => 1 });
-  st.ways = [{ id: 10, nodes: [1, 2], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51, lon: 13.71 }] }];
+  const st = { version: 0, ways: [{ id: 10, nodes: [1, 2], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51, lon: 13.71 }] }] };
   const gone = new Set();
   const p = new GraphPlanner(st, () => 1, (id) => !gone.has(id));
   p.build();
