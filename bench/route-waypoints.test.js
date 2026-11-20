@@ -2,7 +2,8 @@
 //   node bench/route-waypoints.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { GraphPlanner, RouteLocal, Estimates } = global;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;

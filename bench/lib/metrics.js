@@ -1,6 +1,8 @@
 // Route-shape metrics for benchmark reporting.
 "use strict";
-const { SuggestTool } = require("./load.js");
+require("./host.js");
+require("../../app/src/engine.ts");
+const { SuggestTool } = global;
 const { overlapFrac } = SuggestTool._internals;
 
 function metresPerDeg(lat) {

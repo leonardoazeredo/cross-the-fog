@@ -2,7 +2,8 @@
 //   node bench/streets-lru.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { StreetIndex } = global;
 
 // piece i is tile 548+i:2040, lon 13.7+0.025i to 13.725+0.025i, lat 51.0-51.025, about 1750 m wide

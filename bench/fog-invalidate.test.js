@@ -2,8 +2,11 @@
 //   node bench/fog-invalidate.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
-const { gainOver } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { gainOver } = require("./lib/fog.js");
 const { FogParser, StreetIndex, GraphPlanner, SuggestTool, Reveal } = global;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;

@@ -2,7 +2,9 @@
 //   node bench/loop-wave.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool, StreetIndex } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool, StreetIndex } = global;
 const { loopBearingOf, bearingApart } = SuggestTool._internals;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;

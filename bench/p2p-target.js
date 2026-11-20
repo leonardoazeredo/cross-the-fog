@@ -7,7 +7,10 @@
 // Overpass responses are cached in bench/cache/, so only the first run is live.
 "use strict";
 const path = require("path");
-const { loadSync, gainOver, SuggestTool } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { loadSync, gainOver } = require("./lib/fog.js");
+const { SuggestTool } = global;
 const { runSuggest } = require("./lib/headless.js");
 const { p2pWindow } = SuggestTool._internals;
 

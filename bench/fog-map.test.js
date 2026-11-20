@@ -2,7 +2,8 @@
 //   node bench/fog-map.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { FogMap, MAP_WIDTH } = global.FogParser;
 
 const HEADER = 32768, BLOCK = 515;

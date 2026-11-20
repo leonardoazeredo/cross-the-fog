@@ -7,7 +7,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { FogParser, ImportMessages } = global;
 
 const FIX = path.join(__dirname, "fixtures", "fow");

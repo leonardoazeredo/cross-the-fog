@@ -3,7 +3,9 @@
 "use strict";
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
-const { StreetIndex } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { StreetIndex } = global;
 
 const way = (id) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51.001, lon: 13.7 }] });
 const count = { type: "count" };

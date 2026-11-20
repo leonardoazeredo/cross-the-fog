@@ -6,7 +6,8 @@
 "use strict";
 const assert = require("node:assert/strict");
 const path = require("node:path");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { createFakeIDB } = require("./lib/fake-idb.js");
 const src = path.join(__dirname, "..", "app", "src");
 const { Overpass, bindOverpassHost } = require(path.join(src, "overpass.ts"));

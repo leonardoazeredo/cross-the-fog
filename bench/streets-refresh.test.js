@@ -2,7 +2,8 @@
 //   node bench/streets-refresh.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { StreetIndex } = global;
 
 // tile 548:2040 is lon 13.7-13.725, lat 51.0-51.025; 549:2040 is the next one east

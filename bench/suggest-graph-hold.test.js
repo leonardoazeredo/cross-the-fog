@@ -3,7 +3,9 @@
 //   node bench/suggest-graph-hold.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool, StreetIndex } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool, StreetIndex } = global;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
 const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });

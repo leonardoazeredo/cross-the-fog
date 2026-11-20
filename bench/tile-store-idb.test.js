@@ -3,7 +3,8 @@
 //   node bench/tile-store-idb.test.js
 "use strict";
 const assert = require("node:assert/strict");
-require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
 const { createFakeIDB } = require("./lib/fake-idb.js");
 const { TileStore } = global;
 

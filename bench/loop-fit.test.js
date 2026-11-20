@@ -2,7 +2,9 @@
 //   node bench/loop-fit.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool } = global;
 const { fitLoopSize, FIT_ROUTES } = SuggestTool._internals;
 
 const D = 10000, BUF = 0.15, never = () => false;

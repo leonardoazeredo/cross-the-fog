@@ -3,7 +3,9 @@
 //   node bench/rect-query.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { StreetIndex } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { StreetIndex } = global;
 
 const ONE_BOX = "[out:json][timeout:25];(way[highway~\"^(residential|unclassified|tertiary|secondary|primary|living_street|track|path|footway|cycleway|pedestrian|steps|trunk|trunk_link|primary_link|secondary_link|tertiary_link)$\"][access!~\"^(private|no|military)$\"][motorroad!=yes][foot!=no](51.0000,13.7000,51.0250,13.7250);way[highway=service][access!~\"^(private|no|military)$\"][motorroad!=yes][foot!=no][service!~\"^(driveway|parking_aisle)$\"](51.0000,13.7000,51.0250,13.7250);)->.all;.all out skel geom;.all out count;";
 

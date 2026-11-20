@@ -5,7 +5,9 @@
 //   node bench/overpass.js [scenarioFilter]
 "use strict";
 const path = require("path");
-const { loadSync, gainOver } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { loadSync, gainOver } = require("./lib/fog.js");
 const cache = require("./lib/fetch-cache.js");
 const scenarios = require("./scenarios.js");
 

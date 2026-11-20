@@ -2,7 +2,9 @@
 //   node bench/handoff.test.js
 "use strict";
 const assert = require("node:assert/strict");
-const { SuggestTool } = require("./lib/load.js");
+require("./lib/host.js");
+require("../app/src/engine.ts");
+const { SuggestTool } = global;
 const { statsFromCoords, joinPins } = SuggestTool._internals;
 
 { // local routes have no z: ascent/descent stay undefined so the cards can hide the row
