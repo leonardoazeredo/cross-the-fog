@@ -170,8 +170,54 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       win.L.marker = (ll, o) => ({ ll, o, addTo() { return this; }, on() {} });
       const marker = (() => { const t2 = new g.SuggestTool({ on() {}, off() {} }, { fogMap: {}, computeGain: () => null }); t2.map = { addLayer() {}, removeLayer() {} }; t2._place(S); return t2.a; })();
       assert.equal(marker.o.icon.iconSize[0], 26, "a coarse pointer from the window's matchMedia gets the larger pin");
+      { // every Leaflet read goes through the window's L: with the global L swapped for a decoy that throws, the places that build points, lines and bounds still work
+        const stub = global.L;
+        const fromWin = (o) => ({ ...o, from: "window" });
+        const stopped = [], clicks = {};
+        win.L = {
+          latLng: (lat, lng) => fromWin({ lat, lng }),
+          polyline: (pts, o) => fromWin({ pts, o, addTo() { return this; } }),
+          latLngBounds: () => fromWin({ extend() { return this; } }),
+          divIcon: (o) => fromWin(o),
+          marker: (ll, o) => fromWin({ ll, o, addTo() { return this; }, on(type, fn) { clicks[type] = fn; } }),
+          DomEvent: { stop: (e) => stopped.push(e) },
+        };
+        global.L = new Proxy({}, { get() { throw new Error("read the global L"); } });
+        try {
+          const KX2 = 111320 * Math.cos(51 * Math.PI / 180);
+          const S2 = { lat: 51, lng: 13.7 };
+          const streets2 = { covered: () => true, newAreaM2: (ll) => (ll.from === "window" ? 20000 : 5000), ways: [], version: 0, newFrac: () => 1 };
+          const t4 = new g.SuggestTool({ addLayer() {}, removeLayer() {}, fitBounds() {} }, { fogMap: new g.FogParser.FogMap(), computeGain: () => ({ area: 1, newPct: 1 }), streets: streets2 });
+          t4.a = { getLatLng: () => S2 };
+          t4.b = { getLatLng: () => ({ lat: 51, lng: 13.7 + 1000 / KX2 }) };
+          assert.equal(t4._viaPoint(0.5, 1, 100).from, "window", "_viaPoint");
+          assert.equal(t4._loopViasTri(S2, 0, 300)[0].from, "window", "_loopViasTri");
+          assert.ok(t4._loopBearings(S2, 5000).length > 0, "_loopBearings builds its candidates with the window's L");
+          assert.equal(t4._snapToNewStreets(S2, 600).from, "window", "_snapToNewStreets moves to a point built with the window's L");
+          const joined = g.SuggestTool._internals.joinPins({ legs: [{ coords: [[13.7, 51]] }, { coords: [] }] }, S2, S2);
+          assert.equal(joined[1].from, "window", "joinPins");
+          // a finished run draws its lines and fits the map to them with the window's L
+          t4.select = () => {};
+          let drawn = null;
+          t4.onResults = (s) => { drawn = s; };
+          t4.mode = "loop";
+          t4._runId = 1;
+          t4._finish(1, [{ r: { coords: [[13.7, 51], [13.71, 51]], lenM: 700 }, adoptWps: [] }], { targetKm: 1 });
+          assert.ok(drawn && t4.lines.length > 0 && t4.lines.every((l) => l.solid.from === "window" && l.dashed.from === "window"), "_finish draws with the window's L");
+          // clicking a pin removes it, and stops the click with the window's DomEvent
+          const t5 = new g.SuggestTool({ addLayer() {}, removeLayer() {} }, { fogMap: new g.FogParser.FogMap(), computeGain: () => null });
+          t5._place(S2);
+          assert.ok(t5.a, "pin placed");
+          const ev = {};
+          clicks.click(ev);
+          assert.deepEqual(stopped, [ev], "DomEvent.stop is the window's");
+          assert.equal(t5.a, null, "the click removed the pin");
+        } finally {
+          global.L = stub;
+        }
+      }
       { // the tool takes the other modules through imports: with the page globals it would read swapped for decoys that throw, it still works
-        const names = ["FogGain", "Estimates", "StreetIndex", "GraphPlanner", "LocalRouter"];
+        const names = ["FogGain", "FogParser", "Estimates", "StreetIndex", "GraphPlanner", "LocalRouter"];
         const saved = Object.fromEntries(names.map((k) => [k, global[k]]));
         const decoy = () => new Proxy(function () {}, { get() { throw new Error("read a page global"); }, construct() { throw new Error("read a page global"); } });
         const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
@@ -189,6 +235,8 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
           assert.ok(st.lenM > 0 && st.ascent !== undefined, "Estimates.climb through its import");
           const route = await t3._route([{ lat: 51, lng: 13.7 }, { lat: 51, lng: 13.7 + 1000 / KX }], {});
           assert.ok(route && route.coords.length > 1, "GraphPlanner and LocalRouter through their imports");
+          const why = t3._noRoute([{ lat: 51, lng: 13.7 }, { lat: 60, lng: 14 }]);
+          assert.ok(why && typeof why.reason === "string", "LocalRouter.explain through its import, for a pin off the network");
           const failWith = (reason) => ({ ensureRects: async () => { throw saved.StreetIndex.downloadError(0, 1, { reason }, 0); } });
           const load = async (reason) => { const out = []; t3.streets = failWith(reason); const ok = await t3._loadStreets([], (m) => out.push(m), () => false); return { ok, out }; };
           assert.deepEqual(await load("superseded"), { ok: false, out: [] });
