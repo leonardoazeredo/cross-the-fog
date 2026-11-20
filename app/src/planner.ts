@@ -599,7 +599,7 @@ GraphPlanner.prototype.planLoop = function (
   // every direction, forest and river included, a trial it would otherwise
   // lose to the dense half of the compass. The honest ranking of the
   // finished loops decides between them.
-  // biome-ignore lint/suspicious/noExplicitAny: seeds are the plain objects planLoop builds just below
+  // biome-ignore lint/suspicious/noExplicitAny: seeds are plain objects built from the pockets (see _pockets)
   const seeds: any[] = [];
   for (const p of reach) {
     if (seeds.length >= nCands + 2) break;
