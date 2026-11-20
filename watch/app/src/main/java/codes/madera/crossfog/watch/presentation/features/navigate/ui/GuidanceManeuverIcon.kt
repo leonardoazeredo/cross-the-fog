@@ -32,13 +32,12 @@ import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnB
 internal fun GuidanceManeuverIcon(
     state: TurnByTurnGuidanceState,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     modifier: Modifier,
     tint: Color = Color.White,
 ) {
     val bearingRotation =
         when {
-            (guideBackToRouteActive || state.offRoute) && state.bearingToRouteDegrees != null ->
+            state.offRoute && state.bearingToRouteDegrees != null ->
                 state.bearingToRouteDegrees - compassHeadingDeg
             state.mode == GuidanceMode.TO_START ->
                 (state.bearingToStartDegrees ?: 0f) - compassHeadingDeg

@@ -31,10 +31,8 @@ import org.mapsforge.core.model.LatLong
 
 internal data class NavigateGuidanceRuntime(
     val state: TurnByTurnGuidanceState,
-    val guideBackToRouteActive: Boolean,
     val showGuideBackPrompt: Boolean,
     val startDecisionPrompt: GuidanceDecisionPrompt?,
-    val onGuideBackToRoute: () -> Unit,
     val onDismissGuideBackPrompt: () -> Unit,
     val onAcceptStartDecisionPrompt: () -> Unit,
     val onDismissStartDecisionPrompt: () -> Unit,
@@ -61,7 +59,6 @@ internal fun rememberNavigateGuidanceRuntime(
     offRouteAlertsEnabled: Boolean,
     offRouteRepeatSeconds: Int,
     guidanceGpsInAmbient: Boolean,
-    brouterGuideBackEnabled: Boolean,
     lastScreenResumeElapsedMs: Long,
     isMetric: Boolean,
     activityProfile: String,
@@ -210,61 +207,35 @@ internal fun rememberNavigateGuidanceRuntime(
             alertSessionKey = activeSession?.let { "${it.trackId}:${it.reversed}" },
             alertGpsDeliveryIntervalMs = guidanceGpsDeliveryIntervalMs,
         )
-    var guideBackToRouteActive by remember { mutableStateOf(false) }
-    var brouterGuideBackRoute by remember { mutableStateOf<List<LatLong>>(emptyList()) }
     var dismissedGuideBackPromptTrackId by remember { mutableStateOf<String?>(null) }
     val guideBackTrackId = activeSession?.trackId
-    val guideBackTargetPoint =
-        guideBackDestinationIfEnabled(brouterGuideBackEnabled) {
-            guidanceGeometryCache.nearestRoutePoint(
-                session = activeSession,
-                currentLocation = guidanceLocation,
-            ) {
-                nearestGuidanceRoutePoint(
-                    session = activeSession,
-                    currentLocation = guidanceLocation,
-                )
-            }
-        }
     LaunchedEffect(
         state.active,
         state.offRoute,
         guideBackTrackId,
     ) {
         if (!state.active || !state.offRoute) {
-            guideBackToRouteActive = false
-            brouterGuideBackRoute = emptyList()
             dismissedGuideBackPromptTrackId = null
         }
     }
-    val brouterGuideBackState =
-        remember(guideBackToRouteActive, brouterGuideBackRoute, guidanceLocation, state) {
-            buildBrouterGuideBackState(
-                baseState = state,
-                active = guideBackToRouteActive,
-                route = brouterGuideBackRoute,
-                currentLocation = guidanceLocation,
-            )
-        }
     var latestActiveDisplayState by
         remember(session?.trackId, session?.reversed) {
             mutableStateOf<TurnByTurnGuidanceState?>(null)
         }
-    LaunchedEffect(paused, brouterGuideBackState) {
-        if (!paused && brouterGuideBackState.active) {
-            latestActiveDisplayState = brouterGuideBackState
+    LaunchedEffect(paused, state) {
+        if (!paused && state.active) {
+            latestActiveDisplayState = state
         }
     }
     val displayState =
         pausedGuidanceDisplayState(
-            currentState = brouterGuideBackState,
+            currentState = state,
             latestActiveState = latestActiveDisplayState,
             paused = paused,
         )
     val showGuideBackPrompt =
         state.active &&
             state.offRoute &&
-            !guideBackToRouteActive &&
             dismissedGuideBackPromptTrackId != guideBackTrackId
     var pendingStartDecision by remember { mutableStateOf<GuidanceStartDecision?>(null) }
     var dismissedStartDecisionKey by remember { mutableStateOf<String?>(null) }
@@ -426,7 +397,6 @@ internal fun rememberNavigateGuidanceRuntime(
         session?.trackId,
         session?.reversed,
         session?.startReached,
-        guideBackToRouteActive,
         showGuideBackPrompt,
         pendingStartDecision,
         routeStartBehavior,
@@ -450,7 +420,6 @@ internal fun rememberNavigateGuidanceRuntime(
                 trackId = session?.trackId,
                 reversed = session?.reversed,
                 startReached = session?.startReached,
-                guideBackToRouteActive = guideBackToRouteActive,
                 showGuideBackPrompt = showGuideBackPrompt,
                 pendingStartDecision = pendingStartDecision,
                 routeStartBehavior = routeStartBehavior,
@@ -471,22 +440,8 @@ internal fun rememberNavigateGuidanceRuntime(
 
     return NavigateGuidanceRuntime(
         state = displayState,
-        guideBackToRouteActive = guideBackToRouteActive && state.offRoute,
         showGuideBackPrompt = showGuideBackPrompt,
         startDecisionPrompt = startDecisionPrompt,
-        onGuideBackToRoute = {
-            guideBackToRouteActive = true
-            dismissedGuideBackPromptTrackId = guideBackTrackId
-            brouterGuideBackRoute = emptyList()
-            val origin = guidanceLocation
-            val destination = guideBackTargetPoint
-            DebugTelemetry.log(
-                "TurnByTurn",
-                "event=guide_back_request enabled=$brouterGuideBackEnabled " +
-                    "origin=${origin != null} destination=${destination != null} " +
-                    "distanceToRouteM=${state.distanceToRouteMeters?.toInt() ?: "na"}",
-            )
-        },
         onDismissGuideBackPrompt = {
             dismissedGuideBackPromptTrackId = guideBackTrackId
         },
@@ -505,16 +460,6 @@ internal fun rememberNavigateGuidanceRuntime(
         },
     )
 }
-
-internal fun guideBackDestinationIfEnabled(
-    enabled: Boolean,
-    compute: () -> LatLong?,
-): LatLong? = if (enabled) compute() else null
-
-private fun List<LatLong>.sumRouteDistanceMeters(): Double =
-    zipWithNext().sumOf { (start, end) ->
-        haversineMeters(start, end)
-    }
 
 @Composable
 private fun rememberGuidanceGpsDeliveryIntervalMs(

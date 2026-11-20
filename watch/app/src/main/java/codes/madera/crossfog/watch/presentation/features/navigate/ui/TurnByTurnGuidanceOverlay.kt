@@ -102,7 +102,6 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
     screenSize: WearScreenSize,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     startDecisionPrompt: GuidanceDecisionPrompt?,
     expandRequestToken: Long,
@@ -118,7 +117,6 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
     onVoiceGuidanceChange: (Boolean) -> Unit,
     onDashboardMetricSelected: (Int, String) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
-    onGuideBackToRoute: () -> Unit,
     onDismissGuideBackPrompt: () -> Unit,
     onAcceptStartDecisionPrompt: () -> Unit,
     onDismissStartDecisionPrompt: () -> Unit,
@@ -252,7 +250,7 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
                     GuidanceRouteProgressChrome(
                         state = state,
                         isMetric = isMetric,
-                        showDetails = !state.offRoute || guideBackToRouteActive,
+                        showDetails = !state.offRoute,
                         elevationProgressRingEnabled = elevationProgressRingEnabled,
                         routeProgressRingSegments = routeProgressRingSegments,
                         modifier = Modifier.fillMaxSize(),
@@ -263,11 +261,9 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
                             screenSize = screenSize,
                             isMetric = isMetric,
                             compassHeadingDeg = compassHeadingDeg,
-                            guideBackToRouteActive = guideBackToRouteActive,
                             showGuideBackPrompt = showGuideBackPrompt,
                             voiceGuidanceEnabled = voiceGuidanceEnabled,
                             onVoiceGuidanceChange = onVoiceGuidanceChange,
-                            onGuideBackToRoute = onGuideBackToRoute,
                             onLongPress = { showActionPrompt = true },
                         )
                     } else {
@@ -333,7 +329,6 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
                         GuidanceManeuverIcon(
                             state = state,
                             compassHeadingDeg = compassHeadingDeg,
-                            guideBackToRouteActive = guideBackToRouteActive,
                             modifier = Modifier.size(compactIconSize),
                         )
                         Text(
@@ -341,7 +336,7 @@ internal fun BoxScope.TurnByTurnGuidanceOverlay(
                                 if (paused) {
                                     stringResource(R.string.navigate_paused)
                                 } else {
-                                    guidanceCompactText(state, isMetric, guideBackToRouteActive, resources = resources)
+                                    guidanceCompactText(state, isMetric, resources = resources)
                                 },
                             color = if (state.offRoute) OFF_ROUTE_AMBER else Color.White,
                             fontWeight = FontWeight.SemiBold,
@@ -462,11 +457,9 @@ private fun ExpandedGuidanceOverlay(
     screenSize: WearScreenSize,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     voiceGuidanceEnabled: Boolean,
     onVoiceGuidanceChange: (Boolean) -> Unit,
-    onGuideBackToRoute: () -> Unit,
     onLongPress: () -> Unit,
 ) {
     val resources = LocalResources.current
@@ -488,9 +481,9 @@ private fun ExpandedGuidanceOverlay(
             WearScreenSize.MEDIUM -> 38.dp
             WearScreenSize.SMALL -> 36.dp
         }
-    val showRouteProgressDetails = !state.offRoute || guideBackToRouteActive
+    val showRouteProgressDetails = !state.offRoute
     val combinedManeuverText =
-        if (!state.offRoute && !guideBackToRouteActive) {
+        if (!state.offRoute) {
             guidanceInstructionDistanceText(state, isMetric, resources = resources)?.let { distance ->
                 resources.getString(
                     R.string.navigation_instruction_with_distance,
@@ -546,7 +539,6 @@ private fun ExpandedGuidanceOverlay(
                     GuidanceManeuverIcon(
                         state = state,
                         compassHeadingDeg = compassHeadingDeg,
-                        guideBackToRouteActive = guideBackToRouteActive,
                         modifier = Modifier.size(arrowIconSize),
                         tint = if (state.offRoute) Color.Black else MaterialTheme.colorScheme.onPrimary,
                     )
@@ -555,7 +547,7 @@ private fun ExpandedGuidanceOverlay(
                 Text(
                     text =
                         combinedManeuverText
-                            ?: guidancePrimaryText(state, guideBackToRouteActive, resources = resources),
+                            ?: guidancePrimaryText(state, resources = resources),
                     color = if (state.offRoute) OFF_ROUTE_AMBER else Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 21.sp,
@@ -566,7 +558,7 @@ private fun ExpandedGuidanceOverlay(
                 )
                 if (combinedManeuverText == null) {
                     Text(
-                        text = guidanceSecondaryText(state, isMetric, guideBackToRouteActive, resources = resources),
+                        text = guidanceSecondaryText(state, isMetric, resources = resources),
                         color = Color.White.copy(alpha = 0.82f),
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
@@ -674,7 +666,6 @@ internal data class GuidanceMapRemainingDisplayState(
     val guidanceActive: Boolean,
     val paused: Boolean,
     val offRoute: Boolean,
-    val guideBackToRouteActive: Boolean,
     val suppressed: Boolean,
 )
 
@@ -715,7 +706,7 @@ internal fun BoxScope.GuidanceMapRemainingOverlay(
 internal fun shouldShowGuidanceMapRemainingDetails(displayState: GuidanceMapRemainingDisplayState): Boolean =
     displayState.enabled &&
         (displayState.guidanceActive || displayState.paused) &&
-        (!displayState.offRoute || displayState.guideBackToRouteActive) &&
+        !displayState.offRoute &&
         !displayState.suppressed
 
 @Composable
@@ -1141,12 +1132,9 @@ private fun RouteProgressRing(
 
 private fun guidancePrimaryText(
     state: TurnByTurnGuidanceState,
-    guideBackToRouteActive: Boolean = false,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        resources.getString(R.string.navigation_to_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         resources.getString(R.string.navigate_off_route)
     } else {
         when (state.mode) {
@@ -1162,13 +1150,9 @@ private fun guidancePrimaryText(
 private fun guidanceSecondaryText(
     state: TurnByTurnGuidanceState,
     isMetric: Boolean,
-    guideBackToRouteActive: Boolean = false,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        state.distanceToRouteMeters?.let { formatLiveDistanceLabel(it, isMetric, resources = resources) }
-            ?: resources.getString(R.string.navigation_find_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         state.distanceToRouteMeters?.let {
             resources.getString(
                 R.string.navigate_from_gpx,
@@ -1192,15 +1176,9 @@ private fun guidanceSecondaryText(
 private fun guidanceCompactText(
     state: TurnByTurnGuidanceState,
     isMetric: Boolean,
-    guideBackToRouteActive: Boolean = false,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        state.distanceToRouteMeters?.let {
-            resources.getString(R.string.navigation_route, formatLiveDistanceLabel(it, isMetric, resources = resources))
-        }
-            ?: resources.getString(R.string.navigation_to_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         state.distanceToRouteMeters?.let {
             resources.getString(R.string.navigation_off, formatLiveDistanceLabel(it, isMetric, resources = resources))
         }

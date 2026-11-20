@@ -8,48 +8,16 @@ import codes.madera.crossfog.watch.presentation.features.navigate.guidance.build
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.buildGpxGuidanceSession
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.computeTurnByTurnGuidanceState
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mapsforge.core.model.LatLong
 
 class NavigateGuidanceGeometryCacheTest {
     @Test
-    fun guideBackDestinationDoesNotComputeWhenDisabled() {
-        var computations = 0
-
-        val destination =
-            guideBackDestinationIfEnabled(enabled = false) {
-                computations += 1
-                LatLong(45.0, 6.0)
-            }
-
-        assertNull(destination)
-        assertEquals(0, computations)
-    }
-
-    @Test
-    fun guideBackDestinationStillComputesWhenEnabled() {
-        var computations = 0
-        val expected = LatLong(45.0, 6.0)
-
-        val destination =
-            guideBackDestinationIfEnabled(enabled = true) {
-                computations += 1
-                expected
-            }
-
-        assertEquals(expected, destination)
-        assertEquals(1, computations)
-    }
-
-    @Test
     fun `unrelated recomposition reuses geometry but each fix still gets per fix processing`() {
         val cache = NavigateGuidanceGeometryCache()
         val session = session(trackId = "route.gpx", startReached = true)
         var primaryComputations = 0
-        var nearestComputations = 0
         var perFixProcessing = 0
 
         fun processFix() {
@@ -63,10 +31,6 @@ class NavigateGuidanceGeometryCacheTest {
                 primaryComputations += 1
                 computeTurnByTurnGuidanceState(session, fixLocation)
             }
-            cache.nearestRoutePoint(session, fixLocation) {
-                nearestComputations += 1
-                nearestGuidanceRoutePoint(session, fixLocation)
-            }
             perFixProcessing += 1
         }
 
@@ -74,7 +38,6 @@ class NavigateGuidanceGeometryCacheTest {
         processFix()
 
         assertEquals(1, primaryComputations)
-        assertEquals(1, nearestComputations)
         assertEquals(2, perFixProcessing)
     }
 
@@ -181,51 +144,6 @@ class NavigateGuidanceGeometryCacheTest {
         ) { computations += 1 }
 
         assertEquals(5, computations)
-    }
-
-    @Test
-    fun `nearest cache is separate and invalidates on a new location`() {
-        val cache = NavigateGuidanceGeometryCache()
-        val session = session("route.gpx", startReached = true)
-        val firstLocation = LatLong(45.0, 6.0002)
-        val secondLocation = LatLong(45.0, 6.0008)
-        var primaryComputations = 0
-        var nearestComputations = 0
-
-        val primary =
-            cache.primaryState(
-                session = session,
-                currentLocation = firstLocation,
-                tuning = GpxGuidanceTuning(),
-                previousDistanceFromStartMeters = null,
-            ) {
-                primaryComputations += 1
-                computeTurnByTurnGuidanceState(session, firstLocation)
-            }
-        val nearest =
-            cache.nearestRoutePoint(session, firstLocation) {
-                nearestComputations += 1
-                nearestGuidanceRoutePoint(session, firstLocation)
-            }
-        val cachedPrimary =
-            cache.primaryState(session, firstLocation, GpxGuidanceTuning(), null) {
-                error("cache miss")
-            }
-        val cachedNearest = cache.nearestRoutePoint(session, firstLocation) { error("cache miss") }
-        assertSame(primary, cachedPrimary)
-        assertEquals(nearest, cachedNearest)
-
-        cache.primaryState(session, secondLocation, GpxGuidanceTuning(), null) {
-            primaryComputations += 1
-            computeTurnByTurnGuidanceState(session, secondLocation)
-        }
-        cache.nearestRoutePoint(session, secondLocation) {
-            nearestComputations += 1
-            nearestGuidanceRoutePoint(session, secondLocation)
-        }
-
-        assertEquals(2, primaryComputations)
-        assertEquals(2, nearestComputations)
     }
 
     private fun session(

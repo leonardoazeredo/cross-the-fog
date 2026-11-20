@@ -34,7 +34,6 @@ internal data class NavigateSettingsState(
     val turnByTurnOffRouteThresholdMeters: Int,
     val turnByTurnOffRouteRepeatSeconds: Int,
     val turnByTurnGpsInAmbient: Boolean,
-    val turnByTurnBrouterGuideBackEnabled: Boolean,
     val turnByTurnRouteStartBehavior: String,
     val turnByTurnReverseSuggestionMode: String,
     val crownZoomEnabled: Boolean,
@@ -127,9 +126,6 @@ internal fun collectNavigateSettingsState(settingsViewModel: SettingsViewModel):
     val turnByTurnGpsInAmbient by settingsViewModel.turnByTurnGpsInAmbientMode.collectAsState(
         initial = SettingsRepository.DEFAULT_TURN_BY_TURN_GPS_IN_AMBIENT_MODE,
     )
-    val turnByTurnBrouterGuideBackEnabled by settingsViewModel.turnByTurnBrouterGuideBackEnabled.collectAsState(
-        initial = false,
-    )
     val turnByTurnRouteStartBehavior by settingsViewModel.turnByTurnRouteStartBehavior.collectAsState(
         initial = SettingsRepository.TURN_BY_TURN_ROUTE_START_GO_TO_START,
     )
@@ -210,7 +206,6 @@ internal fun collectNavigateSettingsState(settingsViewModel: SettingsViewModel):
         turnByTurnOffRouteThresholdMeters = turnByTurnOffRouteThresholdMeters,
         turnByTurnOffRouteRepeatSeconds = turnByTurnOffRouteRepeatSeconds,
         turnByTurnGpsInAmbient = turnByTurnGpsInAmbient,
-        turnByTurnBrouterGuideBackEnabled = turnByTurnBrouterGuideBackEnabled,
         turnByTurnRouteStartBehavior = turnByTurnRouteStartBehavior,
         turnByTurnReverseSuggestionMode = turnByTurnReverseSuggestionMode,
         crownZoomEnabled = crownZoomEnabled,

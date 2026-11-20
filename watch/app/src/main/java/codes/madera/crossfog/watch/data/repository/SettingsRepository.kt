@@ -513,10 +513,6 @@ interface SettingsRepository {
     /** The last fixed TBT screen-off cadence, retained while adaptive mode is active. */
     val turnByTurnScreenOffFixedGpsIntervalSeconds: Flow<Int>
 
-    val turnByTurnBrouterGuideBackEnabled: Flow<Boolean>
-
-    suspend fun setTurnByTurnBrouterGuideBackEnabled(enabled: Boolean)
-
     val turnByTurnRouteStartBehavior: Flow<String>
 
     suspend fun setTurnByTurnRouteStartBehavior(behavior: String)
