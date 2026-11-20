@@ -114,7 +114,6 @@ class OamDownloadNotificationController(
             ) == PackageManager.PERMISSION_GRANTED
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = appContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(

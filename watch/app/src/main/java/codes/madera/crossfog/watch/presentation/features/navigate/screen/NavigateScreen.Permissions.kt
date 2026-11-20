@@ -134,7 +134,6 @@ internal fun rememberRecordingStartWithActivityPermission(
     onStartRecording: () -> Unit,
 ): () -> Unit {
     val currentOnStartRecording by rememberUpdatedState(onStartRecording)
-    val permissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     val requestPreferences =
         remember(context) {
             context.getSharedPreferences(RECORDING_PERMISSION_PREFS, Context.MODE_PRIVATE)
@@ -155,11 +154,10 @@ internal fun rememberRecordingStartWithActivityPermission(
 
     return {
         val permissionGranted =
-            !permissionRequired ||
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACTIVITY_RECOGNITION,
-                ) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACTIVITY_RECOGNITION,
+            ) == PackageManager.PERMISSION_GRANTED
         val alreadyRequested = requestPreferences.getBoolean(RECORDING_ACTIVITY_PERMISSION_REQUESTED, false)
         if (permissionGranted || alreadyRequested) {
             currentOnStartRecording()
