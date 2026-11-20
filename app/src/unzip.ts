@@ -1,5 +1,5 @@
 // Minimal in-browser ZIP reader, enough to open a Fog of World backup .zip.
-// Reads the central directory (authoritative for sizes/offsets), then inflates each
+// Reads the central directory (authoritative for sizes/offsets), then extracts each
 // entry. Supports the two methods real backups use: stored (0) and deflate (8),
 // with `opts.inflateRaw` for the latter. Handles ZIP64 for the archive that needs it
 // (a big traveller's Sync folder can exceed the 16-bit entry count / 4 GB fields).

@@ -8,7 +8,7 @@ import { type PageWindow, pageGlobals } from "./pageGlobals.ts";
 import { hex } from "./sha256.ts";
 
 const page = globalThis as unknown as PageWindow;
-// FogParser, MD5, FogWriter, FogZip and Reveal; the pako they use is looked up on `page` when they run.
+// FogWriter.writeSync and FogZip.unzip look pako up on `page` when they run, not when this line does.
 Object.assign(page, pageGlobals(page));
 page.Sha256 = { hex };
 page.FogGain = { create: createFogGain, DEFOG_HALF_M };

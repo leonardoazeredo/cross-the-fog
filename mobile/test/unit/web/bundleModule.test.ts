@@ -86,7 +86,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
   expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");
-  // no pako on the page: the deflate default says so with today's text (the inflate default's is checked after it, so it is not reached here)
+  // no pako on the page: the deflate default says so with its own message (the inflate default's is checked after it, so it is not reached here)
   expect(() =>
     vm.runInContext("window.FogWriter.writeSync(new window.FogParser.FogMap())", context),
   ).toThrow(/writeSync needs a deflate function/);
