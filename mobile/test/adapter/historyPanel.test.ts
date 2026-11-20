@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hex } from "../../../app/src/sha256.ts";
 import {
   type ActivitySummary,
   encode,
@@ -94,7 +95,8 @@ beforeEach(() => {
   sent = [];
   shown = vi.fn();
   evalApp("vendor/leaflet.js");
-  evalApp("src/sha256.js");
+  // The page gets the same module as window.Sha256 from its data-global tag; esbuild cannot run in jsdom.
+  (window as unknown as { Sha256: { hex: typeof hex } }).Sha256 = { hex };
   evalApp("src/history.js");
   evalApp("src/route.js");
   const w = window as unknown as Record<string, any>;

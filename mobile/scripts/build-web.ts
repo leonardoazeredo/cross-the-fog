@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundleAdapter } from "./web/bundleAdapter.js";
+import { bundleModule } from "./web/bundleModule.js";
 import { scanHosts, unknownHosts } from "./web/hosts.js";
 import { BuildError, transformIndexHtml } from "./web/transform.js";
 
@@ -33,7 +34,10 @@ export async function buildWebHtml(opts: {
 
   return transformIndexHtml(
     html,
-    (relPath) => readFileSync(resolve(appDir, relPath), "utf-8"),
+    (relPath, globalName) =>
+      globalName != null && relPath.endsWith(".ts")
+        ? bundleModule(resolve(appDir, relPath), globalName)
+        : readFileSync(resolve(appDir, relPath), "utf-8"),
     adapterJs,
   );
 }

@@ -59,3 +59,30 @@ it("fails on an external stylesheet", () =>
   ));
 
 it("BuildError is exported", () => expect(new BuildError("x")).toBeInstanceOf(Error));
+
+it("passes a module script's data-global to the reader and inlines what it returns at its place", () => {
+  const seen: Array<[string, string | undefined]> = [];
+  const html = page.replace(
+    '<script src="src/one.js"></script>',
+    '<script src="src/mod.ts" data-global="Mod"></script><script src="src/one.js"></script>',
+  );
+  const out = transformIndexHtml(
+    html,
+    (p, g) => {
+      seen.push([p, g]);
+      return files[p] ?? "var Mod = 1;";
+    },
+    "var adapter = 1;",
+  );
+  expect(seen).toContainEqual(["src/mod.ts", "Mod"]);
+  const scripts = [...parse(out).querySelectorAll("script")].map((s) => s.textContent);
+  expect(scripts).toEqual([
+    "var adapter = 1;",
+    "var Mod = 1;",
+    "var one = 1;",
+    'var s = "<\\/script>";',
+  ]);
+});
+
+it("refuses a module script with no data-global, which would set no window global", () =>
+  expect(() => run(page.replace("src/two.js", "src/two.ts"))).toThrow(BuildError));
