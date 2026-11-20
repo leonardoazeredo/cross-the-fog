@@ -178,6 +178,7 @@ function cellsOf(files) {
     ["empty extra", { ...ok, extra: new Uint8Array(0) }],
     ["short extra", { ...ok, extra: Uint8Array.of(1, 2) }],
   ]) assert.throws(() => FogWriter.writeTile([block]), RangeError, label);
+  assert.throws(() => FogWriter.writeTile([{ ...ok, by: -1 }]), /outside the tile/, "a negative by is refused by the check, not by DataView");
   assert.throws(() => FogWriter.writeTile([ok, { ...ok }]), RangeError, "the same block twice");
 }
 { // a tile stored out of header order is written in header order, every cell and region bit in place
@@ -213,6 +214,8 @@ function cellsOf(files) {
   assert.throws(() => FogWriter.writeSync(map, { deflate: () => Uint8Array.of(1, 2, 3) }), named, "not zlib at all");
   // the check inflates with the pako build the page loads, or opts.inflate
   assert.equal(FogWriter.writeSync(map, { deflate: deflate5, inflate: (b) => new Uint8Array(zlib.inflateSync(b)) }).length, 1);
+  // opts.inflate wins over the page's pako: one that throws is the one reported
+  assert.throws(() => FogWriter.writeSync(map, { deflate: deflate5, inflate: () => { throw new Error("mine"); } }), /does not inflate/, "opts.inflate is used");
   const parked = global.pako;
   delete global.pako;
   try {

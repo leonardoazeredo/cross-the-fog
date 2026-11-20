@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
+import { inflateSync, unzlibSync, zipSync } from "fflate";
 import { expect, it } from "vitest";
 import { bundleModule } from "../../../scripts/web/bundleModule.js";
 import { BuildError } from "../../../scripts/web/transform.js";
@@ -85,11 +86,34 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
   expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");
-  // no pako on the page: the two defaults say so with today's texts, and a stored entry needs no inflater
+  // no pako on the page: the deflate default says so with today's text (the inflate default's is checked after it, so it is not reached here)
   expect(() =>
     vm.runInContext("window.FogWriter.writeSync(new window.FogParser.FogMap())", context),
   ).toThrow(/writeSync needs a deflate function/);
   expect(
     vm.runInContext("window.Reveal.reveal([{ t: 0, lat: 10, lon: 10 }]).length > 0", context),
   ).toBe(true);
+  // a stored entry needs no inflater; a deflated one asks for pako, which this page does not have
+  const text = new TextEncoder().encode("a".repeat(200));
+  const asBuffer = (zip: Uint8Array) =>
+    zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength);
+  context.storedZip = asBuffer(zipSync({ "a.txt": [text, { level: 0 }] }));
+  context.deflatedZip = asBuffer(zipSync({ "a.txt": [text, { level: 6 }] }));
+  expect(
+    vm.runInContext(
+      "(() => { const e = window.FogZip.unzip(storedZip); return e[0].name + ':' + e[0].data.length; })()",
+      context,
+    ),
+  ).toBe("a.txt:200");
+  expect(() => vm.runInContext("window.FogZip.unzip(deflatedZip)", context)).toThrow(
+    /pako is not defined/,
+  );
+  // pako that arrives after the engine ran is the one used: the lookup happens when unzip runs
+  context.pako = { inflateRaw: inflateSync, inflate: unzlibSync };
+  expect(
+    vm.runInContext(
+      "(() => { const e = window.FogZip.unzip(deflatedZip); return e[0].name + ':' + e[0].data.length; })()",
+      context,
+    ),
+  ).toBe("a.txt:200");
 });
