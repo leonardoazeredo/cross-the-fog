@@ -6,7 +6,7 @@ import { encode, ORIGIN } from "../../src/bridge/protocol.js";
 import { parseWebToNative } from "../../test/support/parseWebToNative.js";
 
 const ELEMENTS = ["zip", "folder", "loadStatus", "sidebar", "brandName", "hint"];
-// Sha256.hex is read only on Send and FogGain.create only by a suggestion's fallback (main.js calls it at load), so a page that lost Sha256 would load without an error.
+// Sha256.hex is read only on Send, so a page that lost it would load without an error: the list names it.
 const GLOBALS = [
   "FogZip.unzip",
   "FogParser.FogMap.prototype.addTile",
