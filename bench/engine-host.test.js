@@ -132,6 +132,26 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       const plans = planner.planP2P(A, B, 2000, 3);
       const between = plans[0].wps.slice(1, -1);
       assert.ok(between.length > 0 && between.every((w) => w.from === "window"), "waypoints built with the given window's L");
+      { // the modules take each other through imports: with the page globals they would read swapped for decoys that throw, routing still works
+        const saved = { StreetIndex: global.StreetIndex, GraphPlanner: global.GraphPlanner, LocalRouter: global.LocalRouter };
+        const decoy = () => new Proxy(function () {}, { get() { throw new Error("read a page global"); }, construct() { throw new Error("read a page global"); } });
+        const fail = (reason) => ({ ensureRects: async () => { throw saved.StreetIndex.downloadError(0, 1, { reason }, 0); } });
+        const create = (streets) => g.RouteLocal.create({ streets, streetGraph: () => planner, elevation: { elevationAt: async () => [] }, estimates: global.Estimates });
+        const warn2 = console.warn;
+        console.warn = () => {};
+        try {
+          for (const k of Object.keys(saved)) global[k] = decoy();
+          assert.deepEqual(await create(fail("superseded"))([A, B]), { error: true, why: { reason: "superseded" } });
+          const failed = await create(fail("offline"))([A, B]);
+          assert.equal(failed.why.reason, "streets-fetch");
+          assert.equal(failed.why.download.reason, "offline");
+          const routed = await create({ ensureRects: async () => ({ done: 1, total: 1 }) })([A, B]);
+          assert.ok(Array.isArray(routed.coords) && routed.coords.length > 1, "routed on the module's own router and planner heap");
+        } finally {
+          console.warn = warn2;
+          Object.assign(global, saved);
+        }
+      }
       pageGlobals({});
       assert.throws(() => planner.planP2P(A, B, 2000, 3), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
     }
