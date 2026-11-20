@@ -1,6 +1,7 @@
 package codes.madera.crossfog.watch.presentation.features.navigate.guidance
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mapsforge.core.model.LatLong
 
@@ -20,6 +21,6 @@ class BearingDegreesTest {
     @Test
     fun theBearingStaysInZeroToThreeSixty() {
         val northWest = bearingDegrees(here, LatLong(48.01, 10.99))
-        assertEquals(true, northWest in 270.0..360.0)
+        assertTrue("north-west came out as $northWest", northWest in 270.0..360.0)
     }
 }

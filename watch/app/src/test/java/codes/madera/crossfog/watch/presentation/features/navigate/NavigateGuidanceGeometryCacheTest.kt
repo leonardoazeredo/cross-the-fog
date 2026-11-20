@@ -8,6 +8,8 @@ import codes.madera.crossfog.watch.presentation.features.navigate.guidance.build
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.buildGpxGuidanceSession
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.computeTurnByTurnGuidanceState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mapsforge.core.model.LatLong
@@ -39,6 +41,24 @@ class NavigateGuidanceGeometryCacheTest {
 
         assertEquals(1, primaryComputations)
         assertEquals(2, perFixProcessing)
+    }
+
+    @Test
+    fun `primary cache recomputes when only the location moves and reuses the first fix after`() {
+        val cache = NavigateGuidanceGeometryCache()
+        val session = session("route.gpx", startReached = true)
+        val first = LatLong(45.0, 6.0002)
+        val second = LatLong(45.0, 6.0008)
+        var computations = 0
+
+        val firstState = cachedState(cache, PrimaryRequest(session, first)) { computations += 1 }
+        val movedState = cachedState(cache, PrimaryRequest(session, second)) { computations += 1 }
+        assertEquals(2, computations)
+        assertNotSame(firstState, movedState)
+
+        val againState = cachedState(cache, PrimaryRequest(session, second)) { computations += 1 }
+        assertEquals(2, computations)
+        assertSame(movedState, againState)
     }
 
     @Test
