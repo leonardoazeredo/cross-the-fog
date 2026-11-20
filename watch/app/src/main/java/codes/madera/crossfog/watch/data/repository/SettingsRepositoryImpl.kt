@@ -235,17 +235,6 @@ class SettingsRepositoryImpl private constructor(
             floatPreferencesKey("gpx_elevation_trend_activation_threshold_meters")
         val GPX_ELEVATION_AUTO_ADJUST_PER_GPX =
             booleanPreferencesKey("gpx_elevation_auto_adjust_per_gpx")
-        val GPX_TOOL_ROUTE_STYLE = stringPreferencesKey("gpx_tool_route_style")
-        val GPX_TOOL_HIKE_ROUTE_STYLE = stringPreferencesKey("gpx_tool_hike_route_style")
-        val GPX_TOOL_BIKE_ROUTE_STYLE = stringPreferencesKey("gpx_tool_bike_route_style")
-        val GPX_TOOL_USE_ELEVATION = booleanPreferencesKey("gpx_tool_use_elevation")
-        val GPX_TOOL_ALLOW_FERRIES = booleanPreferencesKey("gpx_tool_allow_ferries")
-        val GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE =
-            floatPreferencesKey("gpx_tool_hike_hiking_routes_preference")
-        val GPX_TOOL_HIKE_PATH_PREFERENCE = floatPreferencesKey("gpx_tool_hike_path_preference")
-        val GPX_TOOL_HIKE_SAC_SCALE_LIMIT = intPreferencesKey("gpx_tool_hike_sac_scale_limit")
-        val GPX_TOOL_HIKE_SAC_SCALE_PREFERRED = intPreferencesKey("gpx_tool_hike_sac_scale_preferred")
-        val GPX_TOOL_HIKE_CONSIDER_FOREST = booleanPreferencesKey("gpx_tool_hike_consider_forest")
         val IS_METRIC = booleanPreferencesKey("is_metric")
         val BACK_BUTTON_EXITS_NAVIGATION = booleanPreferencesKey("back_button_exits_navigation")
         val BACK_BUTTON_CLOSES_APP = booleanPreferencesKey("back_button_closes_app")
@@ -253,7 +242,6 @@ class SettingsRepositoryImpl private constructor(
         val POI_ICON_SIZE_PX = intPreferencesKey("poi_icon_size_px")
         val POI_MARKER_STYLE = stringPreferencesKey("poi_marker_style")
         val POI_TAP_TO_CENTER_ENABLED = booleanPreferencesKey("poi_tap_to_center_enabled")
-        val POI_MAP_LONG_PRESS_ACTIONS_ENABLED = booleanPreferencesKey("poi_map_long_press_actions_enabled")
         val LINK_GPX_WAYPOINT_POI_FOLDERS = booleanPreferencesKey("link_gpx_waypoint_poi_folders")
         val POI_POPUP_TIMEOUT_SECONDS = intPreferencesKey("poi_popup_timeout_seconds")
         val POI_POPUP_MANUAL_CLOSE_ONLY = booleanPreferencesKey("poi_popup_manual_close_only")
@@ -1774,142 +1762,6 @@ class SettingsRepositoryImpl private constructor(
         context.dataStore.edit { it[PrefKeys.GPX_ELEVATION_AUTO_ADJUST_PER_GPX] = enabled }
     }
 
-    override val gpxToolRouteStyle: Flow<String> =
-        context.dataStore.data.map { preferences ->
-            val profile = sanitizeActivityProfile(preferences[PrefKeys.ACTIVITY_PROFILE])
-            sanitizeGpxToolRouteStyleForProfile(
-                profile = profile,
-                style =
-                    preferences[gpxToolRouteStyleKeyForProfile(profile)]
-                        ?: preferences[PrefKeys.GPX_TOOL_ROUTE_STYLE],
-            )
-        }
-
-    override suspend fun setGpxToolRouteStyle(style: String) {
-        context.dataStore.edit { preferences ->
-            val profile = sanitizeActivityProfile(preferences[PrefKeys.ACTIVITY_PROFILE])
-            preferences[gpxToolRouteStyleKeyForProfile(profile)] =
-                sanitizeGpxToolRouteStyleForProfile(profile, style)
-        }
-    }
-
-    override val gpxToolUseElevation: Flow<Boolean> =
-        context.dataStore.data.map {
-            it[PrefKeys.GPX_TOOL_USE_ELEVATION] ?: SettingsRepository.DEFAULT_GPX_TOOL_USE_ELEVATION
-        }
-
-    override suspend fun setGpxToolUseElevation(enabled: Boolean) {
-        context.dataStore.edit { it[PrefKeys.GPX_TOOL_USE_ELEVATION] = enabled }
-    }
-
-    override val gpxToolAllowFerries: Flow<Boolean> =
-        context.dataStore.data.map {
-            it[PrefKeys.GPX_TOOL_ALLOW_FERRIES] ?: SettingsRepository.DEFAULT_GPX_TOOL_ALLOW_FERRIES
-        }
-
-    override suspend fun setGpxToolAllowFerries(enabled: Boolean) {
-        context.dataStore.edit { it[PrefKeys.GPX_TOOL_ALLOW_FERRIES] = enabled }
-    }
-
-    override val gpxToolHikeHikingRoutesPreference: Flow<Float> =
-        context.dataStore.data.map {
-            sanitizeGpxToolHikeHikingRoutesPreference(
-                it[PrefKeys.GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE],
-            )
-        }
-
-    override suspend fun setGpxToolHikeHikingRoutesPreference(preference: Float) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE] =
-                sanitizeGpxToolHikeHikingRoutesPreference(preference)
-            it[PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE] = SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE
-        }
-    }
-
-    override val gpxToolHikePathPreference: Flow<Float> =
-        context.dataStore.data.map {
-            sanitizeGpxToolHikePathPreference(
-                it[PrefKeys.GPX_TOOL_HIKE_PATH_PREFERENCE],
-            )
-        }
-
-    override suspend fun setGpxToolHikePathPreference(preference: Float) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_PATH_PREFERENCE] = sanitizeGpxToolHikePathPreference(preference)
-            it[PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE] = SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE
-        }
-    }
-
-    override val gpxToolHikeSacScaleLimit: Flow<Int> =
-        context.dataStore.data.map {
-            sanitizeGpxToolHikeSacScale(
-                it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_LIMIT],
-                SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_LIMIT,
-            )
-        }
-
-    override suspend fun setGpxToolHikeSacScaleLimit(scale: Int) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_LIMIT] =
-                sanitizeGpxToolHikeSacScale(scale, SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_LIMIT)
-            it[PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE] = SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE
-        }
-    }
-
-    override val gpxToolHikeSacScalePreferred: Flow<Int> =
-        context.dataStore.data.map {
-            sanitizeGpxToolHikeSacScale(
-                it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_PREFERRED],
-                SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_PREFERRED,
-            )
-        }
-
-    override suspend fun setGpxToolHikeSacScalePreferred(scale: Int) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_PREFERRED] =
-                sanitizeGpxToolHikeSacScale(scale, SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_PREFERRED)
-            it[PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE] = SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE
-        }
-    }
-
-    override val gpxToolHikeConsiderForest: Flow<Boolean> =
-        context.dataStore.data.map {
-            it[PrefKeys.GPX_TOOL_HIKE_CONSIDER_FOREST]
-                ?: SettingsRepository.DEFAULT_GPX_TOOL_HIKE_CONSIDER_FOREST
-        }
-
-    override suspend fun setGpxToolHikeConsiderForest(enabled: Boolean) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_CONSIDER_FOREST] = enabled
-        }
-    }
-
-    override suspend fun setGpxToolCustomHikeProfile(
-        hikingRoutesPreference: Float,
-        pathPreference: Float,
-        sacScaleLimit: Int,
-        sacScalePreferred: Int,
-        considerForest: Boolean,
-    ) {
-        context.dataStore.edit {
-            it[PrefKeys.GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE] =
-                sanitizeGpxToolHikeHikingRoutesPreference(hikingRoutesPreference)
-            it[PrefKeys.GPX_TOOL_HIKE_PATH_PREFERENCE] = sanitizeGpxToolHikePathPreference(pathPreference)
-            it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_LIMIT] =
-                sanitizeGpxToolHikeSacScale(
-                    sacScaleLimit,
-                    SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_LIMIT,
-                )
-            it[PrefKeys.GPX_TOOL_HIKE_SAC_SCALE_PREFERRED] =
-                sanitizeGpxToolHikeSacScale(
-                    sacScalePreferred,
-                    SettingsRepository.DEFAULT_GPX_TOOL_HIKE_SAC_SCALE_PREFERRED,
-                )
-            it[PrefKeys.GPX_TOOL_HIKE_CONSIDER_FOREST] = considerForest
-            it[PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE] = SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE
-        }
-    }
-
     override val isMetric: Flow<Boolean> = context.dataStore.data.map { it[PrefKeys.IS_METRIC] ?: true }
 
     override suspend fun setMetric(isMetric: Boolean) {
@@ -1976,16 +1828,6 @@ class SettingsRepositoryImpl private constructor(
 
     override suspend fun setPoiTapToCenterEnabled(enabled: Boolean) {
         context.dataStore.edit { it[PrefKeys.POI_TAP_TO_CENTER_ENABLED] = enabled }
-    }
-
-    override val poiMapLongPressActionsEnabled: Flow<Boolean> =
-        context.dataStore.data.map {
-            it[PrefKeys.POI_MAP_LONG_PRESS_ACTIONS_ENABLED]
-                ?: SettingsRepository.DEFAULT_POI_MAP_LONG_PRESS_ACTIONS_ENABLED
-        }
-
-    override suspend fun setPoiMapLongPressActionsEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[PrefKeys.POI_MAP_LONG_PRESS_ACTIONS_ENABLED] = enabled }
     }
 
     override val linkGpxWaypointPoiFolders: Flow<Boolean> =
@@ -2216,33 +2058,6 @@ class SettingsRepositoryImpl private constructor(
                 SettingsRepository.GPX_TRACK_COLOR_MODE_SOLID,
                 SettingsRepository.GPX_TRACK_COLOR_MODE_ELEVATION,
             )
-        private val allowedGpxToolRouteStyles =
-            setOf(
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BALANCED_HIKE,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_PREFER_TRAILS,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_PREFER_EASIEST,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_TOURING,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_ROAD,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_QUIET_ROAD,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_GRAVEL,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_MTB,
-            )
-        private val allowedHikeGpxToolRouteStyles =
-            setOf(
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BALANCED_HIKE,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_PREFER_TRAILS,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_PREFER_EASIEST,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_CUSTOM_HIKE,
-            )
-        private val allowedBikeGpxToolRouteStyles =
-            setOf(
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_TOURING,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_ROAD,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_QUIET_ROAD,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_GRAVEL,
-                SettingsRepository.GPX_TOOL_ROUTE_STYLE_BIKE_MTB,
-            )
         private val allowedScreenOnGpsIntervalsSeconds =
             setOf(SettingsRepository.RECORDING_SAMPLE_INTERVAL_DISABLED_SECONDS) + (1..60) + setOf(90, 120)
         private val allowedScreenOffGpsIntervalsSeconds =
@@ -2312,58 +2127,6 @@ class SettingsRepositoryImpl private constructor(
                 SettingsRepository.MIN_GPX_VERTICAL_METERS_PER_HOUR,
                 SettingsRepository.MAX_GPX_DOWNHILL_VERTICAL_METERS_PER_HOUR,
             )
-
-        private fun sanitizeGpxToolRouteStyle(style: String?): String =
-            style
-                ?.takeIf { it in allowedGpxToolRouteStyles }
-                ?: SettingsRepository.DEFAULT_GPX_TOOL_ROUTE_STYLE
-
-        private fun sanitizeGpxToolRouteStyleForProfile(
-            profile: String,
-            style: String?,
-        ): String {
-            val normalized = sanitizeGpxToolRouteStyle(style)
-            return if (profile == SettingsRepository.ACTIVITY_PROFILE_BIKE) {
-                normalized
-                    .takeIf { it in allowedBikeGpxToolRouteStyles }
-                    ?: SettingsRepository.DEFAULT_BIKE_GPX_TOOL_ROUTE_STYLE
-            } else {
-                normalized
-                    .takeIf { it in allowedHikeGpxToolRouteStyles }
-                    ?: SettingsRepository.DEFAULT_GPX_TOOL_ROUTE_STYLE
-            }
-        }
-
-        private fun sanitizeGpxToolHikeHikingRoutesPreference(preference: Float?): Float =
-            (preference ?: SettingsRepository.DEFAULT_GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE)
-                .coerceIn(
-                    SettingsRepository.MIN_GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE,
-                    SettingsRepository.MAX_GPX_TOOL_HIKE_HIKING_ROUTES_PREFERENCE,
-                )
-
-        private fun sanitizeGpxToolHikePathPreference(preference: Float?): Float =
-            (preference ?: SettingsRepository.DEFAULT_GPX_TOOL_HIKE_PATH_PREFERENCE)
-                .coerceIn(
-                    SettingsRepository.MIN_GPX_TOOL_HIKE_PATH_PREFERENCE,
-                    SettingsRepository.MAX_GPX_TOOL_HIKE_PATH_PREFERENCE,
-                )
-
-        private fun sanitizeGpxToolHikeSacScale(
-            scale: Int?,
-            default: Int,
-        ): Int =
-            (scale ?: default)
-                .coerceIn(
-                    SettingsRepository.MIN_GPX_TOOL_HIKE_SAC_SCALE,
-                    SettingsRepository.MAX_GPX_TOOL_HIKE_SAC_SCALE,
-                )
-
-        private fun gpxToolRouteStyleKeyForProfile(profile: String): Preferences.Key<String> =
-            if (profile == SettingsRepository.ACTIVITY_PROFILE_BIKE) {
-                PrefKeys.GPX_TOOL_BIKE_ROUTE_STYLE
-            } else {
-                PrefKeys.GPX_TOOL_HIKE_ROUTE_STYLE
-            }
 
         private fun sanitizeActivityProfile(profile: String?): String =
             when (profile?.takeIf { it in allowedActivityProfiles }) {
