@@ -150,4 +150,29 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   const four = createFogGain(deps(stub((x, y) => x === cx + 4 && y === cy)));
   assert.equal(four.cellIsNew(LON, lat), true);
 }
+{ // newness rounds its 100 m to cells too: at 40 degrees that is 13.66, so 14 cells either side (29 x 29)
+  const g0 = createFogGain(deps(new FogParser.FogMap()));
+  assert.equal(Math.round(100 / g0.cellMetersAt(40)), 14);
+  const [cx, cy] = cell(LON, 40);
+  const at = (d) => createFogGain(deps(stub((x, y) => x === cx + d && y === cy)));
+  assert.equal(at(14).newness({ lat: 40, lng: LON }), 1 - 1 / 841);
+  assert.equal(at(15).newness({ lat: 40, lng: LON }), 1);
+}
+{ // the stamp of a line rounds its radius as well: two vertices on one spot at 53.3 degrees stamp 7 x 7, and the fraction sees 3 cells out
+  const fogMap = new FogParser.FogMap();
+  visit(fogMap, LON - 0.1, 53.3 - 0.1, 1);
+  const g = gainOver(fogMap);
+  const m = g.cellMetersAt(53.3);
+  assert.equal(g.computeGain([[LON, 53.3], [LON, 53.3]]).area, 49 * m * m);
+  const [cx, cy] = cell(LON, 53.3);
+  const three = createFogGain(deps(stub((x, y) => x === cx + 3 && y === cy)));
+  assert.equal(three.corridorNewFrac(LON, 53.3), 1 - 1 / 49);
+}
+{ // the midpoint's latitude counts too: a north-running segment, visited only at its two ends
+  const fogMap = new FogParser.FogMap();
+  const a = [LON, LAT], b = [LON, LAT + 0.001]; // 111 m
+  visit(fogMap, a[0], a[1], 3); // about 18 m around each end, plus the 15 m corridor: the middle is 55 m out
+  visit(fogMap, b[0], b[1], 3);
+  assert.ok(Math.abs(gainOver(fogMap).computeGain([a, b]).newPct - 100) < 1e-9);
+}
 console.log("fog-gain.test.js ok");
