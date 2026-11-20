@@ -112,6 +112,7 @@ export function pageGlobals(page: PageWindow) {
     // the constructors themselves, not copies: suggest.ts and the tests build them with `new` and patch prototypes
     GraphPlanner,
     LocalRouter,
+    // an object of functions, so a copy like the others
     RouteLocal: { ...RouteLocal },
     // the constructor itself, with its `_internals`: main.js and the tests build it with `new`
     SuggestTool,
