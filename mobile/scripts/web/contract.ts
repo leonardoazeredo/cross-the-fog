@@ -6,7 +6,8 @@ import { encode, ORIGIN } from "../../src/bridge/protocol.js";
 import { parseWebToNative } from "../../test/support/parseWebToNative.js";
 
 const ELEMENTS = ["zip", "folder", "loadStatus", "sidebar", "brandName", "hint"];
-const GLOBALS = ["FogZip.unzip", "FogParser.FogMap.prototype.addTile"];
+// Sha256.hex is read only when Send is tapped, so a page that lost it would load without an error.
+const GLOBALS = ["FogZip.unzip", "FogParser.FogMap.prototype.addTile", "Sha256.hex"];
 const CHUNK_SIZE = 64 * 1024;
 
 export async function runContractCheck(

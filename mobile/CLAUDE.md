@@ -7,7 +7,7 @@ Android only. iOS is paused until the Android phone app and the Wear OS app are 
 ## Commands
 
 - Unit tests: `pnpm test` (vitest, projects `unit` and `adapter`). One file: `npx vitest run test/unit/incoming.test.ts --reporter=dot`.
-- Typecheck: `pnpm typecheck` (it runs `pnpm generate` first). Lint: `npx biome check <paths>`; existing warnings in `test/adapter/hooks.test.ts` are unrelated.
+- Typecheck: `pnpm typecheck` (it runs `pnpm generate` first). Lint: `pnpm lint` (`biome check . ../app/src/*.ts`) or `npx biome check <paths>`; existing warnings in `test/adapter/hooks.test.ts` are unrelated.
 - Full gate: `pnpm verify`.
 - Builds: use `pnpm android`; it regenerates the web bundle first. A raw `npx expo run:*` does not.
 - Android builds need JDK 21 (`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`), `ANDROID_HOME=$HOME/Library/Android/sdk`, and `--device <AVD name>`, not the adb serial.
@@ -53,7 +53,7 @@ Android only. iOS is paused until the Android phone app and the Wear OS app are 
 
 ## Page bundle
 
-`generated/web.ts` and `generated/licenses.json` are generated and git-ignored; `pnpm generate` writes them (`pnpm android`, `pnpm verify`, `start` and EAS's post-install run it first, but a raw `npx expo run:android`, a bare `tsc` or `knip` on a fresh clone need it run by hand). An e2e build (`CROSSFOG_E2E=1`) writes the e2e flavour into `generated/web.ts`, which contains the developer-only "Dev: drop fog cache" button, so run a normal `pnpm generate` (or `pnpm android`) before a normal build. Stage files by name, never with `git add -A`.
+The page's TypeScript modules (`../app/src/*.ts`, loaded by `data-global` script tags) are bundled into `generated/web.ts` by `scripts/web/bundleModule.ts`; `tsc` checks them through the tests that import them (`allowImportingTsExtensions` is on for that). `generated/web.ts` and `generated/licenses.json` are generated and git-ignored; `pnpm generate` writes them (`pnpm android`, `pnpm verify`, `start` and EAS's post-install run it first, but a raw `npx expo run:android`, a bare `tsc` or `knip` on a fresh clone need it run by hand). An e2e build (`CROSSFOG_E2E=1`) writes the e2e flavour into `generated/web.ts`, which contains the developer-only "Dev: drop fog cache" button, so run a normal `pnpm generate` (or `pnpm android`) before a normal build. Stage files by name, never with `git add -A`.
 
 ## Build and Maestro gotchas
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, expect, it, vi } from "vitest";
+import { hex as pageHex } from "../../../app/src/sha256.ts";
 
 vi.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "SHA-256" },
@@ -52,3 +53,10 @@ it("hashes the UTF-8 bytes of the GPX, 64 lowercase hex digits", async () => {
     createHash("sha256").update(Buffer.from("é", "utf8")).digest("hex"),
   );
 });
+
+it.each(offers.map((o) => [o.name, o.message] as const))(
+  "the page's own SHA-256 gives the phone's revision for %s",
+  async (_name, message) => {
+    expect(pageHex(message.gpx)).toBe(await gpxRevision(message.gpx));
+  },
+);

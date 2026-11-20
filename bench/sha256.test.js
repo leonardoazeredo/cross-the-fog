@@ -4,10 +4,8 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
-global.window = global;
-require("../app/src/sha256.js");
-
-const { hex } = global.Sha256;
+// Node strips the types itself: no build step and no package at the repo root.
+const { hex } = require("../app/src/sha256.ts");
 assert.equal(hex(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 assert.equal(hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 // FIPS 180-2: two blocks, and the message length that forces a padding block of its own (56 bytes)
@@ -33,8 +31,9 @@ assert.ok(checked >= 2, "the vectors hold route offers to check against");
 
 // The page needs the script: without its tag every Send tap fails, and nothing else checks this tag.
 const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
-const at = (name) => html.indexOf(`<script src="src/${name}"></script>`);
-assert.ok(at("sha256.js") > 0, "index.html loads sha256.js");
-assert.ok(at("sha256.js") < at("history.js"), "sha256.js loads before history.js");
+const at = (tag) => html.indexOf(tag);
+const sha = `<script src="src/sha256.ts" data-global="Sha256"></script>`;
+assert.ok(at(sha) > 0, "index.html loads sha256.ts as the Sha256 global");
+assert.ok(at(sha) < at(`<script src="src/history.js"></script>`), "sha256.ts loads before history.js");
 
 console.log("sha256.test.js ok");

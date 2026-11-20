@@ -5,7 +5,7 @@ export class BuildError extends Error {}
 
 export function transformIndexHtml(
   html: string,
-  readLocal: (relPath: string) => string,
+  readLocal: (relPath: string, globalName?: string) => string,
   adapterJs: string,
 ): string {
   const { document } = parseHTML(html);
@@ -29,8 +29,15 @@ export function transformIndexHtml(
     if (/^https?:\/\/|^\/\//.test(src)) {
       throw new BuildError(`External script not allowed: ${src}`);
     }
+    // A TypeScript module has no `window` assignment of its own: the bundle step names the exports object
+    // after data-global, so the inlined script's top-level `var` makes it the same window global at the same
+    // position in the load order as the plain script it replaced.
+    const globalName = script.getAttribute("data-global") ?? undefined;
+    if (src.endsWith(".ts") && globalName == null) {
+      throw new BuildError(`Module script ${src} needs a data-global attribute`);
+    }
     const inlined = document.createElement("script");
-    inlined.textContent = readLocal(src).replace(/<\/script/g, "<\\/script");
+    inlined.textContent = readLocal(src, globalName).replace(/<\/script/g, "<\\/script");
     script.replaceWith(inlined);
   }
 
