@@ -244,10 +244,11 @@ function cellsOf(files) {
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
 }
-{ // the one pako build loads before the engine, whose unzip and writeSync read window.pako when they run, and before main.js
+{ // the page loads the one pako build (the engine reads window.pako when a call runs, so where the tag sits does not matter), and its scripts load in this order
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (src) => html.indexOf(`<script src="${src}"></script>`);
-  const order = ["vendor/pako.min.js", "src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
+  assert.ok(at("vendor/pako.min.js") >= 0, "index.html loads vendor/pako.min.js");
+  const order = ["src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
 }
 console.log("fog-writer.test.js ok");
