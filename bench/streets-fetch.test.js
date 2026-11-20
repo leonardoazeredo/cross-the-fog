@@ -594,7 +594,7 @@ async function testCase(body) {
       onTile(asked[2], answer);
       return new Map();
     };
-    const s = new StreetIndex({ newFrac: () => 1, fetchStreets });
+    const s = new StreetIndex({ newFrac: () => 1, fetchStreets, every: ticker().every }); // a timer that never fires: only a landing can end the wait
     let stale = false, err = null;
     const first = s.ensureRects(three);
     const waiting = s.ensureRects(three, { stale: () => stale }).then(() => assert.fail("expected a rejection"), (e) => { err = e; return e; });
