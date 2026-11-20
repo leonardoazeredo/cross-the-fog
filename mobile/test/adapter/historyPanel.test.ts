@@ -95,7 +95,7 @@ beforeEach(() => {
   sent = [];
   shown = vi.fn();
   evalApp("vendor/leaflet.js");
-  // The page gets the same module as window.Sha256 from its data-global tag; esbuild cannot run in jsdom.
+  // The page gets the same module as window.Sha256 from engine.ts; esbuild cannot run in jsdom.
   (window as unknown as { Sha256: { hex: typeof hex } }).Sha256 = { hex };
   evalApp("src/history.js");
   evalApp("src/route.js");

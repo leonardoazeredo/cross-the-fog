@@ -5,8 +5,7 @@
 //   node bench/overpass.js [scenarioFilter]
 "use strict";
 const path = require("path");
-const { loadSync, FogParser } = require("./lib/load.js");
-const { makeGain } = require("./lib/gain.js");
+const { loadSync, gainOver } = require("./lib/load.js");
 const cache = require("./lib/fetch-cache.js");
 const scenarios = require("./scenarios.js");
 
@@ -70,7 +69,7 @@ function streetStats(ways, cellIsNew) {
 (async () => {
   const filter = process.argv[2] || "";
   const { fogMap } = loadSync(path.join(__dirname, "..", "Sync"));
-  const gain = makeGain(fogMap, FogParser);
+  const gain = gainOver(fogMap);
   const seen = new Set();
   for (const sc of scenarios) {
     if (filter && !sc.name.includes(filter)) continue;

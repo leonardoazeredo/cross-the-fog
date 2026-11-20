@@ -6,8 +6,7 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const { loadSync, FogParser } = require("./lib/load.js");
-const { makeGain } = require("./lib/gain.js");
+const { loadSync, gainOver } = require("./lib/load.js");
 const { runSuggest } = require("./lib/headless.js");
 const { elongation, overlapFrac } = require("./lib/metrics.js");
 const scenarios = require("./scenarios.js");
@@ -17,7 +16,7 @@ const filter = process.argv[3] || "";
 
 (async () => {
   const { fogMap } = loadSync(path.join(__dirname, "..", "Sync"));
-  const gain = makeGain(fogMap, FogParser);
+  const gain = gainOver(fogMap);
   console.log(`fog tiles: ${fogMap.tileCount}`);
   const all = [];
   let live = 0; // requests the disk cache did not have

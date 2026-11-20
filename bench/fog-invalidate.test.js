@@ -3,7 +3,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 require("./lib/load.js");
-const { makeGain } = require("./lib/gain.js");
+const { gainOver } = require("./lib/load.js");
 const { FogParser, StreetIndex, GraphPlanner, SuggestTool, Reveal } = global;
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
@@ -18,7 +18,7 @@ const centre = { lat: 51, lng: 13.7 + 250 / KX };
 
 function world() {
   const fogMap = new FogParser.FogMap();
-  const { corridorNewFrac } = makeGain(fogMap, FogParser);
+  const { corridorNewFrac } = gainOver(fogMap);
   const streets = new StreetIndex({ newFrac: corridorNewFrac });
   streets._anchor(51);
   streets._addWay(way);

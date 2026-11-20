@@ -7,8 +7,7 @@
 // Overpass responses are cached in bench/cache/, so only the first run is live.
 "use strict";
 const path = require("path");
-const { loadSync, FogParser, SuggestTool } = require("./lib/load.js");
-const { makeGain } = require("./lib/gain.js");
+const { loadSync, gainOver, SuggestTool } = require("./lib/load.js");
 const { runSuggest } = require("./lib/headless.js");
 const { p2pWindow } = SuggestTool._internals;
 
@@ -20,7 +19,7 @@ const say = (label, verdict, detail) =>
 
 (async () => {
   const { fogMap } = loadSync(path.join(__dirname, "..", "Sync"));
-  const gain = makeGain(fogMap, FogParser);
+  const gain = gainOver(fogMap);
   const run = (buffer, targetM) =>
     runSuggest(fogMap, gain, { mode: "p2p", a: pins[0], b: pins[1], buffer, targetM });
   // informational, does not affect PASS/FAIL
