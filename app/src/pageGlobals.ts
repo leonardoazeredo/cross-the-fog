@@ -8,8 +8,11 @@ import {
   FogWriter as writer,
 } from "./fogWriter.ts";
 import { MD5 } from "./md5.ts";
+import { bindOverpassHost, Overpass, type OverpassHost } from "./overpass.ts";
 import { type FogMap, FogParser } from "./parser.ts";
 import { Reveal } from "./reveal.ts";
+import { StreetCache } from "./streetCache.ts";
+import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
 // The two pako builds the page loads: the deflate one is parked as pakoDeflate by pakoDeflate.js, the inflate one is window.pako.
@@ -20,13 +23,17 @@ interface PakoInflate {
 interface PakoDeflate {
   deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
-export interface PageWindow {
+export interface PageWindow extends OverpassHost {
   pako?: PakoInflate;
   pakoDeflate?: PakoDeflate;
+  indexedDB?: IDBFactory | null;
   [name: string]: unknown;
 }
 
 export function pageGlobals(page: PageWindow) {
+  // Overpass keeps its state at module level, one instance for the bundle, so it has one host: the last window given.
+  // It reads that window's fetch, `navigator.onLine` and `crossfogNextgisKey` each time a request, `has` or `cap` runs.
+  bindOverpassHost(page);
   // `deflate` defaults to the pako build the page loads (see pakoDeflate.js) and `inflate`, which reads every file
   // back before it is handed out, to the inflate build left in window.pako; `opts` overrides either.
   const writeSync = (fogMap: FogMap, opts?: Partial<WriteOptions>): WrittenFile[] => {
@@ -65,5 +72,14 @@ export function pageGlobals(page: PageWindow) {
         }),
     },
     Reveal: { ...Reveal },
+    // the module's own object, not a copy: callers and tests set its `_now`, `_setTimeout` and limits on it and the
+    // module's functions read them there
+    Overpass,
+    TileStore: {
+      open: (dbName: string, storeName: string, opts?: StoreOptions) =>
+        openStore(page, dbName, storeName, opts),
+      memory,
+    },
+    StreetCache: { ...StreetCache },
   };
 }

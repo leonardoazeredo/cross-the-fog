@@ -1,4 +1,4 @@
-// Just enough IndexedDB for app/src/tileStore.js: one object store with a keyPath and secondary
+// Just enough IndexedDB for app/src/tileStore.ts: one object store with a keyPath and secondary
 // indexes, readonly/readwrite transactions that roll back on abort, and switches to make it fail
 // the way a WebView does (quota, a closed or versionchanged connection, a request that never ends).
 "use strict";
