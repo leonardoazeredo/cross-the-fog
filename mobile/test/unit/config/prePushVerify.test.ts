@@ -34,7 +34,7 @@ function runsFor(file: string): boolean {
 }
 
 describe("the pre-push hook's verify command", () => {
-  // The bench tests are the only Node tests of the modules the page ships, so verify runs them and a push that
+  // The bench tests load the modules the page ships and run them in Node, so verify runs them and a push that
   // changes only bench/ is not skipped (the file list above).
   it("runs the bench tests", () => {
     const pkg = JSON.parse(readFileSync(join(REPO, "mobile/package.json"), "utf8")) as {
