@@ -14,6 +14,7 @@ const { open } = require(path.join(src, "tileStore.ts"));
 const { pageGlobals } = require(path.join(src, "pageGlobals.ts"));
 const { bindStreetsHost } = require(path.join(src, "streets.ts"));
 const { bindPlannerHost } = require(path.join(src, "planner.ts"));
+const { bindSuggestHost } = require(path.join(src, "suggest.ts"));
 
 const answer = (status) => ({ ok: status === 200, status, body: null, headers: { get: () => null }, json: async () => ({ elements: [] }) });
 const KEY = "made-up-key/9"; // a made-up key, as in every other test
@@ -155,6 +156,51 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       pageGlobals({});
       assert.throws(() => planner.planP2P(A, B, 2000, 3), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
     }
+    { // the suggestion tool reads the window's L and matchMedia when it builds vias and icons; the page's SuggestTool is the module's own
+      const win = {};
+      const g = pageGlobals(win);
+      assert.equal(g.SuggestTool, global.SuggestTool, "the same constructor, not a copy");
+      const tool = new g.SuggestTool({}, { fogMap: {}, computeGain: () => null });
+      const S = { lat: 51, lng: 13.7 };
+      assert.throws(() => tool._loopVias(S, 0, 1000), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
+      win.L = { latLng: (lat, lng) => ({ lat, lng, from: "window" }), divIcon: (o) => ({ ...o, from: "window" }) }; // set after binding
+      const vias = tool._loopVias(S, 0, 1000);
+      assert.ok(vias.length === 3 && vias.every((v) => v.from === "window"), "vias built with the given window's L");
+      win.matchMedia = (q) => ({ matches: q === "(pointer: coarse)" });
+      win.L.marker = (ll, o) => ({ ll, o, addTo() { return this; }, on() {} });
+      const marker = (() => { const t2 = new g.SuggestTool({ on() {}, off() {} }, { fogMap: {}, computeGain: () => null }); t2.map = { addLayer() {}, removeLayer() {} }; t2._place(S); return t2.a; })();
+      assert.equal(marker.o.icon.iconSize[0], 26, "a coarse pointer from the window's matchMedia gets the larger pin");
+      { // the tool takes the other modules through imports: with the page globals it would read swapped for decoys that throw, it still works
+        const names = ["FogGain", "Estimates", "StreetIndex", "GraphPlanner", "LocalRouter"];
+        const saved = Object.fromEntries(names.map((k) => [k, global[k]]));
+        const decoy = () => new Proxy(function () {}, { get() { throw new Error("read a page global"); }, construct() { throw new Error("read a page global"); } });
+        const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
+        const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });
+        const ways = [[1, 2, [0, 0], [500, 0]], [2, 3, [500, 0], [1000, 0]]];
+        const streets = { version: 0, newFrac: () => 1, ways: ways.map(([a2, b2, p, q], i) => ({ id: i, nodes: [a2, b2], geometry: [ll(...p), ll(...q)] })) };
+        const t3 = new g.SuggestTool({}, { fogMap: new g.FogParser.FogMap(), computeGain: () => null, streets });
+        const warn3 = console.warn, error3 = console.error;
+        console.warn = () => {};
+        console.error = () => {};
+        try {
+          for (const k of names) global[k] = decoy();
+          assert.equal(typeof t3._newness({ lat: 51, lng: 13.7 }), "number", "FogGain through its import");
+          const st = g.SuggestTool._internals.statsFromCoords([[13.7, 51, 100], [13.71, 51, 130]]);
+          assert.ok(st.lenM > 0 && st.ascent !== undefined, "Estimates.climb through its import");
+          const route = await t3._route([{ lat: 51, lng: 13.7 }, { lat: 51, lng: 13.7 + 1000 / KX }], {});
+          assert.ok(route && route.coords.length > 1, "GraphPlanner and LocalRouter through their imports");
+          const failWith = (reason) => ({ ensureRects: async () => { throw saved.StreetIndex.downloadError(0, 1, { reason }, 0); } });
+          const load = async (reason) => { const out = []; t3.streets = failWith(reason); const ok = await t3._loadStreets([], (m) => out.push(m), () => false); return { ok, out }; };
+          assert.deepEqual(await load("superseded"), { ok: false, out: [] });
+          const off = await load("offline");
+          assert.ok(off.out.length === 1 && off.out[0].reason === "streets-fetch" && off.out[0].download.reason === "offline", "StreetIndex statics through the import");
+        } finally {
+          console.warn = warn3;
+          console.error = error3;
+          Object.assign(global, saved);
+        }
+      }
+    }
   } finally {
     console.warn = warn;
     delete global.createImageBitmap;
@@ -166,6 +212,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
     bindOverpassHost(globalThis);
     bindStreetsHost(globalThis);
     bindPlannerHost(globalThis);
+    bindSuggestHost(globalThis);
     Overpass._reset();
   }
   console.log("engine-host.test.js ok");

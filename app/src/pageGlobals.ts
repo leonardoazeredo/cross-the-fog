@@ -26,6 +26,7 @@ import { LocalRouter } from "./router.ts";
 import { StreetCache } from "./streetCache.ts";
 import { StreetMessages } from "./streetMessages.ts";
 import { bindStreetsHost, StreetIndex, type StreetsHost } from "./streets.ts";
+import { bindSuggestHost, type SuggestHost, SuggestTool } from "./suggest.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
@@ -37,7 +38,12 @@ interface PakoInflate {
 interface PakoDeflate {
   deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
-export interface PageWindow extends OverpassHost, ElevationHost, StreetsHost, PlannerHost {
+export interface PageWindow
+  extends OverpassHost,
+    ElevationHost,
+    StreetsHost,
+    PlannerHost,
+    SuggestHost {
   pako?: PakoInflate;
   pakoDeflate?: PakoDeflate;
   indexedDB?: IDBFactory | null;
@@ -52,6 +58,8 @@ export function pageGlobals(page: PageWindow) {
   bindStreetsHost(page);
   // and the planner, which reads `L` when it resamples a plan's waypoints
   bindPlannerHost(page);
+  // and the suggestion tool, which reads `L` and `matchMedia` when it draws or places a pin
+  bindSuggestHost(page);
   // `deflate` defaults to the pako build the page loads (see pakoDeflate.js) and `inflate`, which reads every file
   // back before it is handed out, to the inflate build left in window.pako; `opts` overrides either.
   const writeSync = (fogMap: FogMap, opts?: Partial<WriteOptions>): WrittenFile[] => {
@@ -101,10 +109,12 @@ export function pageGlobals(page: PageWindow) {
     StreetCache: { ...StreetCache },
     // the constructor itself, not a copy: other files construct it and call its statics
     StreetIndex,
-    // the constructors themselves, not copies: suggest.js and the tests build them with `new` and patch prototypes
+    // the constructors themselves, not copies: suggest.ts and the tests build them with `new` and patch prototypes
     GraphPlanner,
     LocalRouter,
     RouteLocal: { ...RouteLocal },
+    // the constructor itself, with its `_internals`: main.js and the tests build it with `new`
+    SuggestTool,
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },
     Estimates: { ...Estimates },
