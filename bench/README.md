@@ -12,7 +12,7 @@ node bench/overpass.js [filter]     # street-network context (total vs undefogge
 
 - `lib/load.js` loads the real `app/src` parser + suggest code over a Leaflet stub,
   so benchmarks exercise the exact shipping algorithm.
-- The fog gain (`computeGain`, `cellIsNew`, `corridorNewFrac`, the suggestion planner's `newness`) is `app/src/fogGain.ts`, the module `main.js` uses too; `lib/load.js`'s `gainOver(fogMap)` builds it over a loaded fog map.
+- The fog gain (`computeGain`, `cellIsNew`, `corridorNewFrac`, `SuggestTool`'s `newness`) is `app/src/fogGain.ts`, the module `main.js` uses too; `lib/load.js`'s `gainOver(fogMap)` builds it over a loaded fog map.
 - Overpass responses are disk-cached in `bench/cache/` (gitignored): re-runs are free,
   reproducible, and kind to the public server. Delete the cache to re-measure live.
   Overpass answers 502 under load and the scenario then ends in the error state with
