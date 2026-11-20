@@ -44,7 +44,7 @@ const RETRACE_REROUTE_MIN = 0.12; // p2p: retraced share above which a via route
 const MAX_RETRACE_REROUTES = 2; // re-routed return legs per run
 const MAX_P2P_M = 30000; // A and B farther apart than this need a street download past what we cap
 const MAX_LOOP_M = 30000; // longer loops reach past the capped street download (bearing squares reach ~0.3x the length)
-const MAX_LOOPS = 6; // first-batch bearings when the planner found no routes, so that only the other shapes are left for the second wave
+const MAX_LOOPS = 6; // bearings in the first batch when the planner found no routes
 // Square-ish loop shapes as [bearing offset, distance factor] vias around the compass bearing.
 // The same bearing at another shape takes the router over different streets, so a bearing whose
 // square jumps from far too short to far too long (a river crossing) can still land in tolerance.
