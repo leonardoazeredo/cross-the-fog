@@ -320,7 +320,7 @@ StreetIndex.prototype._cover = function (this: Self, tiles: Tile[]) {
   for (const t of tiles) this.tiles.add(StreetIndex.tileId(t));
 };
 
-// Round a point to a ~0.006 degree grid (~450-650 m). Callers build the fetch
+// Round a point to a ~0.006 degree grid (about 420-670 m at 51°N). Callers build the fetch
 // area around the rounded centre, so any run whose pin lands in the same grid
 // cell produces the identical area and reuses the cache: pressing Suggest
 // again, or after a small pin nudge, doesn't trigger a fresh download. The
@@ -557,8 +557,8 @@ StreetIndex.prototype._ensureRects = async function (
     return { shared, ask };
   };
   let settled = false;
-  // Settles once every shared tile is read or given up by the run bringing it. Rejects superseded,
-  // or with the deadline, when a shared tile lands or at a check every STALE_POLL_MS, leaving the other
+  // Settles once every shared tile is read or given up by the run bringing it. Rejects superseded
+  // when a shared tile lands or at a check every STALE_POLL_MS, and with the deadline at that check, leaving the other
   // run's request alone: the run bringing the tile may take minutes, or never deliver.
   const waitFor = (shared: Array<{ t: Tile; entry: Claim }>) =>
     new Promise<void>((resolveWait, rejectWait) => {
