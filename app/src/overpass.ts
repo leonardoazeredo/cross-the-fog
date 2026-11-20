@@ -49,7 +49,7 @@ interface Failure {
   error: Error | null;
 }
 export interface PostOptions {
-  stale?: () => boolean;
+  stale?: (() => boolean) | undefined;
 }
 interface Attempt {
   status?: number;

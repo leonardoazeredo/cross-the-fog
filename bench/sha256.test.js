@@ -34,7 +34,7 @@ const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "u
 const engine = `<script src="src/engine.ts"></script>`;
 const engineAt = html.indexOf(engine);
 assert.ok(engineAt > 0, "index.html loads engine.ts, which hands the page window.Sha256");
-for (const reader of ["history.js", "streets.js", "suggest.js", "main.js"]) {
+for (const reader of ["history.js", "suggest.js", "main.js"]) {
   const at = html.indexOf(`<script src="src/${reader}"></script>`);
   assert.ok(at > 0 && engineAt < at, `engine.ts loads before ${reader}`);
 }

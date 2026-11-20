@@ -22,6 +22,7 @@ import { type FogMap, FogParser } from "./parser.ts";
 import { Reveal } from "./reveal.ts";
 import { StreetCache } from "./streetCache.ts";
 import { StreetMessages } from "./streetMessages.ts";
+import { bindStreetsHost, StreetIndex, type StreetsHost } from "./streets.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
@@ -33,7 +34,7 @@ interface PakoInflate {
 interface PakoDeflate {
   deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
-export interface PageWindow extends OverpassHost, ElevationHost {
+export interface PageWindow extends OverpassHost, ElevationHost, StreetsHost {
   pako?: PakoInflate;
   pakoDeflate?: PakoDeflate;
   indexedDB?: IDBFactory | null;
@@ -44,6 +45,8 @@ export function pageGlobals(page: PageWindow) {
   // Overpass keeps its state at module level, one instance for the bundle, so it has one host: the last window given.
   // It reads that window's fetch, `navigator.onLine` and `crossfogNextgisKey` each time a request, `has` or `cap` runs.
   bindOverpassHost(page);
+  // StreetIndex likewise has one host for the bundle: `snapPoint` reads the page's Leaflet `L` when it runs.
+  bindStreetsHost(page);
   // `deflate` defaults to the pako build the page loads (see pakoDeflate.js) and `inflate`, which reads every file
   // back before it is handed out, to the inflate build left in window.pako; `opts` overrides either.
   const writeSync = (fogMap: FogMap, opts?: Partial<WriteOptions>): WrittenFile[] => {
@@ -91,6 +94,8 @@ export function pageGlobals(page: PageWindow) {
       memory,
     },
     StreetCache: { ...StreetCache },
+    // the constructor itself, not a copy: other files construct it and call its statics
+    StreetIndex,
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },
     Estimates: { ...Estimates },
