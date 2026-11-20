@@ -4,7 +4,7 @@
 "use strict";
 
 // bench/cache/ holds overpass-api.de answers; asking that instance first keeps the bench on the same data
-// as the saved baseline, which matters here because this is the only bench code that posts to Overpass.
+// as the saved baseline; the street source installed here is how a bench run posts to Overpass.
 // Assumes one ensureRects call per index: a later call replaces the rects the query is built from, and
 // its text then differs from the saved one, so the cache misses.
 function installTileFetch(streets) {
