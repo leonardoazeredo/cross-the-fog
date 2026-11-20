@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 @RunWith(AndroidJUnit4::class)
-@SdkSuppress(minSdkVersion = 28, maxSdkVersion = 29)
+@SdkSuppress(minSdkVersion = 29, maxSdkVersion = 29)
 class PlatformLocationUpdatesCompatibilityTest {
     private lateinit var gateway: WatchGpsLocationGateway
     private lateinit var locationManager: LocationManager

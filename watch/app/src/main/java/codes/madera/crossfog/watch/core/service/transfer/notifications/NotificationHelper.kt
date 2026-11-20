@@ -34,15 +34,13 @@ class NotificationHelper(
     @Synchronized
     fun createNotificationChannel() {
         if (notificationChannelCreated) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
-                NotificationChannel(
-                    CHANNEL_ID,
-                    service.resources.getString(R.string.gpx_file_transfers),
-                    NotificationManager.IMPORTANCE_LOW,
-                )
-            notificationManager.createNotificationChannel(channel)
-        }
+        val channel =
+            NotificationChannel(
+                CHANNEL_ID,
+                service.resources.getString(R.string.gpx_file_transfers),
+                NotificationManager.IMPORTANCE_LOW,
+            )
+        notificationManager.createNotificationChannel(channel)
         notificationChannelCreated = true
     }
 

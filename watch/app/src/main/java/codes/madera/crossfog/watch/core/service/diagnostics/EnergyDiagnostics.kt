@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
@@ -340,7 +339,7 @@ internal object EnergyDiagnostics {
         val interactive = actualInteractive ?: false
         reconcileScreenStateIfAvailable(reportedScreenInteractive, actualInteractive)
         val thermal =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null) {
+            if (powerManager != null) {
                 powerManager.currentThermalStatus.toString()
             } else {
                 "na"

@@ -7,7 +7,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -1031,15 +1030,9 @@ private fun recordingSensorPermissionsToRequest(
     }
 
 private fun hasActivityRecognitionPermission(context: Context): Boolean =
-    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-        hasPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
+    hasPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
 
-private fun activityRecognitionPermission(): String =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        Manifest.permission.ACTIVITY_RECOGNITION
-    } else {
-        ""
-    }
+private fun activityRecognitionPermission(): String = Manifest.permission.ACTIVITY_RECOGNITION
 
 private fun hasPermission(
     context: Context,

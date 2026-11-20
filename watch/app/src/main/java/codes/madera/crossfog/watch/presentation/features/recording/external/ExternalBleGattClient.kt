@@ -509,11 +509,7 @@ private fun BluetoothDevice.connectGattLegacy(
     context: Context,
     callback: BluetoothGattCallback,
 ): BluetoothGatt? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
-    } else {
-        connectGatt(context, false, callback)
-    }
+    connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
 
 internal object BluetoothUuid {
     fun service16(shortUuid: Int): UUID = bluetoothUuid(shortUuid)

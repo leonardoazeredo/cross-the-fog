@@ -1,6 +1,5 @@
 package codes.madera.crossfog.watch.presentation
 
-import android.os.Build
 import android.os.PowerManager
 import androidx.activity.ComponentActivity
 import codes.madera.crossfog.watch.core.service.diagnostics.DebugTelemetry
@@ -12,7 +11,6 @@ internal class ThermalTelemetryController(
     private var listener: PowerManager.OnThermalStatusChangedListener? = null
 
     fun register() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         val powerManager = activity.getSystemService(PowerManager::class.java) ?: return
         val thermalListener =
             PowerManager.OnThermalStatusChangedListener { status ->
@@ -24,7 +22,6 @@ internal class ThermalTelemetryController(
     }
 
     fun unregister() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         val thermalListener = listener ?: return
         activity.getSystemService(PowerManager::class.java)?.removeThermalStatusListener(thermalListener)
         listener = null

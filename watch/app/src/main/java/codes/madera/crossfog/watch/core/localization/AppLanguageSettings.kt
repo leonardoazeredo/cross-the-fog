@@ -51,7 +51,7 @@ object AppLanguageSettings {
         }
     }
 
-    @Suppress("DEPRECATION") // API 28–32 have no platform per-app locale API; retain existing service contexts.
+    @Suppress("DEPRECATION") // API 29–32 have no platform per-app locale API; retain existing service contexts.
     fun applyLegacy(
         context: Context,
         configuration: Configuration = context.resources.configuration,
