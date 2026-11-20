@@ -1,6 +1,7 @@
 package codes.madera.crossfog.link
 
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import org.json.JSONArray
@@ -152,9 +153,48 @@ object Messages {
     }
   }
 
+  private val HEAD = """{"v":${Protocol.VERSION},"type":"""
+
+  /**
+   * The length of [encode]'s bytes, counted without building them: an offer's track can be 16 MiB,
+   * and the string, builder and byte array that [encode] makes of it are several times that. The other
+   * messages are small, so they are encoded; a test pins the two together for every kind.
+   */
+  fun encodedSize(message: Message): Long = when (message) {
+    is RouteOffer ->
+      HEAD.length + """"routeOffer","routeId":"""".length + message.routeId.length + "\",\"name\":".length + quotedSize(message.name) +
+        ",\"createdAt\":".length + quotedSize(message.createdAt) + ",\"revision\":\"".length + Revision.HEX_LENGTH +
+        "\",\"gpx\":".length + quotedSize(message.gpx) + "}".length.toLong()
+    is ActivityOffer ->
+      HEAD.length + """"activityOffer","activityId":"""".length + message.activityId.length + "\",".length +
+        (if (message.routeId != null) """"routeId":"${message.routeId}",""".length else 0) +
+        """"encoderVersion":""".length + quotedSize(message.encoderVersion) + ",\"gpx\":".length + quotedSize(message.gpx) + "}".length.toLong()
+    else -> encode(message).size.toLong()
+  }
+
+  /** The bytes [q] writes for [text] once UTF-8 encoded: the quotes, an escape's two or six, and a character's own one to four. */
+  private fun quotedSize(text: String): Long {
+    var n = 2L
+    var i = 0
+    while (i < text.length) {
+      val c = text[i]
+      n += when {
+        c == '"' || c == '\\' || c == '\n' || c == '\r' || c == '\t' || c == '\b' || c == '\u000c' -> 2
+        c < ' ' -> 6
+        c.code < 0x80 -> 1
+        c.code < 0x800 -> 2
+        // An unpaired surrogate cannot be in an offer (Fields.text refuses it), so a high one always has its low one.
+        Character.isHighSurrogate(c) -> { i++; 4 }
+        else -> 3
+      }
+      i++
+    }
+    return n
+  }
+
   /** The body of one frame, fields in a fixed order. */
   fun encode(message: Message): ByteArray {
-    val head = """{"v":${Protocol.VERSION},"type":"""
+    val head = HEAD
     val text = when (message) {
       is Hello -> """$head"hello","versions":[${message.versions.joinToString(",")}]}"""
       is Ping -> """$head"ping"}"""
@@ -208,15 +248,7 @@ object Messages {
 
   internal fun parseObject(bytes: ByteArray): JSONObject {
     if (bytes.size > Framing.MAX_FRAME_BYTES) throw ProtocolException(ProtocolError.FRAME_TOO_LARGE)
-    // A lossy decode would turn a bad byte into U+FFFD and store the changed text under the sender's id.
-    val text = try {
-      Charsets.UTF_8.newDecoder()
-        .onMalformedInput(CodingErrorAction.REPORT)
-        .onUnmappableCharacter(CodingErrorAction.REPORT)
-        .decode(ByteBuffer.wrap(bytes)).toString()
-    } catch (e: CharacterCodingException) {
-      throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
-    }
+    val text = utf8(bytes)
     StrictJson.requireObject(text)
     // Valid by now, so org.json only builds the object. Its own syntax error would quote the input.
     return try {
@@ -225,6 +257,32 @@ object Messages {
       throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
     }
   }
+
+  /**
+   * [bytes] as text. A lossy decode would turn a bad byte into U+FFFD and store the changed text under
+   * the sender's id, so the bytes are checked first, through a small buffer that is thrown away as it
+   * fills; the one decoded copy is then the string itself, made from bytes already known to be valid.
+   */
+  private fun utf8(bytes: ByteArray): String {
+    val decoder = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+    val input = ByteBuffer.wrap(bytes)
+    val scratch = CharBuffer.allocate(CHECK_CHARS)
+    try {
+      while (true) {
+        val result = decoder.decode(input, scratch, true)
+        if (result.isUnderflow) break
+        if (result.isError) result.throwException()
+        scratch.clear()
+      }
+      scratch.clear()
+      decoder.flush(scratch).let { if (it.isError) it.throwException() }
+    } catch (e: CharacterCodingException) {
+      throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
+    }
+    return String(bytes, Charsets.UTF_8)
+  }
+
+  private const val CHECK_CHARS = 8192
 
   internal fun routeOffer(o: JSONObject, requireRevision: Boolean): RouteOffer {
     val offer = RouteOffer(
