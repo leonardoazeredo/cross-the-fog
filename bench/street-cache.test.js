@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 require("./lib/host.js");
 require("../app/src/engine.ts");
 const { TileStore, StreetCache, StreetIndex } = global;
+const { heldAround } = require("./lib/held.js");
 
 const DAY = 24 * 3600 * 1000;
 const answerFor = (t) => ({ ways: [{ id: t.x * 1000 + t.y, nodes: [1, 2], geometry: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] }], groups: { tag: "net" } });
@@ -371,7 +372,7 @@ const T = (x, y) => ({ x, y });
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: c.fetchStreets, now: () => clock.t });
     const progress = [];
     await s.ensureRects([rect], { onProgress: (p) => progress.push(p.done) });
-    assert.equal(s.tiles.size, 3);
+    assert.equal(heldAround(s, [rect]).length, 3);
     assert.deepEqual(progress, [0, 1, 2, 3]);
   }
   { // the old unversioned keys are swept in the background, a bounded number per call, and the new ones stay
@@ -446,8 +447,8 @@ const T = (x, y) => ({ x, y });
     const reports = [];
     const rect = [{ s: 51, w: 13.7, n: 51.02, e: 13.76 }];
     const got = await s.ensureRects(rect, { onProgress: (p) => reports.push(p.done) });
-    assert.equal(s.tiles.size, got.total);
-    assert.equal(s.version, s.tiles.size, "one version bump per tile");
+    assert.equal(heldAround(s, rect).length, got.total);
+    assert.equal(s.version, got.total, "one version bump per tile");
     assert.deepEqual(reports, Array.from({ length: got.total + 1 }, (_, i) => i), "done never above total, each tile once");
     assert.equal(new Set(puts).size, puts.length, "no tile stored twice");
     assert.equal(puts.length, got.total);

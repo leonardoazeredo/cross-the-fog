@@ -6,6 +6,7 @@ const crypto = require("node:crypto");
 require("./lib/host.js");
 require("../app/src/engine.ts");
 const { StreetIndex } = global;
+const { heldAround } = require("./lib/held.js");
 
 const way = (id) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: [{ lat: 51, lon: 13.7 }, { lat: 51.001, lon: 13.7 }] });
 const count = { type: "count" };
@@ -179,7 +180,7 @@ async function testCase(body) {
     const err = await s.ensureRects(rect).then(() => null, (e) => e);
     assert.ok(!/timed out|runtime error/.test(err.message), "no server text in the message");
     assert.equal(err.reason, "server", "a remark is the server's failure, so the page can word it");
-    assert.equal(s.tiles.size, 0, "the area is not recorded as fetched");
+    assert.deepEqual(heldAround(s, rect), [], "the area is not recorded as fetched");
   });
   await testCase(async () => { // the box is scanned once; every list is filtered from that result (rescanning per list timed out Overpass)
     replyWith({ elements: EMPTY });
@@ -244,7 +245,7 @@ async function testCase(body) {
     const err = await s.ensureRects([{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]).then(() => null, (e) => e);
     assert.match(err.message, /no answer for tile 550:2040$/);
     assert.deepEqual([err.done, err.total, err.reason], [1, 2, "streets-partial"]);
-    assert.deepEqual([s.ways.length, s.tiles.size, s.version], [1, 1, 1]);
+    assert.deepEqual([s.ways.length, heldAround(s, [{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]).length, s.version], [1, 1, 1]);
     await s.ensureRects([{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]).catch(() => {});
     assert.deepEqual(asked[1], ["550:2040"], "the retry asks only the missing tile");
   });
@@ -268,7 +269,7 @@ async function testCase(body) {
       const err = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.01, e: 13.71 }]).then(() => null, (e) => e);
       assert.ok(StreetIndex.isDownloadError(err), "a download failure, not a bug: " + err);
       assert.equal(err.reason, "server");
-      assert.equal(s.tiles.size, 0);
+      assert.deepEqual(heldAround(s, [{ s: 51.0, w: 13.7, n: 51.01, e: 13.71 }]), []);
     }
   });
   await testCase(async () => { // a way is in every tile its segments cross, also a tile none of its vertices lies in
@@ -331,7 +332,7 @@ async function testCase(body) {
     const err = await s.ensureRects(rect).then(() => null, (e) => e);
     assert.match(err.message, /no answer/);
     assert.equal(err.reason, "server", "a tile left out is the source's failure, so the page can word it");
-    assert.equal(s.tiles.size, 0);
+    assert.deepEqual(heldAround(s, rect), []);
     assert.equal(s.version, 0);
   });
   await testCase(async () => { // an answer over several tiles is split per tile: a way over a tile edge lands in both tiles, ids filtered per tile
@@ -366,7 +367,7 @@ async function testCase(body) {
     const progress = [];
     await s.ensureRects([{ s: 51.02, w: 13.72, n: 51.04, e: 13.74 }], { onProgress: (p) => progress.push(p.done) });
     assert.deepEqual(asked, [span(548, 2040, 549, 2041)]);
-    assert.deepEqual([s.ways.length, s.tiles.size, progress], [4, 4, [0, 1, 2, 3, 4]]);
+    assert.deepEqual([s.ways.length, heldAround(s, [{ s: 51.02, w: 13.72, n: 51.04, e: 13.74 }]).length, progress], [4, 4, [0, 1, 2, 3, 4]]);
   });
   await testCase(async () => { // eight missing tiles are two requests, one per 2x2 block, nearest block first, each tile handed over on its own
     const asked = tileServer();
@@ -608,7 +609,7 @@ async function testCase(body) {
     assert.deepEqual(asked, [span(548, 2040, 549, 2041)]);
     assert.deepEqual([got.done, got.total, progress], [3, 3, ["0/3", "1/3", "2/3", "3/3"]]);
     assert.ok(await store.get("4:run:549:2041"), "the extra tile is in the store");
-    assert.equal(s.tiles.size, 4);
+    assert.equal(heldAround(s, r).length, 4);
     await s.ensureRects([{ s: 51.025, w: 13.725, n: 51.05, e: 13.75 }]);
     assert.equal(asked.length, 1, "a run over the extra tile asks nothing");
   });
@@ -637,7 +638,7 @@ async function testCase(body) {
     const err = await run;
     assert.equal(srv.asked.length, 4);
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [12, 24, "streets-partial", "server"]);
-    assert.equal(s.tiles.size, 12);
+    assert.equal(heldAround(s, twentyFour).length, 12);
     let stored = 0;
     for (const t of twentyFour.flatMap((r) => StreetIndex.tilesCovering(r))) if (await store.get("4:run:" + t.x + ":" + t.y)) stored++;
     assert.equal(stored, 12, "the three blocks that landed are in the store");
@@ -939,7 +940,7 @@ async function testCase(body) {
     const clock = { t: 0 };
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: slowSource(clock, 30000).fetchStreets, now: () => clock.t });
     await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.025, e: 13.75 }], { deadlineMs: 45000 });
-    assert.equal(s.tiles.size, 2);
+    assert.equal(heldAround(s, [{ s: 51.0, w: 13.7, n: 51.025, e: 13.75 }]).length, 2);
   });
   await testCase(async () => { // a retry over the same rects keeps the total and counts the tiles the index already holds as done
     // from the first report; the reason a failure carries is still chosen by the tiles read in that run
@@ -1125,7 +1126,7 @@ async function testCase(body) {
     assert.ok(StreetIndex.isSuperseded(await within(second)));
     assert.deepEqual(await within(first), { done: 1, total: 1 });
     assert.equal(calls, 1);
-    assert.equal(s.tiles.size, 1);
+    assert.equal(heldAround(s, one).length, 1);
   });
   await testCase(async () => { // a shared tile counts as downloaded only when the other run did not read it from the street
     // cache: an offline failure of the run's own call then says offline, not streets-partial
@@ -1286,12 +1287,18 @@ async function testCase(body) {
     gate.open();
     assert.deepEqual(await within(Promise.all([a, b])), [{ done: 3, total: 3 }, { done: 3, total: 3 }]);
     assert.equal(asked.flat().length, 4, "each of the four tiles is asked once");
-    assert.equal(s.tiles.size, 4);
+    assert.equal(heldAround(s, [...row(548, 550), ...row(549, 551)]).length, 4);
     assert.equal(s.version, 4, "one version bump per tile read");
-    const once = new StreetIndex({ newFrac: () => 1 });
-    once._read({ ways: [shared], groups: {} }, { x: 548, y: 2040 });
+    const once = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles, onTile) => {
+      const a = { ways: [shared], groups: {} };
+      onTile(tiles[0], a);
+      return new Map([[tiles[0].x + ":" + tiles[0].y, a]]);
+    } });
+    await once.ensureRects(row(548, 548));
     assert.equal(s.ways.length, 1, "the way is held once");
-    assert.equal(s.segCount, once.segCount, "and its segments are counted once");
+    const at = { lat: 51.0005, lng: 13.7 };
+    assert.ok(once.newAreaM2(at, 500) > 0);
+    assert.equal(s.newAreaM2(at, 500), once.newAreaM2(at, 500), "and its segments are counted once");
   });
   await testCase(async () => { // a 429 with a Retry-After while a third street block waits for a slot: the waiting post is not sent into the hold, the
     // run waits the Retry-After out once none is open, and asks the street blocks again
