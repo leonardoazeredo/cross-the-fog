@@ -70,7 +70,7 @@
 
   // Street data is shared by the route suggestions and the route editor, so whichever fetched an
   // area first serves the other.
-  const streets = new StreetIndex({ newFrac: corridorNewFrac });
+  const streets = new StreetIndex({ newFrac: corridorNewFrac, fogVersion: () => fogMap.version });
   // Startup stays synchronous: the index fetches straight from Overpass until the store opens, then
   // reads through the street cache (StreetIndex looks its source up at call time).
   // the first step is inside the chain so a TileStore or StreetCache that failed to load is caught like any setup throw
@@ -615,8 +615,8 @@
   fowBtn.addEventListener("click", warn.guard("fog", () => fowExport.start((exportId) => FowExport.run({ fogMap, phone: window.crossfog, exportId })), fowBtn.parentNode));
 
   // The phone app's page adapter adds and removes cells revealed by activities, then calls fogChanged() so
-  // the fog and its panels update now and the street fractions are recomputed on next use. The suggestion planners need no reset: they
-  // stamp their graph with fogMap.version and rebuild on their own.
+  // the fog and its panels update now. The street index and the suggestion planners need no reset: they
+  // stamp what they cached with fogMap.version and rebuild on their own.
   function fogChanged() {
     // Each step runs on its own so one that throws cannot leave the later panels stale; only the class is logged.
     const steps = [
@@ -625,7 +625,6 @@
         const b = !fitted && !mapTouched && fogMap.tileCount === 0 && fogMap.hasFog() ? fogMap.latLngBounds() : null;
         if (b) { fitted = true; map.fitBounds(b, { padding: [20, 20] }); mapTouched = false; } // movestart fired for our own fit
       },
-      () => streets.invalidateFrac(), // the street index remembers each segment's fogged share, from the old fog
       () => updateDefog(),
       () => syncSug(), // fog just arrived, so the Suggest button can wake up
       // A shown suggestion's gain numbers were scored on the old fog; only a finished result has a `list` (a run in flight emits loading states and scores on the live fog), so do not make this unconditional: clearResults would cancel the run.

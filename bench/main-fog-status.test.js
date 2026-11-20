@@ -33,7 +33,6 @@ function fogScope(over) {
   const s = {
     fogLayer: null,
     fogMap: { hasFog: () => true, tileCount: 0, latLngBounds: () => ({ b: 1 }) },
-    streets: { invalidateFrac: () => calls.push("invalidateFrac") },
     updateDefog: () => calls.push("updateDefog"),
     syncSug: () => calls.push("syncSug"),
     map: { fitBounds: () => { calls.push("fitBounds"); s.mapTouched = true; } }, // Leaflet fires movestart for it
@@ -63,9 +62,9 @@ function liftFogChanged(s) {
 
 {
   const { s, calls } = fogScope({});
-  s.streets.invalidateFrac = () => { throw new TypeError("boom"); };
+  s.updateDefog = () => { throw new TypeError("boom"); };
   liftFogChanged(s)();
-  assert.ok(calls.includes("updateDefog") && calls.includes("syncSug"), calls.join());
+  assert.ok(calls.includes("syncSug"), calls.join());
   assert.ok(calls.includes("warn:TypeError"), "logs the class only");
 }
 {
@@ -105,4 +104,8 @@ assert.match(src, /map\.on\("movestart", \(\) => \{ mapTouched = true; \}\)/);
   assert.match(body, /fogChanged\(\)/);
   assert.doesNotMatch(body, /invalidateFrac|syncSug|updateDefog/, "no second copy of the refresh");
 }
+
+// ---- the street index follows the fog by itself: main.js hands it the fog version and never drops its fractions by hand
+assert.match(src, /new StreetIndex\(\{[^}]*fogVersion: \(\) => fogMap\.version/);
+assert.doesNotMatch(src, /invalidateFrac/);
 console.log("main-fog-status ok");

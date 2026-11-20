@@ -16,10 +16,10 @@ const way = {
 };
 const centre = { lat: 51, lng: 13.7 + 250 / KX };
 
-function world() {
+function world(fogVersion) {
   const fogMap = new FogParser.FogMap();
   const { corridorNewFrac } = gainOver(fogMap);
-  const streets = new StreetIndex({ newFrac: corridorNewFrac });
+  const streets = new StreetIndex({ newFrac: corridorNewFrac, fogVersion: fogVersion || (() => fogMap.version) });
   streets._anchor(51);
   streets._addWay(way);
   streets.version++; // a fetch would have
@@ -33,26 +33,40 @@ function walkAlongStreet() {
 }
 const sum = (a) => a.reduce((s, v) => s + v, 0);
 
-{ // newAreaM2 falls once the street's cells are revealed and the fractions are dropped
+{ // newAreaM2 falls once the street's cells are revealed, with nobody telling the index: it reads the fog version itself
   const { fogMap, streets } = world();
   const before = streets.newAreaM2(centre, 400);
   assert.ok(before > 0, `before ${before}`);
   fogMap.addCells(walkAlongStreet());
-  streets.invalidateFrac();
   const after = streets.newAreaM2(centre, 400);
   assert.ok(after < before * 0.5, `after ${after} vs before ${before}`);
 }
-{ // without invalidateFrac the cached fractions stay, which is the bug the call exists for
-  const { fogMap, streets } = world();
+{ // the cached fractions are keyed on the fog version alone: while it does not move they stay
+  const { fogMap, streets } = world(() => 0);
   const before = streets.newAreaM2(centre, 400);
   fogMap.addCells(walkAlongStreet());
   assert.equal(streets.newAreaM2(centre, 400), before);
 }
-{ // invalidateFrac bumps the version the planner stamps its graph with
-  const { streets } = world();
+{ // a fog change re-scores the segment without touching the version the planner stamps its graph with, so a held graph stays current
+  const { fogMap, streets } = world();
+  const planner = new GraphPlanner(streets, streets.newFrac, undefined, undefined, () => fogMap.version);
+  const before = streets.newAreaM2(centre, 400);
   const v = streets.version;
-  streets.invalidateFrac();
-  assert.ok(streets.version > v);
+  fogMap.addCells(walkAlongStreet());
+  planner.build();
+  planner.held = true;
+  assert.ok(planner.isCurrent(), "built on the fog as it is");
+  const after = streets.newAreaM2(centre, 400);
+  assert.ok(after < before * 0.5, `${after} vs ${before}`);
+  assert.equal(streets.version, v, "the index's version is not bumped by a fog change");
+  assert.ok(planner.isCurrent(), "scoring a segment after the fog moved leaves the held graph current");
+}
+{ // an index built with no fog version never drops its fractions
+  const streets = new StreetIndex({ newFrac: () => 1 });
+  streets._anchor(51);
+  streets._addWay(way);
+  const before = streets.newAreaM2(centre, 400);
+  assert.equal(streets.newAreaM2(centre, 400), before);
 }
 { // a fog change makes the planner rebuild, and the rebuilt rewards use the new fog
   const { fogMap, streets } = world();

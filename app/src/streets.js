@@ -47,6 +47,9 @@
 
   function StreetIndex(opts) {
     this.newFrac = opts.newFrac; // (lon,lat) -> 0..1 share of the corridor stamp still fogged
+    // () -> a number that changes whenever the fog does: the cached shares are dropped when it moves
+    this.fogVersion = opts.fogVersion || (() => 0);
+    this.fracFog = this.fogVersion(); // the fog the cached shares were scored on
     // the street source: (tiles, onTile, opts) -> Map "x:y" -> answer, calling onTile(tile, answer) as
     // each arrives (a source may return some tiles in the Map alone); opts is {now, wait, stale}
     this.fetchStreets = opts.fetchStreets || StreetIndex.overpassFetch;
@@ -454,9 +457,11 @@
   // Defoggable area (m²) reachable by travelling the ways within rM of the
   // point: sum of segment length x corridor width x still-fogged share of the
   // corridor. Segments are scored against the fog lazily and cached (the fog
-  // is static while planning). Only meaningful where covered() is true.
+  // is static while planning, and when it moves the shares are dropped, see _syncFog). Only meaningful
+  // where covered() is true.
   StreetIndex.prototype.newAreaM2 = function (latlng, rM) {
     if (this.kx === null) return 0;
+    this._syncFog();
     const px = latlng.lng * this.kx, py = latlng.lat * this.ky;
     const g0x = Math.floor((px - rM) / GRID_M), g1x = Math.floor((px + rM) / GRID_M);
     const g0y = Math.floor((py - rM) / GRID_M), g1y = Math.floor((py + rM) / GRID_M);
@@ -478,11 +483,14 @@
     return m2;
   };
 
-  // The fog moved (cells revealed or taken back): every segment is judged against it again, and the
-  // version bump tells graphs built from the old fractions to rebuild.
-  StreetIndex.prototype.invalidateFrac = function () {
+  // The fog moved (cells revealed or taken back): every segment is judged against it again. `version`
+  // stays put: a graph stamps the fog version itself, and a bump from inside a read would turn a graph
+  // held by a running suggestion not-current in the middle of it.
+  StreetIndex.prototype._syncFog = function () {
+    const fog = this.fogVersion();
+    if (fog === this.fracFog) return;
+    this.fracFog = fog;
     for (const cell of this.segs.values()) for (const s of cell) s.frac = null;
-    this.version++;
   };
 
   StreetIndex.TILE_DEG = TILE_DEG;
