@@ -10,9 +10,19 @@ import org.junit.Test
  * the two places that compare a secret or a pin use [java.security.MessageDigest.isEqual].
  */
 class ConstantTimeSourceTest {
+  private val sources = "src/main/kotlin/codes/madera/crossfog/link"
+
+  // Looked up from wherever the runner starts, so a runner that changes the working directory still finds it.
   private fun source(name: String): String {
-    val dir = File("src/main/kotlin/codes/madera/crossfog/link")
-    return File(dir, name).readText()
+    var dir: File? = File("").absoluteFile
+    while (dir != null) {
+      for (module in listOf(dir, File(dir, "link"))) {
+        val file = File(module, "$sources/$name")
+        if (file.isFile) return file.readText()
+      }
+      dir = dir.parentFile
+    }
+    error("$sources/$name not found from ${File("").absolutePath} or any parent")
   }
 
   @Test
