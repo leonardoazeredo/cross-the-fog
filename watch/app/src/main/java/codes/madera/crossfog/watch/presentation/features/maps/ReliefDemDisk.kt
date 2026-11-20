@@ -95,7 +95,7 @@ internal class DemDiskCache(
             }
     }
 
-    /** Counters for every consumer since the process started, for the diagnostics export. */
+    /** Counters for every consumer since the process started. */
     val totals = ReliefDemCacheStats()
 
     /** Maps the uncompressed copy of [source]; null when a ZIP has no HGT entry or the grid is not square. */

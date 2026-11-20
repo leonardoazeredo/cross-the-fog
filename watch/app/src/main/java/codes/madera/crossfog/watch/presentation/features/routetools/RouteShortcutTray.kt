@@ -90,7 +90,7 @@ internal fun BoxScope.RouteShortcutTray(
             modifier =
                 Modifier
                     .align(Alignment.Center)
-                    // Center the 2×2 grid on the side buttons, with Full one row above.
+                    // Center the Stay and Rec chips on the side buttons, with Full one row above.
                     .offset(y = -24.dp),
             enter = fadeIn(),
             exit = fadeOut(),

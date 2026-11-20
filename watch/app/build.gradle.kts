@@ -106,9 +106,6 @@ android {
                 .get()
                 .toString(),
         )
-
-        // 2MB channel buffer (tune if you measured better throughput)
-        manifestPlaceholders["channelBufferSize"] = "2097152"
     }
 
     signingConfigs {
@@ -182,8 +179,6 @@ android {
         fatal += "NonConstantResourceId"
         // Work around a lint internal crash in ActivityIconColorDetector on this project.
         disable += "ActivityIconColor"
-        // Current transfer pipeline still relies on BIND_LISTENER-based listener service.
-        disable += "WearableBindListener"
         // Temporarily skip release-gating lint because lintAnalyzeRelease stalls/crashes on this project.
         checkReleaseBuilds = false
     }

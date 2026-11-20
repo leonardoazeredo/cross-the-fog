@@ -72,7 +72,7 @@ class SettingsMenuDenseLayoutTest {
             .assertHasClickAction()
 
         composeRule.runOnIdle {
-            denseMenuCenterItemIndex.value = 11
+            denseMenuCenterItemIndex.value = 10
         }
         composeRule.waitForIdle()
         composeRule
@@ -81,7 +81,7 @@ class SettingsMenuDenseLayoutTest {
             .assertHasClickAction()
 
         composeRule.runOnIdle {
-            denseMenuCenterItemIndex.value = 13
+            denseMenuCenterItemIndex.value = 12
         }
         composeRule.waitForIdle()
 
@@ -161,12 +161,6 @@ private fun denseSettingsMenuShowcase() {
                     Text(
                         text = "Screen settings",
                         style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                item {
-                    SettingsSectionChip(
-                        label = "POI settings",
-                        onClick = {},
                     )
                 }
                 item {
