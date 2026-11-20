@@ -11,7 +11,7 @@ function pin(lat, lng) { const ll = L.latLng(lat, lng); return { getLatLng: () =
 // scenario: { mode, a:[lat,lng], b?, distM?, targetM? (p2p wanted distance), buffer, noStreets? }
 function runSuggest(fogMap, gain, scenario) {
   cache.install();
-  const streets = scenario.noStreets ? null : new StreetIndex({ newFrac: gain.corridorNewFrac });
+  const streets = scenario.noStreets ? null : new StreetIndex({ newFrac: gain.corridorNewFrac, fogVersion: () => fogMap.version });
   if (streets) installTileFetch(streets);
   return new Promise((resolve, reject) => {
     const t0 = Date.now();
