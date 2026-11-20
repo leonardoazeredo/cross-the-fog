@@ -591,8 +591,9 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
     return true;
   };
   // A tile a normal run asks for is in flight from then until it is read or the run's call to the
-  // source ends, and a later run that needs it waits for it instead of asking again. A run holds
-  // no claim while it waits for another's, so two runs never wait on each other.
+  // source ends, and a later run that needs it waits for it instead of asking again. A run's claims
+  // end with its own call to the source, which never waits for another run, so two runs never wait
+  // on each other.
   const claims = new Map(); // "x:y" -> this run's in-flight entry for it
   const claim = (tiles: Tile[]) => {
     for (const t of tiles) {
