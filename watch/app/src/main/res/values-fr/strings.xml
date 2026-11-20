@@ -649,7 +649,6 @@
     <string name="gpx_balanced_hike">"Randonnée équilibrée"</string>
     <string name="gpx_bend">"Dévier"</string>
     <string name="gpx_bike_recordings_will_appear_here">"Les enregistrements à vélo s’afficheront ici."</string>
-    <string name="gpx_brouter_did_not_return_a_guide_back_route">"BRouter n’a pas fourni d’itinéraire de retour à la trace."</string>
     <string name="gpx_brouter_loop_title">"Boucle BRouter %1$s %2$s"</string>
     <string name="gpx_brouter_route_title">"Itinéraire BRouter %1$s"</string>
     <string name="gpx_brouter_unavailable">"BRouter indisponible"</string>
@@ -1276,7 +1275,6 @@
     <string name="navigation_remaining_distance">"Distance restante"</string>
     <string name="navigation_remaining_time">"Temps restant"</string>
     <string name="navigation_right">"Droite"</string>
-    <string name="navigation_route">"Itinéraire %1$s"</string>
     <string name="navigation_select_second_point_label">"Choisir le 2<annotation superscript="ordinal">e</annotation> point"</string>
     <string name="navigation_sharp_left">"Virage serré à gauche"</string>
     <string name="navigation_sharp_left_2">"virage serré à gauche"</string>
@@ -1295,7 +1293,6 @@
     <string name="navigation_then">"%1$s, puis %2$s"</string>
     <string name="navigation_then_2">"Puis %1$s"</string>
     <string name="navigation_then_in">"Puis %1$s dans %2$s"</string>
-    <string name="navigation_to_route">"Vers l’itinéraire"</string>
     <string name="navigation_to_start">"Vers le départ"</string>
     <string name="navigation_turn_by_turn_guidance">"Guidage pas à pas"</string>
     <string name="navigation_turn_left">"tournez à gauche"</string>

@@ -110,7 +110,6 @@ internal fun BoxScope.CombinedGuidanceRecordingOverlay(
     screenSize: WearScreenSize,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     expandRequestToken: Long,
     actionPromptRequestToken: Long,
@@ -124,7 +123,6 @@ internal fun BoxScope.CombinedGuidanceRecordingOverlay(
     onResumeGuidance: () -> Unit,
     onStopGuidance: () -> Unit,
     onVoiceGuidanceChange: (Boolean) -> Unit,
-    onGuideBackToRoute: () -> Unit,
     onDismissGuideBackPrompt: () -> Unit,
     onPauseRecording: () -> Unit,
     onResumeRecording: () -> Unit,
@@ -336,7 +334,6 @@ internal fun BoxScope.CombinedGuidanceRecordingOverlay(
                     screenSize = screenSize,
                     isMetric = isMetric,
                     compassHeadingDeg = compassHeadingDeg,
-                    guideBackToRouteActive = guideBackToRouteActive,
                     showGuideBackPrompt = showGuideBackPrompt,
                     onSlotLongPress = { slotIndex ->
                         if (pageIndex > guidanceMetricPageCount) {
@@ -364,7 +361,6 @@ internal fun BoxScope.CombinedGuidanceRecordingOverlay(
                     onShowActions = { showActions = true },
                     onDismiss = { expanded = false },
                     onVoiceGuidanceChange = onVoiceGuidanceChange,
-                    onGuideBackToRoute = onGuideBackToRoute,
                     onDismissGuideBackPrompt = onDismissGuideBackPrompt,
                 )
             }
@@ -377,7 +373,6 @@ internal fun BoxScope.CombinedGuidanceRecordingOverlay(
             guidancePaused = guidancePaused,
             isMetric = isMetric,
             compassHeadingDeg = compassHeadingDeg,
-            guideBackToRouteActive = guideBackToRouteActive,
             screenSize = screenSize,
             modifier = Modifier.align(Alignment.TopCenter),
             onExpand = {
@@ -467,7 +462,6 @@ private fun CombinedCompactPopup(
     guidancePaused: Boolean,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     screenSize: WearScreenSize,
     modifier: Modifier,
     onExpand: () -> Unit,
@@ -547,7 +541,6 @@ private fun CombinedCompactPopup(
                     CombinedGuidanceIcon(
                         state = guidanceState,
                         compassHeadingDeg = compassHeadingDeg,
-                        guideBackToRouteActive = guideBackToRouteActive,
                         modifier = Modifier.size(compactIconSize),
                     )
                     Text(
@@ -558,7 +551,6 @@ private fun CombinedCompactPopup(
                                 combinedGuidanceCompactText(
                                     guidanceState,
                                     isMetric,
-                                    guideBackToRouteActive,
                                     resources = resources,
                                 )
                             },
@@ -592,7 +584,6 @@ private fun CombinedFullscreenDashboard(
     screenSize: WearScreenSize,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     onSlotLongPress: (Int) -> Unit,
     onGuidanceSlotLongPress: (Int, Int) -> Unit,
@@ -601,7 +592,6 @@ private fun CombinedFullscreenDashboard(
     onShowActions: () -> Unit,
     onDismiss: () -> Unit,
     onVoiceGuidanceChange: (Boolean) -> Unit,
-    onGuideBackToRoute: () -> Unit,
     onDismissGuideBackPrompt: () -> Unit,
 ) {
     RecordingFullscreenPageShell(
@@ -620,7 +610,7 @@ private fun CombinedFullscreenDashboard(
         GuidanceRouteProgressChrome(
             state = guidanceState,
             isMetric = isMetric,
-            showDetails = !guidanceState.offRoute || guideBackToRouteActive,
+            showDetails = !guidanceState.offRoute,
             elevationProgressRingEnabled = elevationProgressRingEnabled,
             routeProgressRingSegments = routeProgressRingSegments,
             modifier = Modifier.fillMaxSize(),
@@ -632,11 +622,9 @@ private fun CombinedFullscreenDashboard(
                 screenSize = screenSize,
                 isMetric = isMetric,
                 compassHeadingDeg = compassHeadingDeg,
-                guideBackToRouteActive = guideBackToRouteActive,
                 showGuideBackPrompt = showGuideBackPrompt,
                 voiceGuidanceEnabled = voiceGuidanceEnabled,
                 onVoiceGuidanceChange = onVoiceGuidanceChange,
-                onGuideBackToRoute = onGuideBackToRoute,
                 onDismissGuideBackPrompt = onDismissGuideBackPrompt,
             )
         } else if (pageIndex <= guidanceMetricPageCount) {
@@ -670,11 +658,9 @@ private fun CombinedGuidancePage(
     screenSize: WearScreenSize,
     isMetric: Boolean,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     voiceGuidanceEnabled: Boolean,
     onVoiceGuidanceChange: (Boolean) -> Unit,
-    onGuideBackToRoute: () -> Unit,
     onDismissGuideBackPrompt: () -> Unit,
 ) {
     val resources = LocalResources.current
@@ -696,9 +682,9 @@ private fun CombinedGuidancePage(
             WearScreenSize.MEDIUM -> 38.dp
             WearScreenSize.SMALL -> 36.dp
         }
-    val showRouteProgressDetails = !state.offRoute || guideBackToRouteActive
+    val showRouteProgressDetails = !state.offRoute
     val combinedManeuverText =
-        if (!paused && !state.offRoute && !guideBackToRouteActive) {
+        if (!paused && !state.offRoute) {
             guidanceInstructionDistanceText(state, isMetric, resources = resources)?.let { distance ->
                 resources.getString(
                     R.string.navigation_instruction_with_distance,
@@ -749,7 +735,6 @@ private fun CombinedGuidancePage(
                     CombinedGuidanceIcon(
                         state = state,
                         compassHeadingDeg = compassHeadingDeg,
-                        guideBackToRouteActive = guideBackToRouteActive,
                         modifier = Modifier.size(arrowIconSize),
                         tint = if (state.offRoute) Color.Black else MaterialTheme.colorScheme.onPrimary,
                     )
@@ -761,7 +746,7 @@ private fun CombinedGuidancePage(
                             stringResource(R.string.navigate_paused)
                         } else {
                             combinedManeuverText
-                                ?: combinedGuidancePrimaryText(state, guideBackToRouteActive, resources = resources)
+                                ?: combinedGuidancePrimaryText(state, resources = resources)
                         },
                     color = if (state.offRoute) COMBINED_OFF_ROUTE_AMBER else Color.White,
                     fontWeight = FontWeight.Bold,
@@ -777,7 +762,6 @@ private fun CombinedGuidancePage(
                             combinedGuidanceSecondaryText(
                                 state,
                                 isMetric,
-                                guideBackToRouteActive,
                                 resources = resources,
                             ),
                         color = Color.White.copy(alpha = 0.82f),
@@ -1031,14 +1015,12 @@ private fun CompactCancelButton(onClick: () -> Unit) {
 private fun CombinedGuidanceIcon(
     state: TurnByTurnGuidanceState,
     compassHeadingDeg: Float,
-    guideBackToRouteActive: Boolean,
     modifier: Modifier,
     tint: Color = Color.White,
 ) {
     GuidanceManeuverIcon(
         state = state,
         compassHeadingDeg = compassHeadingDeg,
-        guideBackToRouteActive = guideBackToRouteActive,
         modifier = modifier,
         tint = tint,
     )
@@ -1075,12 +1057,9 @@ private fun CombinedVoiceToggle(
 
 private fun combinedGuidancePrimaryText(
     state: TurnByTurnGuidanceState,
-    guideBackToRouteActive: Boolean,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        resources.getString(R.string.navigation_to_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         resources.getString(R.string.navigate_off_route)
     } else {
         when (state.mode) {
@@ -1094,13 +1073,9 @@ private fun combinedGuidancePrimaryText(
 private fun combinedGuidanceSecondaryText(
     state: TurnByTurnGuidanceState,
     isMetric: Boolean,
-    guideBackToRouteActive: Boolean,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        state.distanceToRouteMeters?.let { formatLiveDistanceLabel(it, isMetric, resources = resources) }
-            ?: resources.getString(R.string.navigation_find_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         state.distanceToRouteMeters?.let {
             resources.getString(
                 R.string.navigate_from_gpx,
@@ -1124,15 +1099,9 @@ private fun combinedGuidanceSecondaryText(
 private fun combinedGuidanceCompactText(
     state: TurnByTurnGuidanceState,
     isMetric: Boolean,
-    guideBackToRouteActive: Boolean,
     resources: Resources,
 ): String =
-    if (guideBackToRouteActive) {
-        state.distanceToRouteMeters?.let {
-            resources.getString(R.string.navigation_route, formatLiveDistanceLabel(it, isMetric, resources = resources))
-        }
-            ?: resources.getString(R.string.navigation_to_route)
-    } else if (state.offRoute) {
+    if (state.offRoute) {
         state.distanceToRouteMeters?.let {
             resources.getString(R.string.navigation_off, formatLiveDistanceLabel(it, isMetric, resources = resources))
         }

@@ -1,13 +1,7 @@
 package codes.madera.crossfog.watch.presentation.features.navigate
 
-import codes.madera.crossfog.watch.core.service.diagnostics.RecordingScreenOffDiagnostics
 import codes.madera.crossfog.watch.data.repository.SettingsRepository
-import codes.madera.crossfog.watch.presentation.features.navigate.guidance.GpxGuidanceSession
 import codes.madera.crossfog.watch.presentation.features.navigate.guidance.TurnByTurnGuidanceState
-import codes.madera.crossfog.watch.presentation.features.navigate.guidance.bearingDegrees
-import codes.madera.crossfog.watch.presentation.features.navigate.guidance.buildCumulativeDistances
-import codes.madera.crossfog.watch.presentation.features.navigate.guidance.projectLocationToRoute
-import org.mapsforge.core.model.LatLong
 import java.util.Locale
 import kotlin.math.abs
 
@@ -23,7 +17,6 @@ internal fun buildTurnByTurnTelemetryMessage(
     trackId: String?,
     reversed: Boolean?,
     startReached: Boolean?,
-    guideBackToRouteActive: Boolean,
     showGuideBackPrompt: Boolean,
     pendingStartDecision: GuidanceStartDecision?,
     paused: Boolean,
@@ -61,7 +54,6 @@ internal fun buildTurnByTurnTelemetryMessage(
         append(" progressPct=${state.routeProgressFraction.telemetryPercent()}")
         append(" etaSeconds=${state.estimatedRemainingSeconds ?: "na"}")
         append(" offRoute=${state.offRoute}")
-        append(" guideBackActive=$guideBackToRouteActive")
         append(" guideBackPrompt=$showGuideBackPrompt")
         append(" startDecision=${pendingStartDecision ?: "none"}")
         append(" routeStartBehavior=$routeStartBehavior")
@@ -77,66 +69,6 @@ internal fun buildTurnByTurnTelemetryMessage(
         append(" resolvedEtaFlatSpeedMps=${resolvedEtaFlatSpeedMps.telemetrySpeed()}")
         append(" resolvedTurnAlertMaxM=${resolvedTurnAlertMaxDistanceMeters.telemetryDistance()}")
     }
-}
-
-internal fun nearestGuidanceRoutePoint(
-    session: GpxGuidanceSession?,
-    currentLocation: LatLong?,
-): LatLong? {
-    if (session == null || currentLocation == null) return null
-    val points = session.trackPoints.map { it.latLong }
-    val projection =
-        projectLocationToRoute(
-            points = points,
-            cumulativeDistancesMeters = session.cumulativeDistancesMeters,
-            location = currentLocation,
-        ) ?: return null
-    RecordingScreenOffDiagnostics.recordTbtProjection(points.lastIndex)
-    return projectedLatLongOnRoute(points = points, projectionSegmentIndex = projection.segmentIndex, t = projection.t)
-}
-
-internal fun buildBrouterGuideBackState(
-    baseState: TurnByTurnGuidanceState,
-    active: Boolean,
-    route: List<LatLong>,
-    currentLocation: LatLong?,
-): TurnByTurnGuidanceState {
-    if (!active || currentLocation == null || route.size < 2) return baseState
-    val cumulative = buildCumulativeDistances(route)
-    val projection =
-        projectLocationToRoute(
-            points = route,
-            cumulativeDistancesMeters = cumulative,
-            location = currentLocation,
-        ) ?: return baseState
-    RecordingScreenOffDiagnostics.recordTbtProjection(route.lastIndex)
-    val targetDistance =
-        (projection.distanceFromStartMeters + GUIDE_BACK_ROUTE_BEARING_LOOKAHEAD_METERS)
-            .coerceAtMost(cumulative.lastOrNull() ?: projection.distanceFromStartMeters)
-    val targetIndex = cumulative.indexOfFirst { it >= targetDistance }.takeIf { it >= 0 } ?: route.lastIndex
-    val target =
-        route.getOrNull(targetIndex)
-            ?: projectedLatLongOnRoute(route, projection.segmentIndex, projection.t)
-            ?: return baseState
-    val remaining = ((cumulative.lastOrNull() ?: 0.0) - projection.distanceFromStartMeters).coerceAtLeast(0.0)
-    return baseState.copy(
-        distanceToRouteMeters = remaining,
-        bearingToRouteDegrees = bearingDegrees(currentLocation, target).toFloat(),
-    )
-}
-
-internal fun projectedLatLongOnRoute(
-    points: List<LatLong>,
-    projectionSegmentIndex: Int,
-    t: Double,
-): LatLong? {
-    val start = points.getOrNull(projectionSegmentIndex) ?: return null
-    val end = points.getOrNull(projectionSegmentIndex + 1) ?: return start
-    val clampedT = t.coerceIn(0.0, 1.0)
-    return LatLong(
-        start.latitude + (end.latitude - start.latitude) * clampedT,
-        start.longitude + (end.longitude - start.longitude) * clampedT,
-    )
 }
 
 internal fun String?.telemetryTrackName(): String =
@@ -167,5 +99,4 @@ internal const val START_HERE_MAX_ACCURACY_METERS = 60f
 internal const val REVERSE_SUGGESTION_DISTANCE_MARGIN_METERS = 50.0
 internal const val REVERSE_SUGGESTION_MAX_DISTANCE_METERS = 300.0
 private const val MAX_TELEMETRY_TRACK_NAME_CHARS = 48
-private const val GUIDE_BACK_ROUTE_BEARING_LOOKAHEAD_METERS = 20.0
 private const val MAP_ZOOM_LATITUDE_UPDATE_THRESHOLD_DEGREES = 0.25

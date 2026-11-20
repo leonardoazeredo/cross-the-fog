@@ -171,8 +171,6 @@ class SettingsRepositoryImpl private constructor(
             intPreferencesKey("turn_by_turn_screen_off_gps_interval_seconds")
         val TURN_BY_TURN_SCREEN_OFF_FIXED_GPS_INTERVAL_SECONDS =
             intPreferencesKey("turn_by_turn_screen_off_fixed_gps_interval_seconds")
-        val TURN_BY_TURN_BROUTER_GUIDE_BACK_ENABLED =
-            booleanPreferencesKey("turn_by_turn_brouter_guide_back_enabled")
         val TURN_BY_TURN_ROUTE_START_BEHAVIOR = stringPreferencesKey("turn_by_turn_route_start_behavior")
         val TURN_BY_TURN_REVERSE_SUGGESTION_MODE = stringPreferencesKey("turn_by_turn_reverse_suggestion_mode")
         val TURN_BY_TURN_DASHBOARD_METRIC_SLOTS = stringPreferencesKey("turn_by_turn_dashboard_metric_slots")
@@ -1095,13 +1093,6 @@ class SettingsRepositoryImpl private constructor(
             it[PrefKeys.TURN_BY_TURN_GPS_IN_AMBIENT_MODE] =
                 sanitized != SettingsRepository.RECORDING_SAMPLE_INTERVAL_DISABLED_SECONDS
         }
-    }
-
-    override val turnByTurnBrouterGuideBackEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[PrefKeys.TURN_BY_TURN_BROUTER_GUIDE_BACK_ENABLED] ?: false }
-
-    override suspend fun setTurnByTurnBrouterGuideBackEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[PrefKeys.TURN_BY_TURN_BROUTER_GUIDE_BACK_ENABLED] = enabled }
     }
 
     override val turnByTurnRouteStartBehavior: Flow<String> =

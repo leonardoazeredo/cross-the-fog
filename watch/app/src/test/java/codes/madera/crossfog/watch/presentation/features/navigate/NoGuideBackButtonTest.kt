@@ -7,7 +7,8 @@ import org.junit.Test
 
 /**
  * Going off route shows a warning with no way to ask for a way back: on-watch routing is gone, so the old "Guide"
- * button drew a straight line to the track. The warning card stays; only the button and the dashboard shortcut went.
+ * button drew a straight line to the track. The warning card stays; the button, the dashboard shortcut and the code
+ * behind them went.
  */
 class NoGuideBackButtonTest {
     // Whitespace and trailing-comma tolerant: the formatter breaks `acceptText =` and the call over lines.
@@ -23,11 +24,8 @@ class NoGuideBackButtonTest {
             "the guide-back card detail" to Regex("""R\.string\.navigate_create_route_to_gpx\b"""),
             "the guide-back shortcut icon" to Regex("""R\.string\.navigate_route_back_to_gpx\b"""),
             "a guide-back shortcut" to Regex("""GuideBackShortcut"""),
-            // The callback is still a parameter of the overlays, so a shortcut under any name would call it or hand it
-            // to a button. Handing it on under its own name (`onGuideBackToRoute = onGuideBackToRoute`) stays allowed.
-            "a call to the guide-back callback" to Regex("""\bonGuideBackToRoute\s*(\(|\.invoke\b)"""),
-            "the guide-back callback handed to a button" to
-                Regex("""\b(onAccept|onClick|onTertiary)\s*=\s*onGuideBackToRoute\b"""),
+            "the guide-back callback" to Regex("""\bonGuideBackToRoute\b"""),
+            "the guide-back state" to Regex("""\bguideBackToRouteActive\b"""),
         )
 
     private val removedStrings =
@@ -36,6 +34,9 @@ class NoGuideBackButtonTest {
             "navigate_route_back",
             "navigate_create_route_to_gpx",
             "navigate_route_back_to_gpx",
+            "navigation_to_route",
+            "navigation_route",
+            "gpx_brouter_did_not_return_a_guide_back_route",
         )
 
     @Test
