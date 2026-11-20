@@ -399,8 +399,9 @@ export type Outcome =
 
 // Runs `start` (an ensureRects call) and sorts how it ended; never rejects. `start` is a function so
 // that a throw before a promise exists is sorted as a bug too, and a run that resolves with nothing
-// (a stand-in in a test) is `done` all the same. A failure while `stale()` is true is `superseded`:
-// nobody is left to be told. A stale() that throws is a bug, with `stale: false` so it is shown.
+// (a stand-in in a test) is `done` all the same. A download failure while `stale()` is true is
+// `superseded`: nobody is left to be told; a bug keeps its kind and carries the flag, as a caller still
+// logs its class. A stale() that throws is a bug, with `stale: false` so it is shown.
 export const sortOutcome = async (
   start: () => Promise<unknown>,
   stale?: () => boolean,

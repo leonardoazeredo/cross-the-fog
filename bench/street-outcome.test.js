@@ -136,7 +136,7 @@ const outcomeOf = (index, rects, opts) => sortOutcome(() => index.ensureRects(re
     await sortOutcome(run, () => { calls++; return false; });
     assert.equal(calls, asked);
   }
-  // a stale() that throws is a bug of its own, shown (stale: false), whatever the run did
+  // a stale() that throws is a bug of its own, shown (stale: false), after any run that was not superseded
   const bad = new RangeError("stale broke");
   for (const run of [async () => ({}), failing(boom), failing(dl("offline"))]) {
     const out = await sortOutcome(run, () => { throw bad; });
