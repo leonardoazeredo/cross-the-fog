@@ -1,4 +1,4 @@
-// biome-ignore-all lint/style/noNonNullAssertion: every index is bounded by its loop, and a check would cost a branch per read
+// biome-ignore-all lint/style/noNonNullAssertion: every index is bounded by its loop, and the next point is defined whenever a segment is joined, and a check would cost a branch per read
 // Reveal: the cells of Fog of World's grid that a recorded track explores, under versioned rules.
 // Pure: same track and rules, same cells. Results are only comparable within one RULES.version, so bump it on any change to the rules.
 import { cellToLngLat, lngLatToCell, WORLD_CELLS } from "./parser.ts";
