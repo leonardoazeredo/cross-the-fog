@@ -102,7 +102,7 @@ class ReadMemoryTest {
     refused(good + byteArrayOf(0xc3.toByte()))
     refused("""{"a":"x"}""".toByteArray().let { it.copyOf(it.size - 2) + byteArrayOf(0xc0.toByte(), 0x80.toByte(), '"'.code.toByte(), '}'.code.toByte()) })
     // A multibyte character that straddles the check's buffer is not refused.
-    // The run starts at char 8184 + pad (the prefix is 6 chars), so the pair of 😀 is split by the edge at pad 5 and é or € reaches it at the ends.
+    // The run starts at char 8184 + pad (the prefix is 6 chars), so the pair of 😀 is split by the edge at pad 5, and € or é sits on char 8191 or 8192 at pads 6 to 8.
     for (pad in 0..8) {
       val n = 8178 + pad
       val text = """{"a":"${"x".repeat(n)}é€😀"}"""
