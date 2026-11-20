@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
@@ -34,6 +34,24 @@ it("fails the build when the bundle takes an input from outside the scanned fold
   });
   expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow(BuildError);
   expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow("outside.ts");
+});
+
+it("fails the build when a symlink inside the folder leads outside it", () => {
+  const dir = tree({
+    "src/entry.ts": 'import { x } from "./link.ts";\n(globalThis as any).out = x;\n',
+    "elsewhere/y.ts": "export const x = 1;\n",
+  });
+  symlinkSync(join(dir, "elsewhere/y.ts"), join(dir, "src/link.ts"));
+  expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow(BuildError);
+});
+
+it("fails the build when a package from a node_modules above the folder is imported", () => {
+  const dir = tree({
+    "src/entry.ts": 'import { x } from "somepkg";\n(globalThis as any).out = x;\n',
+    "node_modules/somepkg/index.js": "export const x = 1;\n",
+    "node_modules/somepkg/package.json": '{"name":"somepkg","version":"1.0.0","main":"index.js"}',
+  });
+  expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow(BuildError);
 });
 
 it("gives the page's engine script its window globals, and takes nothing from outside app/src", () => {

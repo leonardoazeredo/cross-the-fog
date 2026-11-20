@@ -34,6 +34,10 @@ const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "u
 const engine = `<script src="src/engine.ts"></script>`;
 const engineAt = html.indexOf(engine);
 assert.ok(engineAt > 0, "index.html loads engine.ts, which hands the page window.Sha256");
-assert.ok(engineAt < html.indexOf(`<script src="src/history.js"></script>`), "engine.ts loads before history.js");
+for (const reader of ["history.js", "streets.js", "suggest.js", "main.js"]) {
+  const at = html.indexOf(`<script src="src/${reader}"></script>`);
+  assert.ok(at > 0 && engineAt < at, `engine.ts loads before ${reader}`);
+}
+assert.equal(html.match(/<script src="src\/[^"]+\.ts"/g).length, 1, "engine.ts is the only TypeScript script: a second tag would bundle a second copy of a module");
 
 console.log("sha256.test.js ok");

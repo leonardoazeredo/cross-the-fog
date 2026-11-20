@@ -58,8 +58,14 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   const fogMap = new FogParser.FogMap();
   visit(fogMap, LON, LAT, 1);
   const g = gainOver(fogMap);
-  const n = g.newness({ lat: LAT, lng: LON });
-  assert.ok(n < 1 && n > 0.9, `${n}`);
+  // at 51 degrees a cell is about 6 m, so 100 m is 17 cells and the window clamps to 15 either side: 31 x 31, 9 of them visited
+  assert.equal(Math.round(100 / g.cellMetersAt(LAT)), 17);
+  assert.equal(g.newness({ lat: LAT, lng: LON }), 1 - 9 / 961);
+  // a visited cell 15 cells out is inside the window, one 16 out is not
+  const [cx0, cy0] = cell(LON, LAT);
+  const edge = (d) => createFogGain(deps(stub((x, y) => x === cx0 + d && y === cy0)));
+  assert.equal(edge(15).newness({ lat: LAT, lng: LON }), 1 - 1 / 961);
+  assert.equal(edge(16).newness({ lat: LAT, lng: LON }), 1);
   const all = createFogGain(deps(stub(() => true)));
   assert.equal(all.newness({ lat: LAT, lng: LON }), 0);
   const none = createFogGain(deps(stub(() => false)));
@@ -96,5 +102,52 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   const out = gainOver(fogMap).computeGain([west, mid, east]);
   assert.ok(Math.abs(out.newPct - 50) < 1e-9, `${out.newPct}`);
   assert.ok(out.area > 0);
+}
+{ // area is the union of the stamps, each cell once, however many vertices overlap it
+  const fogMap = new FogParser.FogMap();
+  visit(fogMap, LON - 0.1, LAT - 0.1, 1); // fog exists, far away
+  const g = gainOver(fogMap);
+  const m = g.cellMetersAt(LAT);
+  assert.equal(Math.round(DEFOG_HALF_M / m), 2, "a stamp is 5 x 5 cells at 51 degrees");
+  const [cx, cy] = cell(LON, LAT);
+  // vertices one cell apart along a row and the middle one is the one the cell size is taken from
+  const line = [0, 1, 2, 3, 4, 5, 6].map((i) => FogParser.cellToLngLat(cx + i + 0.5, cy + 0.5));
+  const pts = line.map((p) => [p.lng ?? p[0], p.lat ?? p[1]]);
+  const union = new Set();
+  for (let i = 0; i < 7; i++) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) union.add(`${cx + i + dx},${cy + dy}`);
+  assert.equal(union.size, 11 * 5);
+  const out = g.computeGain(pts);
+  const mMiddle = g.cellMetersAt(pts[3][1]); // the cell size at the middle vertex, as the page sizes it
+  assert.equal(out.area, union.size * mMiddle * mMiddle);
+  // the cell size comes from the middle vertex, so a line that climbs in latitude is sized there
+  const tall = [[LON, LAT - 0.2], [LON, LAT], [LON, LAT + 0.2]];
+  const t3 = g.computeGain(tall);
+  const mMid = g.cellMetersAt(LAT);
+  assert.ok(Math.abs(t3.area / (mMid * mMid) - Math.round(t3.area / (mMid * mMid))) < 1e-6, "sized at the middle vertex");
+}
+{ // the length share weighs each segment by its true length: a long new segment against a short visited one
+  const fogMap = new FogParser.FogMap();
+  const a = [LON, LAT], b = [LON + 0.002, LAT], c = [LON + 0.002, LAT + 0.0005]; // 140 m east, then 55 m north
+  for (let t = 0; t <= 1; t += 0.02) visit(fogMap, b[0], LAT + 0.0005 * t, 3);
+  const g = gainOver(fogMap);
+  const d1 = distanceM(a[1], a[0], b[1], b[0]), d2 = distanceM(b[1], b[0], c[1], c[0]);
+  assert.ok(Math.abs(g.computeGain([a, b, c]).newPct - (100 * d1) / (d1 + d2)) < 1e-9);
+  assert.ok(d1 > 2 * d2, "the segments differ in length, so lat and lng cannot be swapped unseen");
+}
+{ // a segment counts as new by its midpoint: new in the middle, visited only at its end
+  const fogMap = new FogParser.FogMap();
+  const a = [LON, LAT], b = [LON + 0.002, LAT];
+  visit(fogMap, b[0], b[1], 8); // about 48 m around the end, the midpoint is 70 m out
+  assert.equal(gainOver(fogMap).computeGain([a, b]).newPct, 100);
+}
+{ // the corridor radius rounds, it does not truncate: at 53.3 degrees 15 m is 2.6 cells, a stamp of 7 x 7
+  const g0 = createFogGain(deps(new FogParser.FogMap()));
+  const lat = 53.3;
+  assert.equal(Math.round(DEFOG_HALF_M / g0.cellMetersAt(lat)), 3);
+  const [cx, cy] = cell(LON, lat);
+  const three = createFogGain(deps(stub((x, y) => x === cx + 3 && y === cy)));
+  assert.equal(three.cellIsNew(LON, lat), false);
+  const four = createFogGain(deps(stub((x, y) => x === cx + 4 && y === cy)));
+  assert.equal(four.cellIsNew(LON, lat), true);
 }
 console.log("fog-gain.test.js ok");
