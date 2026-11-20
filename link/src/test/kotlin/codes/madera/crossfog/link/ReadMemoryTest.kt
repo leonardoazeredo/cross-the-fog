@@ -54,7 +54,7 @@ class ReadMemoryTest {
 
   @Test
   fun anItemWhoseEscapesAndMultibyteTextFillTheCapExactlyIsKeptAndOneByteMoreIsNot() {
-    // Each unit is 1 char but 2 (escape), 2, 3 or 4 bytes once framed; the filler is single bytes, so the total can be set to the byte.
+    // Each unit is 2 (escape), 2, 3 or 4 bytes once framed (the last is two chars); the filler is single bytes, so the total can be set to the byte.
     for (unit in listOf("\"", "\n", "é", "€", "😀")) {
       val body = unit.repeat(1000)
       val base = Messages.encode(ActivityOffer(id, null, "1", body)).size
