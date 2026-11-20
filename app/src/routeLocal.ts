@@ -49,8 +49,9 @@ export function create({ streets, streetGraph, elevation, estimates }: Deps) {
       rects.push(legRect(points[i - 1], points[i]));
     }
     // a failed download logs its reason, a bug its class, never a message: messages name tiles
-    const out = await sortOutcome(() =>
-      streets.ensureRects(rects, { onProgress, stale, holdAs: "route" }),
+    const out = await sortOutcome(
+      () => streets.ensureRects(rects, { onProgress, stale, holdAs: "route" }),
+      stale,
     );
     switch (out.kind) {
       case "superseded":
@@ -59,10 +60,9 @@ export function create({ streets, streetGraph, elevation, estimates }: Deps) {
         // a bug is logged even when the request is stale: staleness only keeps it from being shown
         const e = out.error as { name?: string } | null;
         console.error("[route] reading streets threw", e && e.name);
-        return stale && stale() ? SUPERSEDED : INTERNAL;
+        return out.stale ? SUPERSEDED : INTERNAL;
       }
       case "failed":
-        if (stale && stale()) return SUPERSEDED; // a download failure nobody will see
         console.warn("[route] streets unavailable", out.facts.reason);
         return { error: true, why: { reason: "streets-fetch", download: out.facts } };
       default:

@@ -16,13 +16,11 @@ import {
   type EnsureOptions,
   isDownloadError,
   isSuperseded,
-  type Outcome,
   overpassFetch,
   type RunSettings,
   rectQuery,
   type Source,
   type StreetDownload,
-  sortOutcome,
   splitAnswer,
 } from "./streetDownload.ts";
 import {
@@ -90,16 +88,6 @@ Object.setPrototypeOf(StreetIndex.prototype, StreetStore.prototype);
 
 StreetIndex.prototype.ensureRects = function (this: Self, rects: Rect[], opts?: EnsureOptions) {
   return this.download.ensureRects(rects, opts);
-};
-
-// ensureRects, sorted into an Outcome and never rejecting; goes through this.ensureRects so a
-// replacement on the instance is heard, as everywhere else the index looks its own methods up.
-StreetIndex.prototype.outcome = function (
-  this: Self,
-  rects: Rect[],
-  opts?: EnsureOptions,
-): Promise<Outcome> {
-  return sortOutcome(() => this.ensureRects(rects, opts));
 };
 
 StreetIndex.TILE_DEG = TILE_DEG;
