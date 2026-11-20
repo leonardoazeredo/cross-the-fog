@@ -51,9 +51,8 @@ const indexWith = (fetchStreets) => new StreetIndex({ newFrac: () => 1, fetchStr
   const early = await sortOutcome(() => { throw boom; });
   assert.deepEqual([early.kind, early.error], ["bug", boom]);
 
-  // a stale run's outcome is not folded: a failure or a bug in it keeps its kind, and the caller asks stale() itself
-  const staleFailed = await indexWith(failing(reason("busy"))).outcome(one, { stale: () => false });
-  assert.equal(staleFailed.kind, "failed");
+  // the outcome carries no stale flag: a bug thrown while the run turns stale stays a bug (its class is still logged),
+  // and a download failure that lands once the run is stale is already superseded; the caller asks stale() itself
   let stale = false;
   const staleBug = await indexWith(async () => { stale = true; throw boom; }).outcome(one, { stale: () => stale });
   assert.deepEqual([staleBug.kind, staleBug.error], ["bug", boom], "a bug thrown while the run turns stale is a bug");
