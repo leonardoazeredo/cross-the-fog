@@ -481,7 +481,7 @@ const T = (x, y) => ({ x, y });
     await StreetCache.create({ store, network, now: () => 0 }).fetchStreets([T(1, 1)]);
     assert.deepEqual(await store.keys(), ["4:run:1:1"], "the prefix that goes with a 0.025 grid");
   }
-  { // STREET_REASONS (streets.ts) and OUTAGE_REASONS (streetCache.ts) are not exported, and streetCache.ts keeps its own list:
+  { // STREET_REASONS (streetDownload.ts) and OUTAGE_REASONS (streetCache.ts) are not exported, and streetCache.ts keeps its own list:
     // the outage list is the street reasons minus superseded, plus streets-partial
     const fs = require("fs"), path = require("path");
     const listOf = (file, name) => {
@@ -490,7 +490,7 @@ const T = (x, y) => ({ x, y });
       assert.ok(m, name + " not found in " + file);
       return m[1].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
     };
-    const street = listOf("streets.ts", "STREET_REASONS"), outage = listOf("streetCache.ts", "OUTAGE_REASONS");
+    const street = listOf("streetDownload.ts", "STREET_REASONS"), outage = listOf("streetCache.ts", "OUTAGE_REASONS");
     assert.deepEqual(outage.slice().sort(), street.filter((r) => r !== "superseded").concat("streets-partial").sort());
   }
   { // three calls in a row with a failing store, then the store is not asked again; the network still answers
