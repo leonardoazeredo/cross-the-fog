@@ -114,7 +114,8 @@ const outcomeOf = (index, rects, opts) => sortOutcome(() => index.ensureRects(re
     }
   }
 
-  // the caller table's six rows, at the sorter with a stale flag: [row, what ensureRects does, stale(), expected outcome]
+  // every way a run can end, with stale() false and true: [row, what ensureRects does, stale(), expected outcome]; rows
+  // 1 done, 2 superseded, 3-4 bug live and stale, 5-6 download failure live and stale
   const dl = (r) => StreetIndex.downloadError(0, 2, { reason: r });
   const rows = [
     [1, async () => ({ done: 2, total: 2 }), false, { kind: "done", done: 2, total: 2, stale: false }],
