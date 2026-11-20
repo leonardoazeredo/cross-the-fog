@@ -622,7 +622,7 @@ internal class SelfHealFailoverCoordinator(
         }
     }
 
-    private suspend fun maybeRecheckPhoneConnection(nowElapsedMs: Long) {
+    internal suspend fun maybeRecheckPhoneConnection(nowElapsedMs: Long) {
         val eligible =
             isAutoFusedPhoneRecheckEligible(
                 fallbackToWatchGps = autoFusedFallbackToWatchGps,
