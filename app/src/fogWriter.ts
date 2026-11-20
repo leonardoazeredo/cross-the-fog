@@ -1,4 +1,4 @@
-// biome-ignore-all lint/style/noNonNullAssertion: each index is in range by construction (a digit of the id, the 3 extra bytes checked by the caller), and a check would cost a branch per read
+// biome-ignore-all lint/style/noNonNullAssertion: each index is in range by construction (a digit of the id, the 3 extra bytes that writeTile checks and the parser always hands out), and a check would cost a branch per read
 // Fog of World Sync writer: a FogMap -> one zlib-compressed file per tile, in the format parser.ts reads.
 // Imported blocks keep the 10 region bits they came with; blocks the app created carry region 0.
 // Empty blocks and tiles are never written.
