@@ -11,6 +11,7 @@ const { createFakeIDB } = require("./lib/fake-idb.js");
 const src = path.join(__dirname, "..", "app", "src");
 const { Overpass, bindOverpassHost } = require(path.join(src, "overpass.ts"));
 const { open } = require(path.join(src, "tileStore.ts"));
+const { pageGlobals } = require(path.join(src, "pageGlobals.ts"));
 
 const answer = (status) => ({ ok: status === 200, status, body: null, headers: { get: () => null }, json: async () => ({ elements: [] }) });
 const KEY = "made-up-key/9"; // a made-up key, as in every other test
@@ -21,12 +22,12 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
   const realIdb = global.indexedDB;
   const hadNavigator = Object.getOwnPropertyDescriptor(global, "navigator");
   try {
-    // the globals say the opposite of the host everywhere
+    // the global fetch throws and the global key is unset; the blocks below set the global to what the host does not say
     global.fetch = () => { throw new Error("read the global fetch"); };
     delete global.crossfogNextgisKey;
     Object.defineProperty(global, "navigator", { value: { onLine: true }, configurable: true, writable: true });
 
-    { // fetch, the key and onLine come from the host, each read when the call runs
+    { // fetch and the key come from the host, each read when the call runs
       const calls = [];
       const host = { fetch: async (url) => { calls.push(url); return answer(200); }, navigator: { onLine: true } };
       Overpass._reset();
@@ -68,6 +69,17 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       assert.equal(await s.get("a"), 1);
       global.indexedDB = createFakeIDB(); // a global one is not the host's
       assert.equal((await open({}, "db", "tiles", { timeoutMs: 60 })).backend, "memory", "the global IndexedDB is not read");
+    }
+    { // pageGlobals hands both modules the window it is given, which is not globalThis here
+      delete global.indexedDB;
+      const calls = [];
+      const win = { fetch: async (url) => { calls.push(url); return answer(200); }, navigator: { onLine: true }, indexedDB: createFakeIDB() };
+      const g = pageGlobals(win);
+      Overpass._reset();
+      await g.Overpass.post("data=x");
+      assert.equal(calls.length, 1, "the post went through the given window's fetch");
+      const s = await g.TileStore.open("db", "tiles", { timeoutMs: 60 });
+      assert.equal(s.backend, "indexeddb", "the given window's IndexedDB");
     }
   } finally {
     console.warn = warn;
