@@ -8,7 +8,7 @@
 //     - header: 128*128 uint16 (little-endian) mapping block position -> 1-based block index (0 = absent)
 //     - then blocks, each 515 bytes: 512-byte bitmap (64x64 bits) + 3 bytes extra (region + checksum)
 //   A set bit = an explored cell. Grid is 512 tiles * (128 blocks * 64 bits) = 2^22 cells per axis.
-//   The 3 extra bytes hold 10 region bits and the checksum 2*popcount+1; the writer (fogWriter.js) needs the region bits
+//   The 3 extra bytes hold 10 region bits and the checksum 2*popcount+1; the writer (fogWriter.ts) needs the region bits
 //   back, so Tile hands them out. Cells added by the app live in a per-FogMap overlay beside the imported tiles.
 const FILENAME_MASK1 = "olhwjsktri";
 export const MAP_WIDTH = 512;
@@ -477,7 +477,7 @@ export function lngLatToCell(lng: number, lat: number): { cx: number; cy: number
   return { cx, cy };
 }
 
-// The Sync format, for the writer (fogWriter.js), which loads after this file.
+// The Sync format, for the writer (fogWriter.ts).
 export const FORMAT = Object.freeze({
   FILENAME_MASK1,
   TILE_WIDTH,

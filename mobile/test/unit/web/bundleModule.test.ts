@@ -58,7 +58,7 @@ it("fails the build when a package from a node_modules above the folder is impor
 });
 
 it("gives the page's engine script its window globals, and takes nothing from outside app/src", () => {
-  const context = vm.createContext({ TextEncoder });
+  const context = vm.createContext({ TextEncoder, TextDecoder });
   // The page's window is the context's own global, so a binding that is not a property of it would not reach the page.
   context.window = context;
   vm.runInContext(bundleModule(join(APP_SRC, "engine.ts"), APP_SRC), context);
@@ -67,7 +67,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("typeof window.FogGain.create", context)).toBe("function");
   expect(vm.runInContext("window.FogGain.DEFOG_HALF_M", context)).toBe(15);
-  // the parser and MD5 run in a context with no page global but window and TextEncoder: nothing they call is one
+  // the converted modules run in a context with no page global but window and the two text codecs: nothing they call is one
   expect(vm.runInContext("Object.keys(window.FogParser).join()", context)).toBe(
     "FogMap,parseTileId,tileToLngLat,cellToLngLat,lngLatToCell,WORLD_CELLS,MAP_WIDTH,BITS_PER_TILE_EDGE,FORMAT",
   );
@@ -80,4 +80,16 @@ it("gives the page's engine script its window globals, and takes nothing from ou
       context,
     ),
   ).toBe("2,2,true,true");
+  expect(vm.runInContext("Object.keys(window.FogWriter).join()", context)).toBe(
+    "tileName,writeTile,writeSync",
+  );
+  expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
+  expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");
+  // no pako on the page: the two defaults say so with today's texts, and a stored entry needs no inflater
+  expect(() =>
+    vm.runInContext("window.FogWriter.writeSync(new window.FogParser.FogMap())", context),
+  ).toThrow(/writeSync needs a deflate function/);
+  expect(
+    vm.runInContext("window.Reveal.reveal([{ t: 0, lat: 10, lon: 10 }]).length > 0", context),
+  ).toBe(true);
 });

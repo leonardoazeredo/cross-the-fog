@@ -150,7 +150,7 @@ const settle = () => new Promise((r) => setImmediate(r));
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const at = (f) => html.indexOf('src="src/' + f + '"');
   for (const f of ["exportWarning.js", "fowExport.js"]) assert.ok(at(f) > 0 && at(f) < at("main.js"), f + " loads before main.js");
-  assert.ok(at("fowExport.js") > at("fogWriter.js"), "fowExport.js loads after fogWriter.js");
+  assert.ok(at("engine.ts") > 0 && at("fowExport.js") > at("engine.ts"), "fowExport.js loads after engine.ts, which holds the writer");
   const fogPane = html.slice(html.indexOf('id="fogPane"'), html.indexOf('id="planPane"'));
   assert.ok(fogPane.includes('id="exportFow"'), "the Fog of World export button is in the Show your fog tab");
   for (const id of ["exportWarning", "exportWarningText", "exportContinue", "exportCancel", "exportFow"]) {

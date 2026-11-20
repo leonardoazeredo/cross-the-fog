@@ -1,3 +1,4 @@
+import type { RevealRules } from "../../app/src/reveal.ts";
 import type {
   ActivitySummary,
   ExportState,
@@ -7,14 +8,8 @@ import type {
 } from "../src/bridge/protocol.js";
 import type { FogCache, RevealStamp } from "./fogCache.js";
 
-// app/src/reveal.js `Reveal.RULES`: a cached reveal is reused only while a hash of all these fields matches.
-export interface RevealRules {
-  version: number;
-  maxAccuracyM: number;
-  maxGapS: number;
-  maxGapM: number;
-  halfWidthM: number;
-}
+// app/src/reveal.ts `Reveal.RULES`: a cached reveal is reused only while a hash of all these fields matches.
+export type { RevealRules };
 
 // FNV-1a over the rules with sorted keys: it only has to notice a changed number, not resist forgery.
 function hashRules(rules: RevealRules): string {

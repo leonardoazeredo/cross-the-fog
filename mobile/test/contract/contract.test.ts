@@ -21,19 +21,13 @@ it("names a missing element", async () => {
   expect(failures).toContain("missing element #zip");
 });
 
-it("names a missing global", async () => {
-  const { failures } = await runContractCheck(
-    await build((h) => h.replace('<script src="src/unzip.js"></script>', "")),
-    fixture,
-  );
-  expect(failures).toContain("missing global FogZip.unzip");
-});
-
 it("names the engine globals when the engine script tag is gone", async () => {
   const { failures } = await runContractCheck(
     await build((h) => h.replace('<script src="src/engine.ts"></script>', "")),
     fixture,
   );
+  expect(failures).toContain("missing global FogZip.unzip");
+  expect(failures).toContain("missing global FogParser.FogMap.prototype.addTile");
   expect(failures).toContain("missing global Sha256.hex");
   expect(failures).toContain("missing global FogGain.create");
 });

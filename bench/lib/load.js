@@ -8,10 +8,8 @@ const zlib = require("zlib");
 
 global.window = global;
 require("./leaflet-stub.js"); // defines global.L before suggest.js needs it
-// the page's TypeScript modules (window.FogParser, window.MD5, window.Sha256, window.FogGain), which Node strips the types from itself
+// the page's TypeScript modules (window.FogParser, MD5, FogWriter, FogZip, Reveal, Sha256, FogGain), which Node strips the types from itself
 require(path.join(__dirname, "..", "..", "app", "src", "engine.ts"));
-require(path.join(__dirname, "..", "..", "app", "src", "fogWriter.js"));
-require(path.join(__dirname, "..", "..", "app", "src", "reveal.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "overpass.js"));
 // bench/cache/ is keyed by request URL and query and holds overpass-api.de answers; asking that
 // instance first keeps the benchmark on the same data as the saved baseline.

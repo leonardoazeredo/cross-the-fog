@@ -238,10 +238,10 @@ function cellsOf(files) {
     assert.throws(() => load(wrong), /pako_deflate/, label);
   }
 }
-{ // both pako builds assign window.pako: unzip.js and main.js need the inflate build to be the one left in place
+{ // both pako builds assign window.pako: the engine's unzip and main.js need the inflate build to be the one left in place
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (src) => html.indexOf(`<script src="${src}"></script>`);
-  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fogWriter.js"].map(at);
+  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
 }
 console.log("fog-writer.test.js ok");
