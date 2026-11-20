@@ -22,7 +22,9 @@ import org.junit.Test
 class SelfHealPhoneRecheckTest {
     private class Rig(
         answer: Boolean?,
+        recording: Boolean = false,
     ) {
+        var watchGpsOnly = false
         var asked = 0
         var refreshes = 0
         val coordinator: SelfHealFailoverCoordinator
@@ -52,7 +54,7 @@ class SelfHealPhoneRecheckTest {
                     ambientModeActive = { false },
                     hasFinePermission = { true },
                     hasCoarsePermission = { true },
-                    watchGpsOnly = { false },
+                    watchGpsOnly = { watchGpsOnly },
                     passiveLocationExperiment = { false },
                     phoneConnected = { null },
                     checkPhoneConnection = {
@@ -64,6 +66,7 @@ class SelfHealPhoneRecheckTest {
                     lastRequestAppliedAtElapsedMs = { 39_000L },
                     expectedIntervalMs = { 3_000L },
                     strictFreshMaxAgeMs = { 6_000L },
+                    recordingActive = { recording },
                 )
             assertTrue(coordinator.forceAutoFusedFallbackToWatchGps("phone_disconnected", nowElapsedMs = 1_000L))
         }
@@ -113,5 +116,46 @@ class SelfHealPhoneRecheckTest {
 
         assertEquals(0, rig.asked)
         assertTrue(rig.coordinator.isAutoFusedFallbackToWatchGps())
+    }
+
+    @Test
+    fun anUnknownAnswerStillThrottlesTheNextCheck() {
+        val rig = Rig(answer = null)
+
+        runBlocking {
+            rig.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 100_000L)
+            rig.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 105_000L)
+            assertEquals(1, rig.asked)
+            rig.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 130_000L)
+        }
+
+        assertEquals(2, rig.asked)
+        assertTrue(rig.coordinator.isAutoFusedFallbackToWatchGps())
+    }
+
+    @Test
+    fun aWatchGpsOnlyUserIsNeverAskedAboutThePhone() {
+        val rig = Rig(answer = true)
+        rig.watchGpsOnly = true
+
+        runBlocking { rig.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 100_000L) }
+
+        assertEquals(0, rig.asked)
+        assertEquals(0, rig.refreshes)
+    }
+
+    @Test
+    fun recordingAsksAgainSoonerThanTheUsualInterval() {
+        val recording = Rig(answer = true, recording = true)
+        val idle = Rig(answer = true)
+
+        // The failover was forced at 1 s: 11 s later a recording is due again, an idle service is not.
+        runBlocking {
+            recording.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 12_000L)
+            idle.coordinator.maybeRecheckPhoneConnection(nowElapsedMs = 12_000L)
+        }
+
+        assertEquals(1, recording.asked)
+        assertEquals(0, idle.asked)
     }
 }
