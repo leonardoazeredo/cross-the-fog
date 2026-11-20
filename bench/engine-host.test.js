@@ -13,6 +13,7 @@ const { Overpass, bindOverpassHost } = require(path.join(src, "overpass.ts"));
 const { open } = require(path.join(src, "tileStore.ts"));
 const { pageGlobals } = require(path.join(src, "pageGlobals.ts"));
 const { bindStreetsHost } = require(path.join(src, "streets.ts"));
+const { bindPlannerHost } = require(path.join(src, "planner.ts"));
 
 const answer = (status) => ({ ok: status === 200, status, body: null, headers: { get: () => null }, json: async () => ({ elements: [] }) });
 const KEY = "made-up-key/9"; // a made-up key, as in every other test
@@ -116,6 +117,24 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       pageGlobals({});
       assert.throws(() => idx.snapPoint({ lat: 1, lng: 1 }), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
     }
+    { // the planner resamples a plan's waypoints with the L of the window pageGlobals was given, read when it plans; the page's constructors are the modules' own
+      const win = {};
+      const g = pageGlobals(win);
+      win.L = { latLng: (lat, lng) => ({ lat, lng, from: "window" }) }; // set after binding
+      assert.equal(g.GraphPlanner, global.GraphPlanner, "the same constructor, not a copy");
+      assert.equal(g.LocalRouter, global.LocalRouter, "the same constructor, not a copy");
+      const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
+      const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });
+      const ways = [[1, 2, [0, 0], [500, 0]], [2, 3, [500, 0], [1000, 0]], [1, 4, [0, 0], [0, 200]], [4, 5, [0, 200], [1000, 200]], [5, 3, [1000, 200], [1000, 0]]];
+      const streets = { ways: ways.map(([a, b, p, q]) => ({ nodes: [a, b], geometry: [ll(...p), ll(...q)] })) };
+      const planner = new g.GraphPlanner(streets, (lon, lat) => ((lat - 51) * KY > 150 ? 1 : 0));
+      const A = { lat: 51, lng: 13.7 }, B = { lat: 51, lng: 13.7 + 1000 / KX };
+      const plans = planner.planP2P(A, B, 2000, 3);
+      const between = plans[0].wps.slice(1, -1);
+      assert.ok(between.length > 0 && between.every((w) => w.from === "window"), "waypoints built with the given window's L");
+      pageGlobals({});
+      assert.throws(() => planner.planP2P(A, B, 2000, 3), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
+    }
   } finally {
     console.warn = warn;
     delete global.createImageBitmap;
@@ -126,6 +145,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
     delete global.crossfogNextgisKey;
     bindOverpassHost(globalThis);
     bindStreetsHost(globalThis);
+    bindPlannerHost(globalThis);
     Overpass._reset();
   }
   console.log("engine-host.test.js ok");

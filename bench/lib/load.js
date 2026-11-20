@@ -8,15 +8,12 @@ const zlib = require("zlib");
 
 global.window = global;
 require("./leaflet-stub.js"); // defines global.L before suggest.js needs it
-// the page's TypeScript modules (window.FogParser, MD5, FogWriter, FogZip, Reveal, Overpass, TileStore, StreetCache, StreetIndex, StreetMessages, ImportMessages, Estimates, Elevation, Sha256, FogGain), which Node strips the types from itself
+// the page's TypeScript modules (window.FogParser, MD5, FogWriter, FogZip, Reveal, Overpass, TileStore, StreetCache, StreetIndex, GraphPlanner, LocalRouter, RouteLocal, StreetMessages, ImportMessages, Estimates, Elevation, Sha256, FogGain), which Node strips the types from itself
 require(path.join(__dirname, "..", "..", "app", "src", "engine.ts"));
 // bench/cache/ is keyed by request URL and query and holds overpass-api.de answers; asking that
 // instance first keeps the benchmark on the same data as the saved baseline.
 global.Overpass.setOrder(["main", "nextgis"]);
 // the street cache (StreetCache, from the engine) sits between the street index and the network; the bench installs its own tile fetch and bypasses it
-require(path.join(__dirname, "..", "..", "app", "src", "planner.js"));
-require(path.join(__dirname, "..", "..", "app", "src", "router.js"));
-require(path.join(__dirname, "..", "..", "app", "src", "routeLocal.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "suggest.js"));
 
 function loadSync(dir) {

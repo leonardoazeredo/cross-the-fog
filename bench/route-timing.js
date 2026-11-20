@@ -6,7 +6,6 @@
 // fetches from the network; the page logs the real timing on a device.
 "use strict";
 const { SuggestTool, StreetIndex, FogParser } = require("./lib/load.js");
-require("../app/src/routeLocal.js");
 const cache = require("./lib/fetch-cache.js");
 const { installTileFetch } = require("./lib/tileFetch.js");
 const scenarios = require("./scenarios.js");

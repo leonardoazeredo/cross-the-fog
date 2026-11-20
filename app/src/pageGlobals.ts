@@ -19,7 +19,10 @@ import { ImportMessages } from "./importMessages.ts";
 import { MD5 } from "./md5.ts";
 import { bindOverpassHost, Overpass, type OverpassHost } from "./overpass.ts";
 import { type FogMap, FogParser } from "./parser.ts";
+import { bindPlannerHost, GraphPlanner, type PlannerHost } from "./planner.ts";
 import { Reveal } from "./reveal.ts";
+import { RouteLocal } from "./routeLocal.ts";
+import { LocalRouter } from "./router.ts";
 import { StreetCache } from "./streetCache.ts";
 import { StreetMessages } from "./streetMessages.ts";
 import { bindStreetsHost, StreetIndex, type StreetsHost } from "./streets.ts";
@@ -34,7 +37,7 @@ interface PakoInflate {
 interface PakoDeflate {
   deflate(bytes: Uint8Array, options: { level: number }): Uint8Array;
 }
-export interface PageWindow extends OverpassHost, ElevationHost, StreetsHost {
+export interface PageWindow extends OverpassHost, ElevationHost, StreetsHost, PlannerHost {
   pako?: PakoInflate;
   pakoDeflate?: PakoDeflate;
   indexedDB?: IDBFactory | null;
@@ -47,6 +50,8 @@ export function pageGlobals(page: PageWindow) {
   bindOverpassHost(page);
   // StreetIndex likewise has one host for the bundle: `snapPoint` reads the page's Leaflet `L` when it runs.
   bindStreetsHost(page);
+  // and the planner, which reads `L` when it resamples a plan's waypoints
+  bindPlannerHost(page);
   // `deflate` defaults to the pako build the page loads (see pakoDeflate.js) and `inflate`, which reads every file
   // back before it is handed out, to the inflate build left in window.pako; `opts` overrides either.
   const writeSync = (fogMap: FogMap, opts?: Partial<WriteOptions>): WrittenFile[] => {
@@ -96,6 +101,10 @@ export function pageGlobals(page: PageWindow) {
     StreetCache: { ...StreetCache },
     // the constructor itself, not a copy: other files construct it and call its statics
     StreetIndex,
+    // the constructors themselves, not copies: suggest.js and the tests build them with `new` and patch prototypes
+    GraphPlanner,
+    LocalRouter,
+    RouteLocal: { ...RouteLocal },
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },
     Estimates: { ...Estimates },

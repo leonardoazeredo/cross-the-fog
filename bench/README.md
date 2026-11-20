@@ -24,7 +24,7 @@ node bench/overpass.js [filter]     # street-network context (total vs undefogge
 
 ## Local routing
 
-Suggestions route on the Overpass street graph in the browser (`app/src/router.js`).
+Suggestions route on the Overpass street graph in the browser (`app/src/router.ts`).
 The synthetic-graph tests need no `Sync/` and no network:
 
     for t in bench/*.test.js; do node $t; done

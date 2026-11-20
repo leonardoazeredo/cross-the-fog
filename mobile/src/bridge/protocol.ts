@@ -52,7 +52,7 @@ const routeCoords = z
   .min(2)
   .max(ROUTE_MAX_POINTS);
 
-// `ascentM` and `descentM` are null when no elevation arrived (app/src/routeLocal.js). The page gives every
+// `ascentM` and `descentM` are null when no elevation arrived (app/src/routeLocal.ts). The page gives every
 // route a walking time (app/src/estimates.ts), but a null `seconds` is accepted too: a route without
 // one is sent rather than rejected.
 // The SHA-256 of a route's GPX as UTF-8 bytes, 64 lowercase hex digits: the value link/'s `Revision` computes.
