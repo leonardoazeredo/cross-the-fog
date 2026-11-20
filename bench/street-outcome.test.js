@@ -71,6 +71,21 @@ const indexWith = (fetchStreets) => new StreetIndex({ newFrac: () => 1, fetchStr
   const replaced = await s.outcome(one);
   assert.deepEqual([replaced.kind, replaced.facts.done, replaced.facts.total], ["failed", 2, 5]);
 
+  // a caller still asks stale() after a failed download that was not superseded: nothing is shown or logged for it
+  {
+    const logged = [], orig = console.warn;
+    console.warn = (...a) => logged.push(a);
+    const streets = { ensureRects: async () => { throw StreetIndex.downloadError(0, 2, { reason: "offline" }); } };
+    const route = global.RouteLocal.create({ streets, streetGraph: () => null, elevation: {}, estimates: {} });
+    const pt = (lng) => ({ lat: 51.0, lng });
+    const gone = await route([pt(13.7), pt(13.71)], () => {}, () => true);
+    const shown = await route([pt(13.7), pt(13.71)], () => {}, () => false);
+    console.warn = orig;
+    assert.equal(gone.why.reason, "superseded");
+    assert.deepEqual([shown.why.reason, shown.why.download.reason], ["streets-fetch", "offline"]);
+    assert.deepEqual(logged, [["[route] streets unavailable", "offline"]], "only the request nobody replaced logs");
+  }
+
   // never rejects
   for (const thrown of [undefined, null, "text", 0, boom]) {
     const out = await sortOutcome(async () => { throw thrown; });
