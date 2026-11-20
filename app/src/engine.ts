@@ -4,8 +4,12 @@
 // unconverted files that read these globals. A converted module reads no page global, at load or when
 // called, because those files have not loaded when this script runs: what it needs comes in as arguments.
 import { createFogGain, DEFOG_HALF_M } from "./fogGain.ts";
+import { MD5 } from "./md5.ts";
+import { FogParser } from "./parser.ts";
 import { hex } from "./sha256.ts";
 
 const page = globalThis as unknown as Record<string, unknown>;
+page.FogParser = FogParser;
+page.MD5 = MD5;
 page.Sha256 = { hex };
 page.FogGain = { create: createFogGain, DEFOG_HALF_M };

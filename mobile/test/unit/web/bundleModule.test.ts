@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,4 +67,17 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("typeof window.FogGain.create", context)).toBe("function");
   expect(vm.runInContext("window.FogGain.DEFOG_HALF_M", context)).toBe(15);
+  // the parser and MD5 run in a context with no page global but window and TextEncoder: nothing they call is one
+  expect(vm.runInContext("Object.keys(window.FogParser).join()", context)).toBe(
+    "FogMap,parseTileId,tileToLngLat,cellToLngLat,lngLatToCell,WORLD_CELLS,MAP_WIDTH,BITS_PER_TILE_EDGE,FORMAT",
+  );
+  expect(vm.runInContext("window.MD5.hex('117660')", context)).toBe(
+    createHash("md5").update("117660").digest("hex"),
+  );
+  expect(
+    vm.runInContext(
+      "const m = new window.FogParser.FogMap(); m.addCells(new Int32Array([5, 6, 5, 7, 5, 6])) + ',' + m.totalVisited() + ',' + m.isVisitedCell(5, 7) + ',' + m.hasFog()",
+      context,
+    ),
+  ).toBe("2,2,true,true");
 });

@@ -8,9 +8,7 @@ const zlib = require("zlib");
 
 global.window = global;
 require("./leaflet-stub.js"); // defines global.L before suggest.js needs it
-require(path.join(__dirname, "..", "..", "app", "src", "parser.js"));
-require(path.join(__dirname, "..", "..", "app", "src", "md5.js"));
-// the page's TypeScript modules (window.Sha256, window.FogGain), which Node strips the types from itself
+// the page's TypeScript modules (window.FogParser, window.MD5, window.Sha256, window.FogGain), which Node strips the types from itself
 require(path.join(__dirname, "..", "..", "app", "src", "engine.ts"));
 require(path.join(__dirname, "..", "..", "app", "src", "fogWriter.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "reveal.js"));

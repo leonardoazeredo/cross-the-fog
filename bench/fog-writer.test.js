@@ -220,10 +220,14 @@ function cellsOf(files) {
   } finally { global.pako = parked; }
 }
 { // the MD5 constants are written out, so an engine whose Math.sin rounds differently still names tiles right
-  const vm = require("node:vm");
-  const ctx = vm.createContext({ window: {}, TextEncoder, Math: Object.assign(Object.create(Math), { sin: (x) => Math.sin(x) * (1 + 1e-9) }) });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "app", "src", "md5.js"), "utf8"), ctx);
-  assert.equal(ctx.window.MD5.hex("117660"), crypto.createHash("md5").update("117660").digest("hex"));
+  const { spawnSync } = require("node:child_process");
+  const md5 = path.join(__dirname, "..", "app", "src", "md5.ts");
+  // a fresh process, so the module is evaluated after Math.sin is perturbed
+  const script = `const sin = Math.sin; Math.sin = (x) => sin(x) * (1 + 1e-9);
+    const { hex } = await import(${JSON.stringify(require("node:url").pathToFileURL(md5).href)}); process.stdout.write(hex("117660"));`;
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
 }
 { // pakoDeflate.js parks the deflate build, and refuses at load when what it finds cannot deflate
   const vm = require("node:vm");
@@ -237,7 +241,7 @@ function cellsOf(files) {
 { // both pako builds assign window.pako: unzip.js and main.js need the inflate build to be the one left in place
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (src) => html.indexOf(`<script src="${src}"></script>`);
-  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/parser.js", "src/md5.js", "src/fogWriter.js"].map(at);
+  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fogWriter.js"].map(at);
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
 }
 console.log("fog-writer.test.js ok");
