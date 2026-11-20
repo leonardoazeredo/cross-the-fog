@@ -1,7 +1,6 @@
 package codes.madera.crossfog.watch
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -10,26 +9,40 @@ import java.io.File
  * Nothing the watch sends may leave it unencrypted, and every address it downloads from is `https`, so the manifest
  * allows no plain HTTP. A host that really needs it must be named in a network security config, and that config
  * and its exception are listed in `watch/UPSTREAM.md`, so adding one fails here until this test is updated with it.
+ * Every source set's manifest is read, because a `debug` or `release` one would be merged over the main one.
  */
 class ManifestCleartextTest {
-    private val manifest: String
+    private val manifests: Map<String, String>
         get() {
-            val file = File("src/main/AndroidManifest.xml")
-            assertTrue("run from the app module: ${file.absolutePath}", file.isFile)
-            return file.readText()
+            val src = File("src")
+            assertTrue("run from the app module: ${src.absolutePath}", src.isDirectory)
+            return src
+                .listFiles { dir -> File(dir, "AndroidManifest.xml").isFile }
+                .orEmpty()
+                .associate { it.name to File(it, "AndroidManifest.xml").readText() }
         }
 
+    private val flag = Regex("""android:usesCleartextTraffic\s*=\s*"([^"]*)"""")
+
     @Test
-    fun theApplicationForbidsCleartextTraffic() {
-        val flag = Regex("""android:usesCleartextTraffic\s*=\s*"([^"]*)"""")
-        assertEquals(listOf("false"), flag.findAll(manifest).map { it.groupValues[1] }.toList())
+    fun theMainManifestForbidsCleartextTraffic() {
+        val main = manifests["main"] ?: error("no src/main/AndroidManifest.xml")
+        assertEquals(listOf("false"), flag.findAll(main).map { it.groupValues[1] }.toList())
+    }
+
+    @Test
+    fun noOtherSourceSetTouchesTheFlag() {
+        val others = manifests.filterKeys { it != "main" }.filterValues { flag.containsMatchIn(it) }
+        assertEquals(emptySet<String>(), others.keys)
     }
 
     @Test
     fun noNetworkSecurityConfigAddsAnException() {
-        assertFalse(
+        val named = manifests.filterValues { it.contains("networkSecurityConfig") }
+        assertEquals(
             "a network security config needs its exceptions listed in watch/UPSTREAM.md and this test updated",
-            manifest.contains("networkSecurityConfig"),
+            emptySet<String>(),
+            named.keys,
         )
     }
 }
