@@ -125,6 +125,8 @@ class FramingTest {
     val allocated = mx.getThreadAllocatedBytes(thread) - before
 
     assertEquals(ProtocolError.FRAME_TRUNCATED, error)
+    // A JVM that does not count allocations reads 0 here, which must fail rather than pass.
+    assertTrue("allocation counter unavailable", allocated > 0)
     // One 64 KiB chunk and a buffer of the same size: far under the 16 MiB the peer claimed.
     assertTrue("allocated $allocated bytes for a 10-byte frame", allocated < 1024 * 1024)
   }
