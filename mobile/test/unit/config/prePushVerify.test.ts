@@ -34,6 +34,16 @@ function runsFor(file: string): boolean {
 }
 
 describe("the pre-push hook's verify command", () => {
+  // The bench tests load the modules the page ships and run them in Node, so verify runs them and a push that
+  // changes only bench/ is not skipped (the file list below).
+  it("runs the bench tests", () => {
+    const pkg = JSON.parse(readFileSync(join(REPO, "mobile/package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    expect(pkg.scripts["test:bench"]).toBe("tsx scripts/bench-test.ts");
+    expect(pkg.scripts.verify?.split(" && ")).toContain("pnpm test:bench");
+  });
+
   it("is declared once, as `pnpm --dir mobile verify`", () => {
     expect(LEFTHOOK_YML.match(/^\s*run: pnpm --dir mobile verify\s*$/gm)).toHaveLength(1);
   });
@@ -50,6 +60,8 @@ describe("the pre-push hook's verify command", () => {
       "link/build.gradle.kts",
       "app/src/main.js",
       "app/index.html",
+      "bench/engine-host.test.js",
+      "bench/lib/load.js",
       "mobile/package.json",
       "mobile/src/link/send.ts",
     ])("runs for a push touching %s", (file) => {
@@ -57,7 +69,7 @@ describe("the pre-push hook's verify command", () => {
   });
 
   // A push touching only paths outside those folders has nothing for verify to check and would cost a minute.
-  it.skipIf(!hasLefthook).each(["docs/x.md", "README.md", "bench/y.js", "lefthook.yml"])(
+  it.skipIf(!hasLefthook).each(["docs/x.md", "README.md", "lefthook.yml"])(
     "is skipped for a push touching only %s",
     (file) => {
       expect(runsFor(file)).toBe(false);

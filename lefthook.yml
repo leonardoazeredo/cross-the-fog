@@ -13,5 +13,6 @@ pre-push:
         - "watch/**"
         - "link/**"
         - "app/**"
+        - "bench/**"
         - "mobile/**"
       run: pnpm --dir mobile verify
