@@ -165,12 +165,6 @@ private fun denseSettingsMenuShowcase() {
                 }
                 item {
                     SettingsSectionChip(
-                        label = "POI settings",
-                        onClick = {},
-                    )
-                }
-                item {
-                    SettingsSectionChip(
                         label = "GPX settings",
                         onClick = {},
                     )
