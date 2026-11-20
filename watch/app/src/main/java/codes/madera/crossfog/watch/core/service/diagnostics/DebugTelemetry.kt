@@ -51,7 +51,6 @@ internal object DebugTelemetry {
 
     private val enabled = AtomicBoolean(false)
     private val lock = Any()
-    private var exportFreezeActive = false
 
     @Volatile private var transitionMarkersEnabled = true
     private val lines = ArrayDeque<String>()
@@ -74,7 +73,6 @@ internal object DebugTelemetry {
         captureActive: Flow<Boolean>,
         captureMode: Flow<String>,
     ) {
-        // Battery captures also need the persisted off emission to release the export freeze.
         combine(captureActive, captureMode) { active, mode ->
             active && mode == SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_FULL
         }.collect { setEnabledFromCaptureSettings(it) }
@@ -83,22 +81,7 @@ internal object DebugTelemetry {
     fun setEnabledFromCaptureSettings(value: Boolean) {
         val marker =
             synchronized(lock) {
-                if (value && exportFreezeActive) return
-                if (!value) exportFreezeActive = false
                 setEnabledLocked(value)
-            }
-        recordTransitionMarker(marker)
-    }
-
-    /**
-     * Stops capture without allowing an in-flight settings emission to reopen a short-lived
-     * session while the diagnostic export is taking its snapshot.
-     */
-    fun freezeForExport() {
-        val marker =
-            synchronized(lock) {
-                exportFreezeActive = true
-                setEnabledLocked(false)
             }
         recordTransitionMarker(marker)
     }

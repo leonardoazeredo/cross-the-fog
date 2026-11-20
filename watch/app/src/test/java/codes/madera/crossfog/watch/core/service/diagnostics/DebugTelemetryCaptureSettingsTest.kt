@@ -66,48 +66,4 @@ class DebugTelemetryCaptureSettingsTest {
             runCurrent()
             assertFalse(DebugTelemetry.isEnabled())
         }
-
-    @Test
-    fun `export stays frozen until disable arrives and next capture starts without GPS`() =
-        runTest {
-            val active = MutableStateFlow(true)
-            val mode = MutableStateFlow(SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_FULL)
-            backgroundScope.launch { DebugTelemetry.observeCaptureSettings(active, mode) }
-            runCurrent()
-            val first = DebugTelemetry.captureSessionSnapshot()
-            assertTrue(first.active)
-
-            DebugTelemetry.freezeForExport()
-            active.value = true
-            runCurrent()
-            assertFalse(DebugTelemetry.isEnabled())
-            assertEquals(first.sessionId, DebugTelemetry.captureSessionSnapshot().sessionId)
-
-            active.value = false
-            runCurrent()
-            active.value = true
-            runCurrent()
-            val next = DebugTelemetry.captureSessionSnapshot()
-            assertTrue(next.active)
-            assertEquals(first.sessionId + 1L, next.sessionId)
-        }
-
-    @Test
-    fun `battery export cannot leave a later full capture frozen`() =
-        runTest {
-            val active = MutableStateFlow(true)
-            val mode = MutableStateFlow(SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_BATTERY)
-            backgroundScope.launch { DebugTelemetry.observeCaptureSettings(active, mode) }
-            runCurrent()
-            assertFalse(DebugTelemetry.isEnabled())
-
-            DebugTelemetry.freezeForExport()
-            active.value = false
-            runCurrent()
-            mode.value = SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_FULL
-            active.value = true
-            runCurrent()
-
-            assertTrue(DebugTelemetry.isEnabled())
-        }
 }
