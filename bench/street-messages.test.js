@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 global.window = global;
-require("../app/src/streetMessages.js");
+require("./lib/load.js");
 const { StreetMessages } = global;
 const { describe, progress } = StreetMessages;
 
@@ -108,11 +108,11 @@ const err = (reason, more) => Object.assign(new Error("overpass HTTP 502"), { re
     }
   }
 }
-{ // the page loads it before main.js, which calls it
+{ // the engine script (which builds window.StreetMessages) loads before main.js, which calls it
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (f) => html.indexOf('src="src/' + f + '"');
-  assert.ok(at("streetMessages.js") > 0, "loaded");
-  assert.ok(at("streetMessages.js") < at("main.js"), "before main.js");
+  assert.ok(at("engine.ts") > 0, "loaded");
+  assert.ok(at("engine.ts") < at("main.js"), "before main.js");
 }
 
 console.log("street-messages.test.js ok");

@@ -86,6 +86,24 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
   expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");
+  expect(vm.runInContext("Object.keys(window.Estimates).join()", context)).toBe(
+    "estimate,climb,routeStats,distanceM",
+  );
+  expect(vm.runInContext("Object.keys(window.StreetMessages).join()", context)).toBe(
+    "describe,progress",
+  );
+  expect(vm.runInContext("Object.keys(window.ImportMessages).join()", context)).toBe(
+    "status,tally,decode,isTileName",
+  );
+  expect(vm.runInContext("Object.keys(window.Elevation).join()", context)).toBe(
+    "create,open,within,tileOf,decodeHeight",
+  );
+  expect(
+    vm.runInContext("window.Estimates.estimate([[0, 0], [0, 0.001]]).distanceM", context),
+  ).toBe(111);
+  expect(vm.runInContext("window.StreetMessages.progress(1, 4)", context)).toBe(
+    "Getting the street map, 1 of 4…",
+  );
   // no pako on the page: the deflate default says so with its own message (the inflate default's is checked after it, so it is not reached here)
   expect(() =>
     vm.runInContext("window.FogWriter.writeSync(new window.FogParser.FogMap())", context),
