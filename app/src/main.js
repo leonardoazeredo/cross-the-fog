@@ -46,6 +46,11 @@
 
   // ---- fog layer + appearance -------------------------------------------------
   const fogMap = new FogParser.FogMap();
+  // The one answer to "how much fog does this reveal": the route stats, the suggestions and the street index's
+  // segment weights all read it, and it reads the live fog.
+  const { cellIsNew, corridorNewFrac, computeGain, newness } = FogGain.create({
+    fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToCell: FogParser.lngLatToCell
+  });
   let fogLayer = null;
   // The map opens on a wide view, so activity-only fog (no import, which fits in finishLoad) would sit out of sight: fit it
   // once, but never over any other map move since load (a gesture, "Show on map", a waypoint): Leaflet's movestart covers them all.
@@ -265,59 +270,6 @@
     elevEl.innerHTML = ""; elevHead.style.display = "none";
   }
 
-  const DEFOG_HALF_M = 15; // assumed half-width of the corridor Fog of World clears as you travel
-  function cellMetersAt(lat) { return (40075016.686 / FogParser.WORLD_CELLS) * Math.cos(lat * Math.PI / 180); }
-
-  // Is this point on genuinely new ground? True only if NO already-visited cell sits within
-  // the ~DEFOG_HALF_M corridor, so weaving a cell off a road you've done doesn't read as new.
-  function cellIsNew(lon, lat) {
-    const r = Math.max(1, Math.round(DEFOG_HALF_M / cellMetersAt(lat)));
-    const c = FogParser.lngLatToCell(lon, lat);
-    const cx0 = Math.floor(c.cx), cy0 = Math.floor(c.cy);
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++)
-      if (fogMap.isVisitedCell(cx0 + dx, cy0 + dy)) return false;
-    return true;
-  }
-
-  // Share of the ~DEFOG_HALF_M corridor stamp around a point that is still fogged.
-  // The street index weights way segments by this, keeping its reward area-aligned.
-  function corridorNewFrac(lon, lat) {
-    const r = Math.max(1, Math.round(DEFOG_HALF_M / cellMetersAt(lat)));
-    const c = FogParser.lngLatToCell(lon, lat);
-    const cx0 = Math.floor(c.cx), cy0 = Math.floor(c.cy);
-    let fogged = 0, total = 0;
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      total++;
-      if (!fogMap.isVisitedCell(cx0 + dx, cy0 + dy)) fogged++;
-    }
-    return fogged / total;
-  }
-
-  // What this route would defog: new area (cells in the clear-corridor) + the share of the
-  // route's LENGTH that runs through never-visited ground.
-  function computeGain(coords) {
-    if (!fogMap.hasFog() || coords.length < 2) return null;
-    const cellM = cellMetersAt(coords[Math.floor(coords.length / 2)][1]);
-    const r = Math.max(1, Math.round(DEFOG_HALF_M / cellM));
-    const seen = new Set(); let newCells = 0;
-    for (const p of coords) {
-      const c = FogParser.lngLatToCell(p[0], p[1]);
-      const cx0 = Math.floor(c.cx), cy0 = Math.floor(c.cy);
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-        const cx = cx0 + dx, cy = cy0 + dy, key = cy * FogParser.WORLD_CELLS + cx;
-        if (seen.has(key)) continue; seen.add(key);
-        if (!fogMap.isVisitedCell(cx, cy)) newCells++;
-      }
-    }
-    let total = 0, newLen = 0;
-    for (let i = 1; i < coords.length; i++) {
-      const a = L.latLng(coords[i - 1][1], coords[i - 1][0]), b = L.latLng(coords[i][1], coords[i][0]);
-      const d = a.distanceTo(b); total += d;
-      if (cellIsNew((coords[i - 1][0] + coords[i][0]) / 2, (coords[i - 1][1] + coords[i][1]) / 2)) newLen += d;
-    }
-    return { area: newCells * cellM * cellM, newPct: total > 0 ? 100 * newLen / total : 0 };
-  }
-
   function renderStats() {
     if (!lastStats) return;
     const s = lastStats;
@@ -449,6 +401,7 @@
   const suggest = new SuggestTool(map, {
     fogMap,
     computeGain,
+    newness,
     isNew: cellIsNew, // previews get the same solid-new / hatched-old split as drawn routes
     streets, // candidates chase defoggable area on real ways
     onPoints: (n) => {

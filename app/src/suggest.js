@@ -39,6 +39,7 @@
     this.map = map;
     this.fogMap = opts.fogMap;
     this.computeGain = opts.computeGain;   // (coords) -> { area, newPct } | null
+    this.newness = opts.newness || null;   // ({lat, lng}) -> share of never-visited cells within ~100 m; FogGain's, over this.fogMap, when not given
     this.isNew = opts.isNew || null;       // (lon,lat) -> true if the point is new ground
     this.streets = opts.streets || null;   // StreetIndex; candidates chase undefogged streets
     this.onPoints = opts.onPoints || null; // (count) -> UI update
@@ -178,17 +179,12 @@
   // Share of never-visited cells within ~100 m of a point, used to steer candidates
   // away from ground the user has already covered.
   SuggestTool.prototype._newness = function (latlng) {
-    if (!this.fogMap.hasFog()) return 1;
-    const cellM = (40075016.686 / FogParser.WORLD_CELLS) * Math.cos(latlng.lat * Math.PI / 180);
-    const r = Math.min(15, Math.max(2, Math.round(100 / cellM)));
-    const c = FogParser.lngLatToCell(latlng.lng, latlng.lat);
-    const cx0 = Math.floor(c.cx), cy0 = Math.floor(c.cy);
-    let visited = 0, total = 0;
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      total++;
-      if (this.fogMap.isVisitedCell(cx0 + dx, cy0 + dy)) visited++;
+    if (!this.newness) {
+      this.newness = global.FogGain.create({
+        fogMap: this.fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToCell: FogParser.lngLatToCell
+      }).newness;
     }
-    return 1 - visited / total;
+    return this.newness(latlng);
   };
 
   // How much of one route runs along another, used to drop near-duplicates

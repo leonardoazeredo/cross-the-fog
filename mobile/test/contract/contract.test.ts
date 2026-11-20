@@ -29,12 +29,13 @@ it("names a missing global", async () => {
   expect(failures).toContain("missing global FogZip.unzip");
 });
 
-it("names a missing module global when its script tag is gone", async () => {
+it("names the engine globals when the engine script tag is gone", async () => {
   const { failures } = await runContractCheck(
-    await build((h) => h.replace('<script src="src/sha256.ts" data-global="Sha256"></script>', "")),
+    await build((h) => h.replace('<script src="src/engine.ts"></script>', "")),
     fixture,
   );
   expect(failures).toContain("missing global Sha256.hex");
+  expect(failures).toContain("missing global FogGain.create");
 });
 
 it("fails when the fixture's tile count doesn't match", async () => {

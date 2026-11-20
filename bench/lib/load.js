@@ -10,6 +10,8 @@ global.window = global;
 require("./leaflet-stub.js"); // defines global.L before suggest.js needs it
 require(path.join(__dirname, "..", "..", "app", "src", "parser.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "md5.js"));
+// the page's TypeScript modules (window.Sha256, window.FogGain), which Node strips the types from itself
+require(path.join(__dirname, "..", "..", "app", "src", "engine.ts"));
 require(path.join(__dirname, "..", "..", "app", "src", "fogWriter.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "reveal.js"));
 require(path.join(__dirname, "..", "..", "app", "src", "overpass.js"));
@@ -41,4 +43,9 @@ function loadSync(dir) {
   return { fogMap, bad };
 }
 
-module.exports = { loadSync, FogParser: global.FogParser, SuggestTool: global.SuggestTool, StreetIndex: global.StreetIndex, L: global.L };
+// The fog gain the page builds in main.js, over a fog map the bench loaded.
+function gainOver(fogMap) {
+  return global.FogGain.create({ fogMap, worldCells: global.FogParser.WORLD_CELLS, lngLatToCell: global.FogParser.lngLatToCell });
+}
+
+module.exports = { loadSync, gainOver, FogParser: global.FogParser, SuggestTool: global.SuggestTool, StreetIndex: global.StreetIndex, L: global.L };

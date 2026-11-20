@@ -60,34 +60,26 @@ it("fails on an external stylesheet", () =>
 
 it("BuildError is exported", () => expect(new BuildError("x")).toBeInstanceOf(Error));
 
-it("passes a module script's data-global to the reader and inlines what it returns at its place", () => {
-  const seen: Array<[string, string | undefined]> = [];
+it("reads a TypeScript script through the same reader, in its place, hashed like any other", () => {
+  const seen: string[] = [];
   const html = page.replace(
     '<script src="src/one.js"></script>',
-    '<script src="src/mod.ts" data-global="Mod"></script><script src="src/one.js"></script>',
+    '<script src="src/engine.ts"></script><script src="src/one.js"></script>',
   );
   const out = transformIndexHtml(
     html,
-    (p, g) => {
-      seen.push([p, g]);
-      return files[p] ?? "var Mod = 1;";
+    (p) => {
+      seen.push(p);
+      return files[p] ?? "var bundled = 1;";
     },
     "var adapter = 1;",
   );
-  expect(seen).toEqual([
-    ["vendor/a.css", undefined],
-    ["src/mod.ts", "Mod"],
-    ["src/one.js", undefined],
-    ["src/two.js", undefined],
-  ]);
-  const scripts = [...parse(out).querySelectorAll("script")].map((s) => s.textContent);
-  expect(scripts).toEqual([
-    "var adapter = 1;",
-    "var Mod = 1;",
-    "var one = 1;",
-    'var s = "<\\/script>";',
-  ]);
+  expect(seen).toEqual(["vendor/a.css", "src/engine.ts", "src/one.js", "src/two.js"]);
+  const doc = parse(out);
+  const scripts = [...doc.querySelectorAll("script")].map((s) => s.textContent);
+  expect(scripts.slice(0, 3)).toEqual(["var adapter = 1;", "var bundled = 1;", "var one = 1;"]);
+  const csp = doc
+    .querySelector('meta[http-equiv="Content-Security-Policy"]')
+    ?.getAttribute("content");
+  expect(csp).toContain(scriptHash("var bundled = 1;"));
 });
-
-it("refuses a module script with no data-global, which would set no window global", () =>
-  expect(() => run(page.replace("src/two.js", "src/two.ts"))).toThrow(BuildError));

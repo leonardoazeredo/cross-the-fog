@@ -31,9 +31,13 @@ assert.ok(checked >= 2, "the vectors hold route offers to check against");
 
 // The page needs the script: without its tag every Send tap fails, and nothing else checks this tag.
 const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
-const at = (tag) => html.indexOf(tag);
-const sha = `<script src="src/sha256.ts" data-global="Sha256"></script>`;
-assert.ok(at(sha) > 0, "index.html loads sha256.ts as the Sha256 global");
-assert.ok(at(sha) < at(`<script src="src/history.js"></script>`), "sha256.ts loads before history.js");
+const engine = `<script src="src/engine.ts"></script>`;
+const engineAt = html.indexOf(engine);
+assert.ok(engineAt > 0, "index.html loads engine.ts, which hands the page window.Sha256");
+for (const reader of ["history.js", "streets.js", "suggest.js", "main.js"]) {
+  const at = html.indexOf(`<script src="src/${reader}"></script>`);
+  assert.ok(at > 0 && engineAt < at, `engine.ts loads before ${reader}`);
+}
+assert.equal((html.match(/<script\b[^>]*\bsrc="[^"]*\.ts"/g) || []).length, 1, "engine.ts is the only TypeScript script: a second tag would bundle a second copy of a module");
 
 console.log("sha256.test.js ok");

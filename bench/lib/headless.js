@@ -19,6 +19,7 @@ function runSuggest(fogMap, gain, scenario) {
     const tool = new SuggestTool(global.fakeMap(), {
       fogMap,
       computeGain: gain.computeGain,
+      newness: gain.newness,
       isNew: gain.cellIsNew,
       streets,
       onResults: (s) => {

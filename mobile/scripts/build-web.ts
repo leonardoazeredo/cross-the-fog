@@ -34,9 +34,9 @@ export async function buildWebHtml(opts: {
 
   return transformIndexHtml(
     html,
-    (relPath, globalName) =>
-      globalName != null && relPath.endsWith(".ts")
-        ? bundleModule(resolve(appDir, relPath), globalName)
+    (relPath) =>
+      relPath.endsWith(".ts")
+        ? bundleModule(resolve(appDir, relPath), srcDir)
         : readFileSync(resolve(appDir, relPath), "utf-8"),
     adapterJs,
   );
