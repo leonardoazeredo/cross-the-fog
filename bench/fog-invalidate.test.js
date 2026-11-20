@@ -47,18 +47,19 @@ const sum = (a) => a.reduce((s, v) => s + v, 0);
   fogMap.addCells(walkAlongStreet());
   assert.equal(streets.newAreaM2(centre, 400), before);
 }
-{ // a fog change bumps the version the planner stamps its graph with, once, when the index next scores a segment
+{ // a fog change re-scores the segment without touching the version the planner stamps its graph with, so a held graph stays current
   const { fogMap, streets } = world();
-  streets.newAreaM2(centre, 400);
+  const planner = new GraphPlanner(streets, streets.newFrac, undefined, undefined, () => fogMap.version);
+  const before = streets.newAreaM2(centre, 400);
   const v = streets.version;
-  streets.newAreaM2(centre, 400);
-  assert.equal(streets.version, v, "nothing moved: no bump");
   fogMap.addCells(walkAlongStreet());
-  streets.newAreaM2(centre, 400);
-  assert.ok(streets.version > v);
-  const v2 = streets.version;
-  streets.newAreaM2(centre, 400);
-  assert.equal(streets.version, v2, "one bump per fog change");
+  planner.build();
+  planner.held = true;
+  assert.ok(planner.isCurrent(), "built on the fog as it is");
+  const after = streets.newAreaM2(centre, 400);
+  assert.ok(after < before * 0.5, `${after} vs ${before}`);
+  assert.equal(streets.version, v, "the index's version is not bumped by a fog change");
+  assert.ok(planner.isCurrent(), "scoring a segment after the fog moved leaves the held graph current");
 }
 { // an index built with no fog version never drops its fractions
   const streets = new StreetIndex({ newFrac: () => 1 });

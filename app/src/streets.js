@@ -483,14 +483,14 @@
     return m2;
   };
 
-  // The fog moved (cells revealed or taken back): every segment is judged against it again, and the
-  // version bump tells graphs built from the old fractions to rebuild.
+  // The fog moved (cells revealed or taken back): every segment is judged against it again. `version`
+  // stays put: a graph stamps the fog version itself, and a bump from inside a read would turn a graph
+  // held by a running suggestion not-current in the middle of it.
   StreetIndex.prototype._syncFog = function () {
     const fog = this.fogVersion();
     if (fog === this.fracFog) return;
     this.fracFog = fog;
     for (const cell of this.segs.values()) for (const s of cell) s.frac = null;
-    this.version++;
   };
 
   StreetIndex.TILE_DEG = TILE_DEG;
