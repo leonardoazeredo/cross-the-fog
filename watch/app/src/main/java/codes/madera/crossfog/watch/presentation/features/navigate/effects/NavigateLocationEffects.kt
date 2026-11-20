@@ -1,6 +1,5 @@
 package codes.madera.crossfog.watch.presentation.features.navigate.effects
 
-import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -860,13 +859,13 @@ internal fun rememberNavigateLocationUiState(
                     }
                 val motionBearingDeg = if (loc.hasBearing()) loc.bearing else null
                 val motionSpeedAccuracyMps =
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy()) {
+                    if (loc.hasSpeedAccuracy()) {
                         loc.speedAccuracyMetersPerSecond
                     } else {
                         null
                     }
                 val motionBearingAccuracyDeg =
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasBearingAccuracy()) {
+                    if (loc.hasBearingAccuracy()) {
                         loc.bearingAccuracyDegrees
                     } else {
                         null

@@ -9,7 +9,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -35,11 +34,8 @@ internal fun AutoPauseStepMonitor(
     DisposableEffect(context, enabled) {
         if (!enabled) return@DisposableEffect onDispose {}
         if (
-            (
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) !=
-                    PackageManager.PERMISSION_GRANTED
-            )
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) !=
+            PackageManager.PERMISSION_GRANTED
         ) {
             DebugTelemetry.log(
                 "TraceRecordingSensors",

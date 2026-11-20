@@ -16,7 +16,6 @@ import android.content.IntentFilter
 import android.content.res.Resources
 import android.database.sqlite.SQLiteDatabase
 import android.os.BatteryManager
-import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
@@ -1490,7 +1489,7 @@ class OamBundleDownloader(
             plugged = pluggedLabel,
             batteryPercent = batteryPercent,
             thermalStatus =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && powerManager != null) {
+                if (powerManager != null) {
                     powerManager.currentThermalStatus.toString()
                 } else {
                     "na"
