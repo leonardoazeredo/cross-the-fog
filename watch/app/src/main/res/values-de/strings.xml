@@ -656,10 +656,6 @@
     <string name="gpx_extend_the_active_gpx_from_its_end_to_the_crosshair">"Aktiven GPX vom Ende bis zum Fadenkreuz verlängern."</string>
     <string name="gpx_extend_to_here">"Bis hier verlängern"</string>
     <string name="gpx_extended">"%1$s (verlängert)"</string>
-    <plurals name="gpx_failed_count">
-        <item quantity="one">"%1$d fehlgeschlagen"</item>
-        <item quantity="other">"%1$d fehlgeschlagen"</item>
-    </plurals>
     <string name="gpx_failed_to_rename_the_gpx">"GPX konnte nicht umbenannt werden."</string>
     <string name="gpx_favors_paths_marked_hiking_routes_and_more_natural_feeling_terrain">"Bevorzugt Wege, markierte Wanderwege und natürlicheres Gelände."</string>
     <string name="gpx_file_transfers">"Dateiübertragungen"</string>
@@ -848,27 +844,13 @@
     <string name="gpx_searching">"Suche..."</string>
     <string name="gpx_select_a_point">"Punkt wählen"</string>
     <string name="gpx_select_a_route_point_then_select_the_replacement_point_to_recalculate">"Routenpunkt und danach Ersatzpunkt wählen, um die Route neu zu berechnen."</string>
-    <string name="gpx_select_for_send">"Zum Senden auswählen"</string>
-    <string name="gpx_select_gpx">"GPX wählen"</string>
     <string name="gpx_select_position">"Position wählen"</string>
     <string name="gpx_select_the_route_point_first">"Zuerst Routenpunkt wählen."</string>
-    <string name="gpx_selected_for_send">"Zum Senden ausgewählt"</string>
-    <string name="gpx_send_failed">"Senden fehlgeschlagen"</string>
     <string name="gpx_send_gpx_files_from_the_companion_phone_app">"GPX-Dateien von der Begleit-App auf dem Telefon senden."</string>
     <string name="gpx_send_gpx_to_phone">"GPX an Telefon senden"</string>
-    <string name="gpx_send_selected_gpx_to_phone">"Ausgewählten GPX an Telefon senden"</string>
     <string name="gpx_sending">"Sende %1$s…"</string>
     <string name="gpx_sending_2">"Sende %1$d/%2$d…"</string>
     <string name="gpx_sent">"Gesendet %1$d/%2$d"</string>
-    <plurals name="gpx_sent_count">
-        <item quantity="one">"%1$d gesendet"</item>
-        <item quantity="other">"%1$d gesendet"</item>
-    </plurals>
-    <string name="gpx_sent_failed">"%1$s, %2$s"</string>
-    <plurals name="gpx_sent_gpx_2">
-        <item quantity="one">"%1$d GPX gesendet"</item>
-        <item quantity="other">"%1$d GPX gesendet"</item>
-    </plurals>
     <string name="gpx_sent_to_phone">"An Telefon gesendet"</string>
     <string name="gpx_set_precise_start_and_destination_coordinates">"Genaue Start- und Zielkoordinaten festlegen."</string>
     <string name="gpx_set_the_route_endpoints_then_create_the_route">"Routenendpunkte setzen, dann Route erstellen."</string>

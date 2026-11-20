@@ -701,11 +701,6 @@
     <string name="gpx_extend_the_active_gpx_from_its_end_to_the_crosshair">"Estendi il GPX attivo dall'estremità fino al mirino."</string>
     <string name="gpx_extend_to_here">"Estendi fino a qui"</string>
     <string name="gpx_extended">"%1$s (esteso)"</string>
-    <plurals name="gpx_failed_count">
-        <item quantity="one">"non riuscito %1$d"</item>
-        <item quantity="many">"non riusciti %1$d"</item>
-        <item quantity="other">"non riusciti %1$d"</item>
-    </plurals>
     <string name="gpx_failed_to_rename_the_gpx">"Impossibile rinominare il GPX."</string>
     <string name="gpx_favors_paths_marked_hiking_routes_and_more_natural_feeling_terrain">"Preferisce sentieri, percorsi escursionistici segnalati e terreni più naturali."</string>
     <string name="gpx_file_transfers">"Trasferimenti file"</string>
@@ -894,29 +889,13 @@
     <string name="gpx_searching">"Ricerca..."</string>
     <string name="gpx_select_a_point">"Seleziona punto"</string>
     <string name="gpx_select_a_route_point_then_select_the_replacement_point_to_recalculate">"Seleziona un punto del percorso, poi il sostituto per ricalcolarlo."</string>
-    <string name="gpx_select_for_send">"Seleziona per inviare"</string>
-    <string name="gpx_select_gpx">"Seleziona GPX"</string>
     <string name="gpx_select_position">"Seleziona posizione"</string>
     <string name="gpx_select_the_route_point_first">"Seleziona prima il punto del percorso."</string>
-    <string name="gpx_selected_for_send">"Selezionato per invio"</string>
-    <string name="gpx_send_failed">"Invio non riuscito"</string>
     <string name="gpx_send_gpx_files_from_the_companion_phone_app">"Invia file GPX dall'app companion del telefono."</string>
     <string name="gpx_send_gpx_to_phone">"Invia GPX al telefono"</string>
-    <string name="gpx_send_selected_gpx_to_phone">"Invia GPX selezionato al telefono"</string>
     <string name="gpx_sending">"Invio %1$s…"</string>
     <string name="gpx_sending_2">"Invio %1$d/%2$d…"</string>
     <string name="gpx_sent">"Inviati %1$d/%2$d"</string>
-    <plurals name="gpx_sent_count">
-        <item quantity="one">"Inviato %1$d"</item>
-        <item quantity="many">"Inviati %1$d"</item>
-        <item quantity="other">"Inviati %1$d"</item>
-    </plurals>
-    <string name="gpx_sent_failed">"%1$s, %2$s"</string>
-    <plurals name="gpx_sent_gpx_2">
-        <item quantity="one">"Inviato %1$d GPX"</item>
-        <item quantity="many">"Inviati %1$d GPX"</item>
-        <item quantity="other">"Inviati %1$d GPX"</item>
-    </plurals>
     <string name="gpx_sent_to_phone">"Inviato al telefono"</string>
     <string name="gpx_set_precise_start_and_destination_coordinates">"Imposta coordinate precise di partenza e destinazione."</string>
     <string name="gpx_set_the_route_endpoints_then_create_the_route">"Imposta gli estremi, poi crea il percorso."</string>

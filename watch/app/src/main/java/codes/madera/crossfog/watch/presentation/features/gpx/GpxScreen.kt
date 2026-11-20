@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.AssistantDirection
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -50,8 +49,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -169,15 +166,12 @@ fun GpxScreen(
     val turnByTurnGuidanceSession by gpxViewModel.turnByTurnGuidanceSession.collectAsState()
     val elevationProfileUiState by gpxViewModel.elevationProfileUiState.collectAsState()
     val elevationProfileLocationMarker by gpxViewModel.elevationProfileLocationMarker.collectAsState()
-    val exportUiState by gpxViewModel.exportUiState.collectAsState()
     val currentLocation by locationViewModel.currentLocation.collectAsState()
     val gpsSignalSnapshot by locationViewModel.gpsSignalSnapshot.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
-    var isSendMode by remember { mutableStateOf(false) }
     var isDeleteMode by remember { mutableStateOf(false) }
     var isRenameMode by remember { mutableStateOf(false) }
-    var selectedSendPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
     var fileToDelete by remember { mutableStateOf<GpxFileState?>(null) }
     var fileToRename by remember { mutableStateOf<GpxFileState?>(null) }
     var activityDetailsFile by remember { mutableStateOf<GpxFileState?>(null) }
@@ -393,15 +387,9 @@ fun GpxScreen(
     }
     LaunchedEffect(gpxFiles.size) {
         if (gpxFiles.isEmpty()) {
-            isSendMode = false
             isDeleteMode = false
             isRenameMode = false
-            selectedSendPaths = emptySet()
         }
-    }
-    LaunchedEffect(gpxFiles) {
-        val existingPaths = gpxFiles.mapTo(mutableSetOf()) { it.path }
-        selectedSendPaths = selectedSendPaths.filterTo(mutableSetOf()) { it in existingPaths }
     }
 
     fun dismissHelpDialog() {
@@ -589,33 +577,22 @@ fun GpxScreen(
                 verticalSpacing = headerVerticalSpacing,
                 statusText =
                     when {
-                        isSendMode && selectedSendPaths.isEmpty() -> stringResource(R.string.gpx_select_gpx)
-                        isSendMode ->
-                            pluralStringResource(
-                                R.plurals.download_selected_count,
-                                selectedSendPaths.size,
-                                selectedSendPaths.size,
-                            )
                         isRenameMode -> stringResource(R.string.gpx_rename_mode)
                         isDeleteMode -> stringResource(R.string.download_delete_mode)
                         else -> null
                     },
                 statusColor =
                     when {
-                        isSendMode -> MaterialTheme.colorScheme.secondary
                         isRenameMode -> MaterialTheme.colorScheme.primary
                         isDeleteMode -> MaterialTheme.colorScheme.error
                         else -> MaterialTheme.colorScheme.onBackground
                     },
-                statusTopPadding = if (isSendMode) 8.dp else 0.dp,
             ) {
                 if (gpxFiles.isNotEmpty()) {
                     CompactIconHitTargetButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             gpxViewModel.setLastVisitedGpxListPage(listMode.next().storedPage)
-                            isSendMode = false
-                            selectedSendPaths = emptySet()
                             isRenameMode = false
                             isDeleteMode = false
                         },
@@ -709,15 +686,6 @@ fun GpxScreen(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 gpxViewModel.stopTurnByTurnGuidance()
                             },
-                            onSend = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                selectedSendPaths =
-                                    if (gpxFile.path in selectedSendPaths) {
-                                        selectedSendPaths - gpxFile.path
-                                    } else {
-                                        selectedSendPaths + gpxFile.path
-                                    }
-                            },
                             onLongPress = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 gpxViewModel.showElevationProfile(gpxFile.path)
@@ -726,14 +694,11 @@ fun GpxScreen(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 activityDetailsFile = gpxFile
                             },
-                            showSend = isSendMode,
-                            isSendSelected = gpxFile.path in selectedSendPaths,
                             showDelete = isDeleteMode,
                             showRename = isRenameMode,
-                            showGuidance = !isSendMode && !isDeleteMode && !isRenameMode,
+                            showGuidance = !isDeleteMode && !isRenameMode,
                             isGuidanceActive = turnByTurnGuidanceSession?.trackId == gpxFile.path,
                             isGuidanceStarting = guidanceStartingPath == gpxFile.path,
-                            exportState = exportUiState.takeIf { it.filePath == gpxFile.path },
                             isMetric = isMetric,
                             rowSpacing = rowSpacing,
                             singleGuidanceRowSpacing = singleGuidanceRowSpacing,
@@ -766,8 +731,6 @@ fun GpxScreen(
                                 val nextRenameMode = !isRenameMode
                                 isRenameMode = nextRenameMode
                                 if (nextRenameMode) {
-                                    isSendMode = false
-                                    selectedSendPaths = emptySet()
                                     isDeleteMode = false
                                 }
                             },
@@ -799,44 +762,15 @@ fun GpxScreen(
                         }
                     }
                     CompactIconHitTargetButton(
-                        onClick = {
-                            if (isSendMode) {
-                                val paths = selectedSendPaths.toList()
-                                if (paths.isNotEmpty()) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    selectedSendPaths = emptySet()
-                                    isSendMode = false
-                                }
-                            } else {
-                                navController.navigate(WatchRoutes.GPX_SETTINGS)
-                            }
-                        },
-                        enabled = !isSendMode || (selectedSendPaths.isNotEmpty() && exportUiState.isSending != true),
+                        onClick = { navController.navigate(WatchRoutes.GPX_SETTINGS) },
                         visualSize = settingsButtonSize,
                         visualOffsetY = bottomActionVisualOffsetY,
-                        containerColor =
-                            if (isSendMode) {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            } else {
-                                Color.Black.copy(alpha = 0.8f)
-                            },
-                        contentColor =
-                            if (isSendMode) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                Color.White
-                            },
+                        containerColor = Color.Black.copy(alpha = 0.8f),
+                        contentColor = Color.White,
                         disabledContainerColor = Color.Black.copy(alpha = 0.5f),
                         disabledContentColor = Color.White.copy(alpha = 0.45f),
                     ) {
-                        if (isSendMode) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_mobile_arrow_right),
-                                contentDescription = stringResource(R.string.gpx_send_selected_gpx_to_phone),
-                            )
-                        } else {
-                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.gpx_gpx_settings))
-                        }
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.gpx_gpx_settings))
                     }
                     if (gpxFiles.isNotEmpty()) {
                         CompactIconHitTargetButton(
@@ -845,8 +779,6 @@ fun GpxScreen(
                                 val nextDeleteMode = !isDeleteMode
                                 isDeleteMode = nextDeleteMode
                                 if (nextDeleteMode) {
-                                    isSendMode = false
-                                    selectedSendPaths = emptySet()
                                     isRenameMode = false
                                 }
                             },
@@ -985,17 +917,13 @@ private fun GpxTrackItem(
     onRename: () -> Unit,
     onStartGuidance: () -> Unit,
     onStopGuidance: () -> Unit,
-    onSend: () -> Unit,
     onLongPress: () -> Unit,
     onShowActivityDetails: () -> Unit,
-    showSend: Boolean,
-    isSendSelected: Boolean,
     showDelete: Boolean,
     showRename: Boolean,
     showGuidance: Boolean,
     isGuidanceActive: Boolean,
     isGuidanceStarting: Boolean,
-    exportState: GpxExportUiState?,
     isMetric: Boolean,
     rowSpacing: Dp,
     singleGuidanceRowSpacing: Dp,
@@ -1057,23 +985,19 @@ private fun GpxTrackItem(
             when {
                 showGuidance && gpxFile.isActivity -> Arrangement.spacedBy(0.dp)
                 showGuidance -> Arrangement.spacedBy(singleGuidanceRowSpacing)
-                showSend || showDelete || showRename || showGuidance -> Arrangement.spacedBy(rowSpacing)
+                showDelete || showRename || showGuidance -> Arrangement.spacedBy(rowSpacing)
                 else -> Arrangement.Start
             },
     ) {
         SwitchButton(
             modifier = Modifier.weight(1f),
-            checked = if (showSend) isSendSelected else gpxFile.isActive,
+            checked = gpxFile.isActive,
             onCheckedChange = { checked ->
                 if (suppressNextToggle) {
                     suppressNextToggle = false
                     return@SwitchButton
                 }
-                if (showSend) {
-                    onSend()
-                } else {
-                    onToggle(checked)
-                }
+                onToggle(checked)
             },
             interactionSource = interactionSource,
             label = {
@@ -1088,10 +1012,8 @@ private fun GpxTrackItem(
                 val (distValue, distUnit) = gpxFile.formattedDistance(isMetric)
                 val (elevValue, elevUnit) = gpxFile.formattedElevation(isMetric)
                 val eta = gpxFile.formattedEtaShort(resources = resources)
-                val exportMessage = exportState?.message
                 Text(
-                    text =
-                        exportMessage ?: stringResource(R.string.gpx_d, distValue, distUnit, elevValue, elevUnit, eta),
+                    text = stringResource(R.string.gpx_d, distValue, distUnit, elevValue, elevUnit, eta),
                     modifier = Modifier.basicMarquee(),
                     maxLines = 1,
                     overflow = TextOverflow.Visible,
@@ -1100,34 +1022,7 @@ private fun GpxTrackItem(
             },
         )
 
-        if (showSend) {
-            CompactIconHitTargetButton(
-                onClick = onSend,
-                enabled = exportState?.isSending != true,
-                visualSize = deleteButtonSize,
-                containerColor =
-                    if (isSendSelected) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        Color.Black.copy(alpha = 0.72f)
-                    },
-                contentColor =
-                    if (isSendSelected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        Color.White
-                    },
-            ) {
-                if (isSendSelected) {
-                    Icon(Icons.Default.Check, contentDescription = stringResource(R.string.gpx_selected_for_send))
-                } else {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_mobile_arrow_right),
-                        contentDescription = stringResource(R.string.gpx_select_for_send),
-                    )
-                }
-            }
-        } else if (showRename) {
+        if (showRename) {
             CompactIconHitTargetButton(
                 onClick = onRename,
                 visualSize = deleteButtonSize,
