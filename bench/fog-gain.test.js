@@ -185,4 +185,21 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   visit(fogMap, LON - 0.1, LAT - 0.1, 1);
   assert.equal(gainOver(fogMap).computeGain([[LON, LAT], [LON, LAT]]).newPct, 0);
 }
+{ // a vertex snaps to its cell by flooring, as the other three functions do: in the upper part of a cell the stamp still covers the cell it is in
+  const fogMap = new FogParser.FogMap();
+  const [cx, cy] = cell(LON, LAT);
+  const g0 = gainOver(fogMap);
+  const m = g0.cellMetersAt(LAT);
+  const onlyOld = (x0, y0) => createFogGain(deps(stub((x, y) => x === x0 && y === y0)));
+  const areaCells = (fraction, oldX, oldY) => {
+    const p = FogParser.cellToLngLat(cx + fraction[0], cy + fraction[1]);
+    const g = onlyOld(oldX, oldY);
+    const out = g.computeGain([[p.lng ?? p[0], p.lat ?? p[1]], [p.lng ?? p[0], p.lat ?? p[1]]]);
+    return out.area / (m * m);
+  };
+  // the cell size is the one at the vertex's own latitude, a hair off m, hence the tolerance; 24 against 25 is far outside it
+  // the old cell is 2 to the west of the cell the vertex is in: inside its 5 x 5 stamp, so 24 of 25 cells are new
+  assert.ok(Math.abs(areaCells([0.9, 0.5], cx - 2, cy) - 24) < 1e-3);
+  assert.ok(Math.abs(areaCells([0.5, 0.9], cx, cy - 2) - 24) < 1e-3);
+}
 console.log("fog-gain.test.js ok");
