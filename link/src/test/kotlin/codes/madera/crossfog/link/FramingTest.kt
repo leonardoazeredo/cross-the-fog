@@ -3,10 +3,12 @@ package codes.madera.crossfog.link
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.lang.management.ManagementFactory
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FramingTest {
@@ -109,6 +111,22 @@ class FramingTest {
     assertEquals(ProtocolError.FRAME_TOO_LARGE, errorOf { Framing.writeFrame(out, ByteArray(Framing.MAX_FRAME_BYTES + 1)) })
     assertEquals(0, out.size())
     assertEquals(ProtocolError.FRAME_EMPTY, errorOf { Framing.readFrame(ByteArrayInputStream(prefix(0))) })
+  }
+
+  @Test
+  fun aClaimOfTheMaximumFollowedByAFewBytesIsTruncatedWithoutAllocatingTheClaim() {
+    val frame = prefix(Framing.MAX_FRAME_BYTES.toLong()) + ByteArray(10) { 1 }
+    val mx = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
+    val thread = Thread.currentThread().id
+    repeat(2) { errorOf { Framing.readFrame(ByteArrayInputStream(frame)) } }
+    System.gc()
+    val before = mx.getThreadAllocatedBytes(thread)
+    val error = errorOf { Framing.readFrame(ByteArrayInputStream(frame)) }
+    val allocated = mx.getThreadAllocatedBytes(thread) - before
+
+    assertEquals(ProtocolError.FRAME_TRUNCATED, error)
+    // One 64 KiB chunk and a buffer of the same size: far under the 16 MiB the peer claimed.
+    assertTrue("allocated $allocated bytes for a 10-byte frame", allocated < 1024 * 1024)
   }
 
   @Test
