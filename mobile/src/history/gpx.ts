@@ -86,7 +86,7 @@ function readPoint(tag: string, body: string): TrackPoint {
     t,
     lat,
     lon,
-    // Reveal (app/src/reveal.js) drops points by effective accuracy, so keep that value; the raw one is the fallback.
+    // Reveal (app/src/reveal.ts) drops points by effective accuracy, so keep that value; the raw one is the fallback.
     accuracy:
       elementNumber(body, "effectiveAccuracyMeters") ?? elementNumber(body, "accuracyMeters"),
     elevation: elementNumber(body, "ele", true),

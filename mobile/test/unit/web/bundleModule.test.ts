@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
+import { inflateSync, unzlibSync, zipSync } from "fflate";
 import { expect, it } from "vitest";
 import { bundleModule } from "../../../scripts/web/bundleModule.js";
 import { BuildError } from "../../../scripts/web/transform.js";
@@ -58,7 +59,7 @@ it("fails the build when a package from a node_modules above the folder is impor
 });
 
 it("gives the page's engine script its window globals, and takes nothing from outside app/src", () => {
-  const context = vm.createContext({ TextEncoder });
+  const context = vm.createContext({ TextEncoder, TextDecoder });
   // The page's window is the context's own global, so a binding that is not a property of it would not reach the page.
   context.window = context;
   vm.runInContext(bundleModule(join(APP_SRC, "engine.ts"), APP_SRC), context);
@@ -67,7 +68,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   );
   expect(vm.runInContext("typeof window.FogGain.create", context)).toBe("function");
   expect(vm.runInContext("window.FogGain.DEFOG_HALF_M", context)).toBe(15);
-  // the parser and MD5 run in a context with no page global but window and TextEncoder: nothing they call is one
+  // the converted modules run in a context with no page global but window and the two text codecs: nothing they call is one
   expect(vm.runInContext("Object.keys(window.FogParser).join()", context)).toBe(
     "FogMap,parseTileId,tileToLngLat,cellToLngLat,lngLatToCell,WORLD_CELLS,MAP_WIDTH,BITS_PER_TILE_EDGE,FORMAT",
   );
@@ -80,4 +81,45 @@ it("gives the page's engine script its window globals, and takes nothing from ou
       context,
     ),
   ).toBe("2,2,true,true");
+  expect(vm.runInContext("Object.keys(window.FogWriter).join()", context)).toBe(
+    "tileName,writeTile,writeSync",
+  );
+  expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
+  expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");
+  // no pako on the page: the deflate default says so with its own message (the inflate default's is checked after it, so it is not reached here)
+  expect(() =>
+    vm.runInContext("window.FogWriter.writeSync(new window.FogParser.FogMap())", context),
+  ).toThrow(/writeSync needs a deflate function/);
+  expect(
+    vm.runInContext("window.Reveal.reveal([{ t: 0, lat: 10, lon: 10 }]).length > 0", context),
+  ).toBe(true);
+  // a stored entry needs no inflater; a deflated one asks for pako, which this page does not have
+  const text = new TextEncoder().encode("a".repeat(200));
+  const asBuffer = (zip: Uint8Array) =>
+    zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength);
+  context.storedZip = asBuffer(zipSync({ "a.txt": [text, { level: 0 }] }));
+  context.deflatedZip = asBuffer(zipSync({ "a.txt": [text, { level: 6 }] }));
+  expect(
+    vm.runInContext(
+      "(() => { const e = window.FogZip.unzip(storedZip); return e[0].name + ':' + e[0].data.length; })()",
+      context,
+    ),
+  ).toBe("a.txt:200");
+  expect(() => vm.runInContext("window.FogZip.unzip(deflatedZip)", context)).toThrow(
+    /pako is not defined/,
+  );
+  expect(
+    vm.runInContext(
+      "(() => { try { window.FogZip.unzip(deflatedZip); } catch (e) { return e.name; } })()",
+      context,
+    ),
+  ).toBe("ReferenceError");
+  // pako that arrives after the engine ran is the one used: the lookup happens when unzip runs
+  context.pako = { inflateRaw: inflateSync, inflate: unzlibSync };
+  expect(
+    vm.runInContext(
+      "(() => { const e = window.FogZip.unzip(deflatedZip); return e[0].name + ':' + e[0].data.length; })()",
+      context,
+    ),
+  ).toBe("a.txt:200");
 });

@@ -99,7 +99,7 @@ app/
   src/route.js      draw-your-own route tool (GPX export)
   src/routeLocal.js routes the tool's pins on the street map, with heights and estimates
   src/suggest.js    suggested routes: candidate generation, defog scoring, loop shaping
-  src/unzip.js      minimal ZIP reader so a Fog of World backup .zip loads directly
+  src/unzip.ts      minimal ZIP reader so a Fog of World backup .zip loads directly
   src/main.js       wiring: data loading, style controls, route/suggest UI, persistence
   vendor/           Leaflet + pako (zlib), vendored so there's nothing to install
 Sync/               

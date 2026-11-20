@@ -160,10 +160,12 @@ function cellsOf(files) {
   sameBytes(f.bytes, deflate5(FogWriter.writeTile(Array.from(map.blocks()))), "default is pako level 5");
   assert.equal(f.bytes[0], 0x78);
   assert.throws(() => FogWriter.writeSync(map, { deflate: () => undefined }), /no bytes/);
+  // the page's texts when a pako build is missing, word for word (the checks sit in pageGlobals.ts)
+  const NEEDS_DEFLATE = /^writeSync needs a deflate function or the pako deflate build \(vendor\/pako_deflate\.min\.js, then src\/pakoDeflate\.js, before pako_inflate\.min\.js\)$/;
   global.pakoDeflate = { inflate: pako.inflate }; // the inflate build parked by mistake
-  assert.throws(() => FogWriter.writeSync(map), /index|order|pako/i);
+  assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "a parked inflate build");
   delete global.pakoDeflate;
-  try { assert.throws(() => FogWriter.writeSync(map), /pako/i); } finally { global.pakoDeflate = pako; }
+  try { assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_DEFLATE.test(e.message), "no deflate build"); } finally { global.pakoDeflate = pako; }
 }
 { // writeTile refuses blocks the format cannot hold, rather than writing a tile Fog of World would misread
   const bitmap = new Uint8Array(512);
@@ -178,6 +180,7 @@ function cellsOf(files) {
     ["empty extra", { ...ok, extra: new Uint8Array(0) }],
     ["short extra", { ...ok, extra: Uint8Array.of(1, 2) }],
   ]) assert.throws(() => FogWriter.writeTile([block]), RangeError, label);
+  assert.throws(() => FogWriter.writeTile([{ ...ok, by: -1 }]), /outside the tile/, "a negative by is refused by the check, not by DataView");
   assert.throws(() => FogWriter.writeTile([ok, { ...ok }]), RangeError, "the same block twice");
 }
 { // a tile stored out of header order is written in header order, every cell and region bit in place
@@ -213,10 +216,15 @@ function cellsOf(files) {
   assert.throws(() => FogWriter.writeSync(map, { deflate: () => Uint8Array.of(1, 2, 3) }), named, "not zlib at all");
   // the check inflates with the pako build the page loads, or opts.inflate
   assert.equal(FogWriter.writeSync(map, { deflate: deflate5, inflate: (b) => new Uint8Array(zlib.inflateSync(b)) }).length, 1);
+  // opts.inflate wins over the page's pako: one that throws is the one reported
+  assert.throws(() => FogWriter.writeSync(map, { deflate: deflate5, inflate: () => { throw new Error("mine"); } }), /does not inflate/, "opts.inflate is used");
   const parked = global.pako;
   delete global.pako;
+  const NEEDS_INFLATE = /^writeSync needs an inflate function or the pako inflate build \(vendor\/pako_inflate\.min\.js\) to check what it wrote$/;
   try {
-    assert.throws(() => FogWriter.writeSync(map), /pako/i);
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "no inflate build");
+    global.pako = {}; // a pako without inflate is the same mistake
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "a pako with no inflate");
   } finally { global.pako = parked; }
 }
 { // the MD5 constants are written out, so an engine whose Math.sin rounds differently still names tiles right
@@ -238,10 +246,10 @@ function cellsOf(files) {
     assert.throws(() => load(wrong), /pako_deflate/, label);
   }
 }
-{ // both pako builds assign window.pako: unzip.js and main.js need the inflate build to be the one left in place
+{ // both pako builds assign window.pako: the engine's unzip and main.js need the inflate build to be the one left in place
   const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   const at = (src) => html.indexOf(`<script src="${src}"></script>`);
-  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fogWriter.js"].map(at);
+  const order = ["vendor/pako_deflate.min.js", "src/pakoDeflate.js", "vendor/pako_inflate.min.js", "src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
 }
 console.log("fog-writer.test.js ok");

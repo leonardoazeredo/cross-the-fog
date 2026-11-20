@@ -1,13 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import vm from "node:vm";
 import * as fflate from "fflate";
-import { MD5 as md5Module } from "../../../app/src/md5.ts";
-import { FogParser as fogParserModule } from "../../../app/src/parser.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const APP_SRC = resolve(__dirname, "../../../app/src");
+import { type PageWindow, pageGlobals } from "../../../app/src/pageGlobals.ts";
 
 export interface UpstreamFogMap {
   tileCount: number;
@@ -22,34 +14,19 @@ export interface UpstreamApi {
   newFogMap(): UpstreamFogMap;
   parseTileId(name: string): number | null;
   tileName(id: number): string;
-  /** The page's fogWriter.js run with fflate level 5 in place of pako level 5 (and fflate to read each file back): the tiles inflate to the same data, but the bytes can differ. */
+  /** The page's fogWriter.ts run with fflate level 5 in place of pako level 5 (and fflate to read each file back): the tiles inflate to the same data, but the bytes can differ. */
   writeSync(fogMap: UpstreamFogMap): Array<{ name: string; bytes: Uint8Array }>;
 }
 
 let _cached: UpstreamApi | null = null;
 
 function createUpstream(): UpstreamApi {
-  const window: Record<string, unknown> = {};
   const pako = {
     inflateRaw: (data: Uint8Array) => fflate.inflateSync(data),
     inflate: (data: Uint8Array) => fflate.unzlibSync(data),
   };
-  const context = vm.createContext({ window, TextDecoder, TextEncoder, pako });
-  vm.runInContext(readFileSync(`${APP_SRC}/unzip.js`, "utf-8"), context);
-  // The page's engine.ts assigns these two; the modules are imported here, so they are the code the page runs.
-  window.FogParser = { ...fogParserModule };
-  window.MD5 = { ...md5Module };
-  // fogWriter.js names MD5 as a bare global, which a browser has and this context does not.
-  context.MD5 = window.MD5;
-  vm.runInContext(readFileSync(`${APP_SRC}/fogWriter.js`, "utf-8"), context);
-
-  // The writer checks `instanceof Uint8Array` inside the context, so a host-realm result is copied into it.
-  const intoContext = vm.runInContext("(f) => (b) => new Uint8Array(f(b))", context) as (
-    f: (b: Uint8Array) => Uint8Array,
-  ) => (b: Uint8Array) => Uint8Array;
-
-  // biome-ignore lint/suspicious/noExplicitAny: vm context types are unknown
-  const { FogZip, FogParser, FogWriter } = window as any;
+  // The page's engine.ts builds these with its own window; the modules are imported here, so they are the code the page runs.
+  const { FogZip, FogParser, FogWriter } = pageGlobals({ pako } as unknown as PageWindow);
 
   return {
     unzip(zip: Uint8Array) {
@@ -57,20 +34,20 @@ function createUpstream(): UpstreamApi {
         zip.byteOffset === 0 && zip.byteLength === zip.buffer.byteLength
           ? zip.buffer
           : zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength);
-      return FogZip.unzip(buf) as Array<{ name: string; data: Uint8Array }>;
+      return FogZip.unzip(buf as ArrayBuffer);
     },
     newFogMap(): UpstreamFogMap {
-      return new FogParser.FogMap() as UpstreamFogMap;
+      return new FogParser.FogMap() as unknown as UpstreamFogMap;
     },
     parseTileId(name: string): number | null {
-      return FogParser.parseTileId(name) as number | null;
+      return FogParser.parseTileId(name);
     },
-    tileName: (id: number) => FogWriter.tileName(id) as string,
+    tileName: (id: number) => FogWriter.tileName(id),
     writeSync(fogMap) {
-      return FogWriter.writeSync(fogMap, {
-        deflate: intoContext((buf) => fflate.zlibSync(buf, { level: 5 })),
+      return FogWriter.writeSync(fogMap as never, {
+        deflate: (buf: Uint8Array) => fflate.zlibSync(buf, { level: 5 }),
         inflate: (buf: Uint8Array) => fflate.unzlibSync(buf),
-      }) as Array<{ name: string; bytes: Uint8Array }>;
+      });
     },
   };
 }

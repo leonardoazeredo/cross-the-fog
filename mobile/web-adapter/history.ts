@@ -7,7 +7,7 @@ import type {
 } from "../src/bridge/protocol.js";
 import type { FogCache, RevealStamp } from "./fogCache.js";
 
-// app/src/reveal.js `Reveal.RULES`: a cached reveal is reused only while a hash of all these fields matches.
+// app/src/reveal.ts `Reveal.RULES`: a cached reveal is reused only while a hash of all these fields matches.
 export interface RevealRules {
   version: number;
   maxAccuracyM: number;
