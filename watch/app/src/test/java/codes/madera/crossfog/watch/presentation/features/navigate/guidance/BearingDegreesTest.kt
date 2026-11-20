@@ -5,7 +5,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mapsforge.core.model.LatLong
 
-/** The off-route arrow and the way back to the start turn by this bearing, so its zero and its direction of turn are pinned. */
+/**
+ * The off-route arrow and the way back to the start turn by this bearing, so its zero and its direction of turn are
+ * pinned.
+ */
 class BearingDegreesTest {
     private val here = LatLong(48.0, 11.0)
 
