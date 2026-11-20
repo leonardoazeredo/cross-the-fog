@@ -44,7 +44,7 @@ const RETRACE_REROUTE_MIN = 0.12; // p2p: retraced share above which a via route
 const MAX_RETRACE_REROUTES = 2; // re-routed return legs per run
 const MAX_P2P_M = 30000; // A and B farther apart than this need a street download past what we cap
 const MAX_LOOP_M = 30000; // longer loops reach past the capped street download (bearing squares reach ~0.3x the length)
-const MAX_LOOPS = 6; // first-batch bearings when the planner found no routes (the ranked list is at most six, so then only the other shapes are left for the second wave)
+const MAX_LOOPS = 6; // bearings in the first batch when the planner found no routes
 // Square-ish loop shapes as [bearing offset, distance factor] vias around the compass bearing.
 // The same bearing at another shape takes the router over different streets, so a bearing whose
 // square jumps from far too short to far too long (a river crossing) can still land in tolerance.
@@ -431,7 +431,7 @@ SuggestTool.prototype._snapToNewStreets = function (this: Self, ll: any, radiusM
   if (base === null || radiusM < 200) return ll;
   const { kx, ky } = metresPerDeg(ll.lat);
   // gentle keep-bias: in dense areas scores are high everywhere, so a strong
-  // bias (tried 1.15) freezes every via in place and the snapping no-ops
+  // bias would freeze every via in place and the snapping would do nothing
   let best = ll,
     bs = base * 1.05 + 600;
   const step = Math.max(150, radiusM / 3);
@@ -836,7 +836,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
     });
   // planner plans ADD to the via candidates, they don't replace them: the
   // geometric vias are proven earners and cutting them for weaker plans
-  // dropped p2p's best card. Trim only slightly to bound the run time.
+  // would drop p2p's best card. Trim only slightly to bound the run time.
   for (const v of this._pickVias(rawVias).slice(0, planned.length ? MAX_VIAS - 1 : MAX_VIAS))
     jobs.push(async () => {
       // Real streets inflate the straight-line ellipse the via was placed
@@ -844,16 +844,16 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       // back toward the line and re-ask, up to VIA_RETRIES times, each time
       // rescaling from the length just measured rather than from the first
       // guess: one shot assumes routed length grows evenly with the offset,
-      // and around a barrier like a river it doesn't. Where it did, every
-      // detour overshot twice over and was binned, leaving only the plain
-      // fastest route and the planner's walks.
+      // which fails around a barrier like a river: every detour then
+      // overshoots twice over and is binned, leaving only the plain fastest
+      // route and the planner's walks.
       let ll = v.latlng,
         d = v.d;
       let r = await this._route([A, ll, B]);
       let best = r,
         bestLl = ll;
       for (let k = 0; k < VIA_RETRIES; k++) {
-        // 3: past this the via is in the wrong place entirely, however far out it is
+        // 3: past this, pulling the via in will not help: it is in the wrong place entirely
         if (!r || !r.lenM || r.lenM <= budget || r.lenM <= base.lenM || r.lenM > budget * 3) break;
         const shrink = Math.max(0.2, Math.min(0.9, (aim - base.lenM) / (r.lenM - base.lenM)));
         const d2 = d * shrink;
@@ -1045,7 +1045,7 @@ function rankKey(gain: any, retrace: any) {
 
 // Cut "there and back" excursions that don't pull their weight: an excursion is a
 // stretch that returns to within 60 m of where it left the route. If the defog area
-// it contributes per metre is under 40% of the route's overall rate, splice it out.
+// it contributes per metre is under half of the route's overall rate, splice it out.
 // That catches dead-end re-walks of covered ground (rate ≈ 0) and marginal wiggles,
 // while keeping spurs INTO fog, which are ugly but often the point of the suggestion.
 // Returns { coords, blockedM }: coords is the spliced geometry (null if nothing was
@@ -1272,7 +1272,7 @@ SuggestTool.prototype._suggestLoop = async function (this: Self, distM: any, buf
   // topologies: whatever the fog asks for). Only for distances the capped rect
   // reaches whole, and only where new ground is scarce enough that shape
   // matters: in mostly-virgin areas wide simple loops already defog near the
-  // ceiling and planned walks measured worse.
+  // ceiling and planned walks do not pay there.
   let planned = [];
   if (distM <= 16000) {
     try {
