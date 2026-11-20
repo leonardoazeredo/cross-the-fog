@@ -8,7 +8,7 @@ Defog: a browser-only tool that reads a Fog of World `Sync/` folder (or backup .
 
 ## Running and deploying
 
-- No package manager or linter at the repo root; tests are plain Node scripts in `bench/*.test.js` (offline, synthetic data). `app/` is not a site root any more: `index.html` names TypeScript modules (`src/sha256.ts`), which no browser runs, so the page is the one `pnpm generate` in `mobile/` writes to `generated/web.ts`. A bench test loads a `.ts` module with Node's own type stripping (erasable syntax only: no enums, namespaces or constructor parameter properties; relative imports name the `.ts` file), so the repo root still has no package manager.
+- No package manager or linter at the repo root; tests are plain Node scripts in `bench/*.test.js` (offline, synthetic data; `pnpm test:bench` in `mobile/` runs them all and is part of `pnpm verify`). `app/` is not a site root any more: `index.html` names TypeScript modules (`src/sha256.ts`), which no browser runs, so the page is the one `pnpm generate` in `mobile/` writes to `generated/web.ts`. A bench test loads a `.ts` module with Node's own type stripping (erasable syntax only: no enums, namespaces or constructor parameter properties; relative imports name the `.ts` file), so the repo root still has no package manager.
 - `pnpm verify` in `mobile/` also builds and tests the watch app: `pnpm test:watch` runs `:app:testDebugUnitTest :link:test` in `watch/`, which covers `link/` under the watch build's Kotlin.
 - No GitHub Pages site: `app/` ships only inside the phone app in `mobile/` (bundled into `generated/web.ts` by `pnpm generate`).
 - `Sync/` (personal location history) is gitignored: never commit it or anything derived from it.
@@ -56,7 +56,7 @@ Headless Node run of the shipping suggestion code against a real `Sync/` folder 
     node bench/overpass.js [filter]     # street-network context
     node bench/route-timing.js          # routeWaypoints pin-drag timing on a cached area, offline
     node bench/compare.js <baseline.json> <candidate.json>   # acceptance check, see bench/README.md
-    for t in bench/*.test.js; do node $t; done               # synthetic-graph tests, no network
+    pnpm --dir mobile test:bench                             # every bench/*.test.js, offline (~20 s); `pnpm verify` runs it, and the pre-push hook for a push touching bench/
 
 - `bench/lib/load.js` `require`s `engine.ts`, `streets.js`, `planner.js`, `router.js`, `routeLocal.js`, `suggest.js` over `bench/lib/leaflet-stub.js`; a new app file that suggest code depends on must be added there too. It sets the Overpass order to overpass-api.de first, because `bench/cache/` holds answers from that instance.
 - `bench/lib/headless.js` installs `bench/lib/tileFetch.js` on each run's `StreetIndex`: the Overpass request is the single rect of the run's `ensureRects` call (the `StreetIndex.rectQuery` text, with its `[timeout:25]` read as `[timeout:60]`, is what `bench/cache/` is keyed on), split per tile and handed to `onTile` in the order asked. `bench/run.js` prints the live request count and exits 1 when it is not 0: unless the cache was cleared, the query text changed, so fix `rectQuery`, do not refetch.
