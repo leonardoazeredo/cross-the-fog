@@ -193,6 +193,11 @@ kotlin {
     jvmToolchain(17)
 }
 
+// ManifestCleartextTest reads the manifest from disk; without this a manifest edit leaves the test up to date.
+tasks.withType<Test>().configureEach {
+    inputs.file("src/main/AndroidManifest.xml")
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // JVM counterpart of Android's built-in JSON classes for draft checkpoint regression tests.
