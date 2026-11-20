@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** `Revision.of` on Android's own encoder gives the SHA-256 of the text's UTF-8 bytes, across its slice boundary and for text that is all three-byte characters. */
+/** `Revision.of` on Android's own encoder gives the SHA-256 of the text's UTF-8 bytes, across its slice boundary, for text that is all three-byte characters and for unpaired surrogates. */
 @RunWith(AndroidJUnit4::class)
 class RevisionOnAndroidTest {
   private fun expected(text: String) =

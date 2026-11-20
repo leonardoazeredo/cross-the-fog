@@ -32,8 +32,10 @@ class ItemUtf8OnAndroidTest {
 
   @Test
   fun aMultibyteCharacterAcrossTheBufferEdgeIsKept() {
-    for (pad in 0..4) {
-      val gpx = "x".repeat(8100 + pad) + "é€😀" + "y".repeat(200)
+    // The item's text before the gpx is `prefix` chars, so the run starts at char 8184 + pad: the pair of 😀 is split by the edge at pad 5.
+    val prefix = item("").size - 2
+    for (pad in 0..8) {
+      val gpx = "x".repeat(8184 + pad - prefix) + "é€😀" + "y".repeat(200)
       assertEquals(gpx, Items.activityOffer(item(gpx)).gpx)
     }
   }

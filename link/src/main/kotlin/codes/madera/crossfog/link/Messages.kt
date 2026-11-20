@@ -275,7 +275,7 @@ object Messages {
         scratch.clear()
       }
       scratch.clear()
-      decoder.flush(scratch)
+      decoder.flush(scratch).let { if (it.isError) it.throwException() }
     } catch (e: CharacterCodingException) {
       throw ProtocolException(ProtocolError.NOT_A_JSON_OBJECT)
     }
