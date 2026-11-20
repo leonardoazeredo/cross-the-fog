@@ -107,11 +107,12 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       assert.equal(urls.length, 2, "its own empty store went to the given window's fetch");
     }
     { // StreetIndex.snapPoint reads Leaflet's L from the window pageGlobals was given, when it runs; the page's StreetIndex is the module's own constructor
-      const win = { L: { latLng: (lat, lng) => ({ lat, lng, from: "window" }) } };
+      const win = {};
       const g = pageGlobals(win);
+      win.L = { latLng: (lat, lng) => ({ lat, lng, from: "window" }) }; // set after binding: read when snapPoint runs
       assert.equal(g.StreetIndex, global.StreetIndex, "the same constructor, not a copy");
       const idx = new g.StreetIndex({ newFrac: () => 1 });
-      assert.deepEqual(idx.snapPoint({ lat: 51.0031, lng: 13.0029 }), { lat: Math.round(51.0031 / 0.006) * 0.006, lng: Math.round(13.0029 / 0.006) * 0.006, from: "window" }, "the given window's L");
+      assert.deepEqual(idx.snapPoint({ lat: 51.0031, lng: 13.0052 }), { lat: Math.round(51.0031 / 0.006) * 0.006, lng: Math.round(13.0052 / 0.006) * 0.006, from: "window" }, "the given window's L");
       pageGlobals({});
       assert.throws(() => idx.snapPoint({ lat: 1, lng: 1 }), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
     }
