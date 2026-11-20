@@ -3,4 +3,4 @@
 // this first and then app/src/engine.ts.
 "use strict";
 global.window = global;
-require("./leaflet-stub.js"); // defines global.L and global.fakeMap, which suggest.ts reads through the host
+require("./leaflet-stub.js"); // defines global.L (which suggest.ts reads through the host) and global.fakeMap (which tests build maps with)
