@@ -1,4 +1,4 @@
-// Minimal Leaflet stand-in: just enough surface for suggest.js to run headless.
+// Minimal Leaflet stand-in: just enough surface for suggest.ts to run headless.
 // Geometry helpers are real (haversine); everything visual is a no-op.
 "use strict";
 

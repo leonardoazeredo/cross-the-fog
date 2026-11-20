@@ -98,7 +98,7 @@ app/
   src/fogLayer.js   Leaflet GridLayer that paints the fog, with the look/blend/widen options
   src/route.js      draw-your-own route tool (GPX export)
   src/routeLocal.ts routes the tool's pins on the street map, with heights and estimates
-  src/suggest.js    suggested routes: candidate generation, defog scoring, loop shaping
+  src/suggest.ts    suggested routes: candidate generation, defog scoring, loop shaping
   src/unzip.ts      minimal ZIP reader so a Fog of World backup .zip loads directly
   src/main.js       wiring: data loading, style controls, route/suggest UI, persistence
   vendor/           Leaflet + pako (zlib), vendored so there's nothing to install
