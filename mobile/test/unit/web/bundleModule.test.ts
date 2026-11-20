@@ -43,6 +43,7 @@ it("fails the build when a symlink inside the folder leads outside it", () => {
   });
   symlinkSync(join(dir, "elsewhere/y.ts"), join(dir, "src/link.ts"));
   expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow(BuildError);
+  expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow("y.ts");
 });
 
 it("fails the build when a package from a node_modules above the folder is imported", () => {
@@ -52,6 +53,7 @@ it("fails the build when a package from a node_modules above the folder is impor
     "node_modules/somepkg/package.json": '{"name":"somepkg","version":"1.0.0","main":"index.js"}',
   });
   expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow(BuildError);
+  expect(() => bundleModule(join(dir, "src/entry.ts"), join(dir, "src"))).toThrow("somepkg");
 });
 
 it("gives the page's engine script its window globals, and takes nothing from outside app/src", () => {

@@ -38,6 +38,6 @@ for (const reader of ["history.js", "streets.js", "suggest.js", "main.js"]) {
   const at = html.indexOf(`<script src="src/${reader}"></script>`);
   assert.ok(at > 0 && engineAt < at, `engine.ts loads before ${reader}`);
 }
-assert.equal(html.match(/<script src="src\/[^"]+\.ts"/g).length, 1, "engine.ts is the only TypeScript script: a second tag would bundle a second copy of a module");
+assert.equal((html.match(/<script\b[^>]*\bsrc="[^"]*\.ts"/g) || []).length, 1, "engine.ts is the only TypeScript script: a second tag would bundle a second copy of a module");
 
 console.log("sha256.test.js ok");

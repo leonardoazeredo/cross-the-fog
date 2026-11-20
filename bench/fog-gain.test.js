@@ -48,6 +48,8 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   const [cx, cy] = cell(LON, LAT);
   const one = createFogGain(deps(stub((x, y) => x === cx + r && y === cy - r)));
   assert.equal(one.cellIsNew(LON, LAT), false, "the corner of the stamp counts");
+  const opposite = createFogGain(deps(stub((x, y) => x === cx - r && y === cy + r)));
+  assert.equal(opposite.cellIsNew(LON, LAT), false, "so does the opposite corner");
   const side = 2 * r + 1;
   assert.equal(one.corridorNewFrac(LON, LAT), 1 - 1 / (side * side));
   const far = createFogGain(deps(stub((x, y) => x === cx + r + 1 && y === cy)));
@@ -66,6 +68,9 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   const edge = (d) => createFogGain(deps(stub((x, y) => x === cx0 + d && y === cy0)));
   assert.equal(edge(15).newness({ lat: LAT, lng: LON }), 1 - 1 / 961);
   assert.equal(edge(16).newness({ lat: LAT, lng: LON }), 1);
+  const north = (d) => createFogGain(deps(stub((x, y) => x === cx0 && y === cy0 + d)));
+  assert.equal(north(15).newness({ lat: LAT, lng: LON }), 1 - 1 / 961);
+  assert.equal(north(16).newness({ lat: LAT, lng: LON }), 1);
   const all = createFogGain(deps(stub(() => true)));
   assert.equal(all.newness({ lat: LAT, lng: LON }), 0);
   const none = createFogGain(deps(stub(() => false)));
@@ -174,5 +179,10 @@ const deps = (fogMap) => ({ fogMap, worldCells: FogParser.WORLD_CELLS, lngLatToC
   visit(fogMap, a[0], a[1], 3); // about 18 m around each end, plus the 15 m corridor: the middle is 55 m out
   visit(fogMap, b[0], b[1], 3);
   assert.ok(Math.abs(gainOver(fogMap).computeGain([a, b]).newPct - 100) < 1e-9);
+}
+{ // two pins on one spot are a line of no length: nothing of it is new
+  const fogMap = new FogParser.FogMap();
+  visit(fogMap, LON - 0.1, LAT - 0.1, 1);
+  assert.equal(gainOver(fogMap).computeGain([[LON, LAT], [LON, LAT]]).newPct, 0);
 }
 console.log("fog-gain.test.js ok");
