@@ -853,7 +853,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       let best = r,
         bestLl = ll;
       for (let k = 0; k < VIA_RETRIES; k++) {
-        // 3: past this the via is in the wrong place entirely, however far out it is
+        // 3: past this, pulling the via in will not help: it is in the wrong place entirely
         if (!r || !r.lenM || r.lenM <= budget || r.lenM <= base.lenM || r.lenM > budget * 3) break;
         const shrink = Math.max(0.2, Math.min(0.9, (aim - base.lenM) / (r.lenM - base.lenM)));
         const d2 = d * shrink;
