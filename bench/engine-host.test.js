@@ -12,6 +12,7 @@ const src = path.join(__dirname, "..", "app", "src");
 const { Overpass, bindOverpassHost } = require(path.join(src, "overpass.ts"));
 const { open } = require(path.join(src, "tileStore.ts"));
 const { pageGlobals } = require(path.join(src, "pageGlobals.ts"));
+const { bindStreetsHost } = require(path.join(src, "streets.ts"));
 
 const answer = (status) => ({ ok: status === 200, status, body: null, headers: { get: () => null }, json: async () => ({ elements: [] }) });
 const KEY = "made-up-key/9"; // a made-up key, as in every other test
@@ -105,6 +106,16 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
       assert.deepEqual(await made.elevationAt([[10, 10]]), [130], "create uses the given window too");
       assert.equal(urls.length, 2, "its own empty store went to the given window's fetch");
     }
+    { // StreetIndex.snapPoint reads Leaflet's L from the window pageGlobals was given, when it runs; the page's StreetIndex is the module's own constructor
+      const win = {};
+      const g = pageGlobals(win);
+      win.L = { latLng: (lat, lng) => ({ lat, lng, from: "window" }) }; // set after binding: read when snapPoint runs
+      assert.equal(g.StreetIndex, global.StreetIndex, "the same constructor, not a copy");
+      const idx = new g.StreetIndex({ newFrac: () => 1 });
+      assert.deepEqual(idx.snapPoint({ lat: 51.0031, lng: 13.0052 }), { lat: Math.round(51.0031 / 0.006) * 0.006, lng: Math.round(13.0052 / 0.006) * 0.006, from: "window" }, "the given window's L");
+      pageGlobals({});
+      assert.throws(() => idx.snapPoint({ lat: 1, lng: 1 }), (e) => e instanceof ReferenceError && e.message === "L is not defined", "no L on the host is the ReferenceError a bare L gave");
+    }
   } finally {
     console.warn = warn;
     delete global.createImageBitmap;
@@ -114,6 +125,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
     if (hadNavigator) Object.defineProperty(global, "navigator", hadNavigator); else delete global.navigator;
     delete global.crossfogNextgisKey;
     bindOverpassHost(globalThis);
+    bindStreetsHost(globalThis);
     Overpass._reset();
   }
   console.log("engine-host.test.js ok");
