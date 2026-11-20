@@ -9,6 +9,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,5 +67,33 @@ class DebugTelemetryCaptureSettingsTest {
             mode.value = SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_FULL
             runCurrent()
             assertFalse(DebugTelemetry.isEnabled())
+        }
+
+    @Test
+    fun `capture switched off ends the session and switched on again starts the next one`() =
+        runTest {
+            val active = MutableStateFlow(true)
+            val mode = MutableStateFlow(SettingsRepository.DIAGNOSTICS_CAPTURE_MODE_FULL)
+            backgroundScope.launch { DebugTelemetry.observeCaptureSettings(active, mode) }
+            runCurrent()
+            val first = DebugTelemetry.captureSessionSnapshot()
+            assertTrue(first.active)
+            assertNull(first.endedAtMs)
+
+            active.value = false
+            runCurrent()
+            val stopped = DebugTelemetry.captureSessionSnapshot()
+            assertFalse(DebugTelemetry.isEnabled())
+            assertFalse(stopped.active)
+            assertEquals(first.sessionId, stopped.sessionId)
+            assertNotNull(stopped.endedAtMs)
+
+            active.value = true
+            runCurrent()
+            val next = DebugTelemetry.captureSessionSnapshot()
+            assertTrue(DebugTelemetry.isEnabled())
+            assertTrue(next.active)
+            assertEquals(first.sessionId + 1L, next.sessionId)
+            assertNull(next.endedAtMs)
         }
 }
