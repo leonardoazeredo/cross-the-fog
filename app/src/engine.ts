@@ -8,7 +8,7 @@ import { type PageWindow, pageGlobals } from "./pageGlobals.ts";
 import { hex } from "./sha256.ts";
 
 const page = globalThis as unknown as PageWindow;
-// FogWriter.writeSync and FogZip.unzip look pako up on `page` when they run, not when this line does.
+// pako, IndexedDB, fetch and the NextGIS key are looked up on `page` when the functions that need them run, not when this line does.
 Object.assign(page, pageGlobals(page));
 page.Sha256 = { hex };
 page.FogGain = { create: createFogGain, DEFOG_HALF_M };

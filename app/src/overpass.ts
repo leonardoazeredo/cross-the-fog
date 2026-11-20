@@ -1,0 +1,486 @@
+// Overpass endpoints for the street data, shared by suggestions and the route editor so
+// they obey one backoff and one cap on requests in flight per endpoint. overpass-api.de meters every
+// app and every IP over a 24 h window and answers 406 once that share is used up, a block until the
+// window refills (community.openstreetmap.org/t/overpass-api-performance-issues/140598), so a 406
+// holds it an hour, longer when Retry-After says so; a 429 holds it at least 30 s. NextGIS's keyed
+// Overpass goes first by default, and exists only when the page holds a key (the phone app hands it
+// over; a browser and the bench have none, and tests set a made-up one). The key is part of its URL,
+// so no message or log names the keyed URL. An endpoint that sends no response headers within
+// FIRST_BYTE_MS, or not the whole answer within REQUEST_TIMEOUT_MS, is abandoned (a stall) and held
+// 30 s, ten minutes from the third stall in a row. A 401, 403 or 404 from NextGIS (a revoked or mistyped key) holds it an hour; overpass-api.de has no key, so its 401, 403 or 404 is an ordinary failure. A network failure with no readable status (no
+// connection, or an answer without CORS headers, which can hide a 429) is held 30 s, and NextGIS ten minutes from the third in a row with no finished answer between (a wrong key's 404 has no CORS headers, so it reads as this). The rejection
+// names the kind of failure in `reason`, one of five words, for the page to put into words (or
+// "superseded" when the caller's run was replaced, which the page never words).
+// What this module reads from the page, looked up on the bound object each time it is used and never at load:
+// the fetch to send with, whether the browser says it is offline, and the NextGIS key. pageGlobals.ts binds
+// the page's own object (window.crossfogNextgisKey is set by the phone app, possibly after the page's scripts ran).
+export interface OverpassHost {
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  navigator?: { onLine?: boolean };
+  crossfogNextgisKey?: unknown;
+}
+
+let host: OverpassHost | null = null;
+export function bindOverpassHost(h: OverpassHost): void {
+  host = h;
+}
+
+type Reason = "blocked" | "busy" | "stalled" | "offline" | "server" | "superseded";
+export interface OverpassError extends Error {
+  reason?: Reason;
+  retryAt?: number;
+}
+type Answer = Record<string, unknown>;
+interface Hold {
+  until: number;
+  heldAt: number;
+  why: Reason | null;
+  error: Error | null;
+  stalls: number;
+  rejects: number;
+}
+interface Slot {
+  open: number;
+  waiting: Array<() => void>;
+}
+// one request's outcome, see attempt
+interface Failure {
+  why: Reason | null;
+  error: Error | null;
+}
+export interface PostOptions {
+  stale?: () => boolean;
+}
+interface Attempt {
+  status?: number;
+  json?: Answer;
+  error?: Error;
+  kind?: "stall" | "network" | "notJson";
+  retryAfter?: number;
+}
+
+// no nextgis entry: its URL carries the key, so urlOf builds it at each use
+const ENDPOINTS: Record<string, string> = {
+  main: "https://overpass-api.de/api/interpreter",
+};
+// NextGIS first: on the phone it answers in seconds where overpass-api.de queued for tens of seconds
+// (FIRST_BYTE_MS, #185). When the page holds no credential for it, it drops out and overpass-api.de is asked alone.
+const DEFAULT_ORDER: string[] = ["nextgis", "main"];
+// Requests in flight per endpoint, every caller's together. NextGIS's /api/status reports no
+// limit ("Rate limit: 0"), so its 4 is our own choice, not the server's. overpass-api.de's
+// /api/status reports "Rate limit: 2" per IP, where a third request would wait 15 s and get a 429. A post
+// falling back from NextGIS takes one of overpass-api.de's slots.
+const CAPS: Record<string, number> = { nextgis: 4, main: 2 };
+const MIN_BACKOFF_MS = 30000;
+// overpass-api.de sends nothing until a query has waited out its queue and run. On the phone a
+// one-tile request got its first byte after 39-68 s (#185), even a tile of 1 KB, so that is the
+// queue plus the run, and the first-byte guard must outlast it; a long queue and a full run can
+// still overrun it (see StreetIndex.rectQuery). The price is 90 s per dead connection, which
+// is why one stall holds only briefly and the count resets whenever an answer ends.
+const FIRST_BYTE_MS = 90000;
+const REQUEST_TIMEOUT_MS = 120000;
+const STALLS_BEFORE_LONG_HOLD = 3;
+const STALL_HOLD_MS = 600000;
+// NextGIS's answer to a wrong key has no CORS headers, so the WebView's fetch rejects and the status is
+// hidden; three rejections in a row look like that more than like a flaky network
+const REJECTS_BEFORE_LONG_HOLD = 3;
+const BAN_HOLD_MS = 3600000;
+const BUSY_STATUS: Record<number, boolean> = { 429: true, 502: true, 504: true };
+const STALE_POLL_MS = 1000; // see acquire
+// most actionable first: when the endpoints disagree, the rejection carries the first of these
+const REASONS: Reason[] = ["blocked", "busy", "stalled", "offline", "server"];
+
+let order = DEFAULT_ORDER.slice();
+
+// Read at each use: window.crossfogNextgisKey is set by the script mobile/src/bridge/pageConfig.ts
+// builds and WebShell.tsx injects, and on Android that can land after this file has run.
+function urlOf(name: string): string | undefined {
+  if (name !== "nextgis") return Object.hasOwn(ENDPOINTS, name) ? ENDPOINTS[name] : undefined;
+  const key = host?.crossfogNextgisKey;
+  return typeof key === "string" && key
+    ? "https://overpass.nextgis.com/" + encodeURIComponent(key) + "/api/interpreter"
+    : undefined;
+}
+let state: Record<string, Hold> = {}; // url -> {until: time before which it is not asked again, heldAt: when that hold was set, why: its reason, error: the failure that earned it, stalls: in a row, rejects: rejected fetches in a row on NextGIS}
+let warned: Record<string, boolean> = {}; // endpoint name -> true once a 401/403/404 from NextGIS was logged; keyed on the name, the URL holds the key; `rejects` -> true while the line for NextGIS's current streak of rejected fetches is out
+let slots: Record<string, Slot> = {}; // endpoint name -> {open: requests in flight, waiting: resolvers, first come first served}
+
+const stateOf = (url: string): Hold => {
+  let s = state[url];
+  if (!s) {
+    s = { until: 0, heldAt: -Infinity, why: null, error: null, stalls: 0, rejects: 0 };
+    state[url] = s;
+  }
+  return s;
+};
+const slotOf = (name: string): Slot => {
+  let s = slots[name];
+  if (!s) {
+    s = { open: 0, waiting: [] };
+    slots[name] = s;
+  }
+  return s;
+};
+// A post waiting for a slot checks its caller's stale() every STALE_POLL_MS and leaves the queue once
+// it is true (rejecting with superseded(), or with what stale() threw): its run hears of it without
+// waiting minutes for a slot to free.
+function acquire(
+  name: string,
+  stale: (() => boolean) | undefined,
+  superseded: () => Error,
+): Promise<void> {
+  const s = slotOf(name);
+  if (s.open < (CAPS[name] as number)) {
+    s.open++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    let timer: unknown = null;
+    const waiter = () => {
+      if (timer) Overpass._clearTimeout(timer);
+      resolve();
+    };
+    // a waiter already handed its slot is out of the queue, and splice(-1) would drop another post's
+    const leave = (e: unknown) => {
+      const i = s.waiting.indexOf(waiter);
+      if (i >= 0) s.waiting.splice(i, 1);
+      reject(e);
+    };
+    const poll = () => {
+      let gone: boolean;
+      try {
+        gone = (stale as () => boolean)();
+      } catch (e) {
+        leave(e);
+        return;
+      }
+      if (gone) leave(superseded());
+      else timer = Overpass._setTimeout(poll, STALE_POLL_MS);
+    };
+    s.waiting.push(waiter);
+    if (stale) timer = Overpass._setTimeout(poll, STALE_POLL_MS);
+  });
+}
+// a freed slot passes straight to the next waiter, so open never exceeds the cap
+function release(name: string): void {
+  const s = slotOf(name);
+  if (s.waiting.length) (s.waiting.shift() as () => void)();
+  else s.open--;
+}
+
+// A browser exposes Retry-After to page script only if the server lists it in
+// Access-Control-Expose-Headers, and an HTTP-date value is not parsed: either way the floor
+// applies (30 s for a 429, an hour for a 406).
+function retryAfterMs(res: Response): number {
+  const secs = Number(res.headers && res.headers.get && res.headers.get("retry-after"));
+  return Number.isFinite(secs) && secs > 0 ? secs * 1000 : 0;
+}
+
+// One request: the headers within FIRST_BYTE_MS, the whole body within REQUEST_TIMEOUT_MS of the
+// start, one AbortController for both. Resolves with {status, json} on success,
+// {status, error, retryAfter} on a non-2xx answer, or {error, kind: "stall" | "network" |
+// "notJson", status?} otherwise; never rejects.
+async function attempt(url: string, body: string): Promise<Attempt> {
+  const ctrl = new AbortController();
+  const started = Overpass._now();
+  const stall = (what: string) => () => ctrl.abort(new Error("overpass: " + what));
+  let timer = Overpass._setTimeout(
+    stall("no answer within " + Overpass._firstByteMs / 1000 + " s"),
+    Overpass._firstByteMs,
+  );
+  let res: Response;
+  try {
+    if (!host?.fetch) throw new Error("overpass: no fetch bound");
+    res = await host.fetch(url, {
+      method: "POST",
+      // UA is for the Node benchmark harness (Overpass rejects Node's default). Page script
+      // cannot set it in a browser; in the app Overpass sees the WebView's UA, which
+      // contains the "CrossTheFog/<version>" name WebShell.tsx adds.
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "FogToMaps/1.0 (defog route suggestions)",
+      },
+      body,
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    return { error: e as Error, kind: ctrl.signal.aborted ? "stall" : "network" };
+  } finally {
+    Overpass._clearTimeout(timer);
+  }
+  if (!res.ok) {
+    // an unread body can hold the socket until GC in Node's fetch (the bench)
+    if (res.body?.cancel) res.body.cancel().catch(() => {});
+    return {
+      status: res.status,
+      error: new Error("overpass HTTP " + res.status),
+      retryAfter: retryAfterMs(res),
+    };
+  }
+  timer = Overpass._setTimeout(
+    stall("body stopped"),
+    Math.max(0, Overpass._timeoutMs - (Overpass._now() - started)),
+  );
+  try {
+    const json = (await res.json()) as Answer | null;
+    // JSON that is not an object (a proxy's remark that happens to parse) is no answer: like a 200
+    // that is not JSON, it moves on
+    if (json === null || typeof json !== "object")
+      return {
+        status: res.status,
+        error: new Error("overpass: the answer is not an object"),
+        kind: "notJson",
+      };
+    return { status: res.status, json };
+  } catch (e) {
+    // A SyntaxError before our abort means a 200 whose body is not JSON (a captive portal, a
+    // proxy): like a 500, it moves on at once. After our abort the parser can also report a
+    // SyntaxError on the cut-off text, which is a stall. Matched by name, not instanceof,
+    // because WebKit rejects with a DOMException named SyntaxError. Anything else is the body
+    // stopping (our abort, a dropped connection), and both count as a stall: an endpoint that
+    // keeps cutting answers off is as useless as a silent one.
+    const syntax = (e as Error).name === "SyntaxError";
+    // V8's SyntaxError message quotes the body, which is the server's text and must not reach a
+    // message, after our abort as well as before it
+    return {
+      status: res.status,
+      error: syntax ? new Error("overpass: the answer is not JSON") : (e as Error),
+      kind: !ctrl.signal.aborted && syntax ? "notJson" : "stall",
+    };
+  } finally {
+    Overpass._clearTimeout(timer);
+  }
+}
+
+// Resolves with the JSON of the first endpoint, in order, whose body parses to a JSON object. Rejects with a fresh
+// error that copies the message and name of the error that earned the reason (kept as `cause`),
+// carrying `reason` and `retryAt`. The reasons are ranked by REASONS, most actionable first, and glossed here: blocked is a
+// 406 seen or an endpoint held after one; busy, 429, 502 or 504; stalled, no answer or a body that
+// stopped; offline, the browser says so, or every fetch failed and no status was seen; server,
+// anything else. The endpoints this post asked speak first: an endpoint skipped as held gives the
+// reason only when none was asked, so a NextGIS 502 during overpass-api.de's 406 hour is busy, which
+// a run waits out, rather than a block that ends it. `retryAt` (on the Overpass._now clock) is set
+// only when every endpoint is on hold: the earliest hold's end, before which no post goes out; when
+// the reason is blocked, the earliest block's end instead, which can come after another endpoint's
+// hold ends: a post in between still goes out.
+//
+// A post waits for a free slot on the endpoint it is about to ask, and a fallback for one on the
+// next; one that waited is not sent where a request finished meanwhile set a hold. opts.stale() true
+// (the caller's run was replaced) before a request goes out, or within STALE_POLL_MS while the post
+// waits for a slot, sends nothing and rejects with
+// reason "superseded", outside the list above and whatever earlier endpoints answered, releasing the
+// slot when it held one: a replaced run's posts still waiting for a slot would otherwise go out
+// ahead of the run that replaced it. A throw from opts.stale() rejects as itself, releasing the slot if the post holds one.
+async function post(body: string, opts?: PostOptions): Promise<Answer> {
+  const stale = opts && opts.stale;
+  const superseded = (): OverpassError =>
+    Object.assign(new Error("overpass: the caller's run was replaced"), {
+      reason: "superseded" as const,
+    });
+  const names = order.filter((name) => urlOf(name));
+  const urls = names.map(urlOf);
+  // one {why, error} per endpoint asked in failures, per endpoint skipped as held (its hold's) in
+  // heldOnly: the error thrown is always the one that earned the reason, never another endpoint's;
+  // only the reason offline can fall back to the synthetic browser-offline error.
+  const failures: Failure[] = [],
+    heldOnly: Failure[] = [];
+  let anyStatus = false;
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i] as string,
+      url = urls[i] as string,
+      s = stateOf(url);
+    if (stale && stale()) throw superseded();
+    if (s.until > Overpass._now()) {
+      heldOnly.push({ why: s.why, error: s.error });
+      continue;
+    }
+    await acquire(name, stale, superseded);
+    // the slot goes back whatever stale() does, a throw included: a lost slot is lost for the page's life
+    let gone: boolean | undefined;
+    try {
+      gone = stale && stale();
+    } catch (e) {
+      release(name);
+      throw e;
+    }
+    if (gone) {
+      release(name);
+      throw superseded();
+    }
+    // a request that held a slot meanwhile may have put the endpoint on hold
+    if (s.until > Overpass._now()) {
+      release(name);
+      heldOnly.push({ why: s.why, error: s.error });
+      continue;
+    }
+    const sent = Overpass._now();
+    let r: Attempt;
+    try {
+      r = await attempt(url as string, body);
+    } finally {
+      release(name);
+    }
+    // a body stall carries its 200, but only an answer that ended proves the endpoint alive
+    if (r.status !== undefined) {
+      anyStatus = true;
+      if (r.kind !== "stall") {
+        s.stalls = 0;
+        s.rejects = 0;
+        if (name === "nextgis") warned.rejects = false;
+      }
+    }
+    if (r.json !== undefined) return r.json;
+    let why: Reason,
+      holdMs = 0;
+    // a stall of a request already open when the endpoint's last hold was set adds nothing to the
+    // count: requests open together that stall together are one stall in a row (a later one can
+    // still lengthen the hold)
+    if (r.kind === "stall") {
+      if (s.heldAt < sent) s.stalls++;
+      why = "stalled";
+      holdMs = s.stalls >= STALLS_BEFORE_LONG_HOLD ? STALL_HOLD_MS : MIN_BACKOFF_MS;
+    } else if (r.kind === "network") {
+      why = "offline";
+      holdMs = MIN_BACKOFF_MS;
+      // counted like stalls: requests open together that are rejected together are one rejection
+      if (name === "nextgis" && s.heldAt < sent) s.rejects++;
+      if (name === "nextgis" && s.rejects >= REJECTS_BEFORE_LONG_HOLD) {
+        holdMs = STALL_HOLD_MS;
+        // one line per streak; no key, and no URL since it holds the key
+        if (!warned.rejects) {
+          warned.rejects = true;
+          console.warn(
+            "[overpass] endpoint rejected",
+            name,
+            s.rejects,
+            "fetches in a row; held 10 min",
+          );
+        }
+      }
+    } else if (r.status === 406) {
+      why = "blocked";
+      holdMs = Math.max(BAN_HOLD_MS, r.retryAfter ?? 0);
+    } else if (r.status === 429) {
+      why = "busy";
+      holdMs = Math.max(MIN_BACKOFF_MS, r.retryAfter ?? 0);
+    }
+    // only NextGIS needs a credential, so a 401, 403 or 404 from overpass-api.de is no credential problem
+    // and is not held; NextGIS answers a key it does not know with a 404
+    else if ((r.status === 401 || r.status === 403 || r.status === 404) && name === "nextgis") {
+      // a key that is revoked or mistyped stays so until the owner fixes it: ask elsewhere for an
+      // hour instead of paying a failed round trip first on every request
+      why = "server";
+      holdMs = BAN_HOLD_MS;
+      // the name and status only: the URL holds the key
+      if (!warned[name]) {
+        warned[name] = true;
+        console.warn("[overpass] endpoint answered", name, r.status);
+      }
+    } else why = BUSY_STATUS[r.status as number] ? "busy" : "server";
+    // a hold that a request open beside this one earned is never cut short (a 406's hour by a stall),
+    // and this post reports that hold's reason and error
+    if (holdMs && Overpass._now() + holdMs <= s.until) {
+      failures.push({ why: s.why, error: s.error });
+      continue;
+    }
+    if (holdMs) {
+      s.until = Overpass._now() + holdMs;
+      s.heldAt = Overpass._now();
+      s.why = why;
+      s.error = r.error ?? null;
+    }
+    failures.push({ why, error: r.error ?? null });
+  }
+  const asked = failures.length > 0;
+  if (!asked) failures.push(...heldOnly);
+  // a failed fetch means offline only when nothing answered at all: a status proves the network up
+  for (const f of failures) if (f.why === "offline" && anyStatus) f.why = "server";
+  if (host?.navigator && host.navigator.onLine === false) {
+    const offline: Failure = {
+      why: "offline",
+      error: new Error("overpass: the browser is offline"),
+    };
+    // with nothing asked, the holds are left from earlier posts and say nothing about the network now
+    if (asked) failures.push(offline);
+    else failures.splice(0, failures.length, offline);
+  }
+  const reason = REASONS.find((r) => failures.some((f) => f.why === r)) || "server";
+  const winner = failures.find((f) => f.why === reason);
+  // a copy, with the stored error as its cause: a held endpoint's error comes back in every later
+  // post and each sets its own reason and retryAt, so sharing one object would let a post change
+  // the values a caller is about to read after an await
+  const cause = winner && winner.error;
+  const err: OverpassError = cause
+    ? Object.assign(new Error(cause.message), { name: cause.name, cause })
+    : new Error("overpass: no endpoint to ask");
+  err.reason = reason;
+  const held = (urls as string[]).map(stateOf).filter((s) => s.until > Overpass._now());
+  // a 406 is this network's daily cap and streetMessages.js's BLOCKED_ADVICE tells the person to try
+  // tomorrow, so a blocked retryAt is the block's own end, even when another endpoint's hold ends
+  // sooner; nothing waits for it, since no caller sleeps on a blocked retryAt
+  const until = held.filter((s) => reason !== "blocked" || s.why === "blocked").map((s) => s.until);
+  if (held.length === urls.length) err.retryAt = Math.min(...until);
+  throw err;
+}
+
+interface Hooks {
+  _now: () => number;
+  _setTimeout: (fn: () => void, ms: number) => unknown;
+  _clearTimeout: (timer: unknown) => void;
+  _firstByteMs: number;
+  _timeoutMs: number;
+}
+
+export interface OverpassApi extends Hooks {
+  ENDPOINTS: Record<string, string>;
+  setOrder(keys: string[]): void;
+  has(name: string): boolean;
+  post(body: string, opts?: PostOptions): Promise<Answer>;
+  cap(): number | undefined;
+  _reset(): void;
+}
+
+// one source for the hooks' initial values and for _reset, so the two cannot drift
+const defaultHooks = (): Hooks => ({
+  _now: () => Date.now(),
+  _setTimeout: (fn, ms) => setTimeout(fn, ms),
+  _clearTimeout: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+  _firstByteMs: FIRST_BYTE_MS,
+  _timeoutMs: REQUEST_TIMEOUT_MS,
+});
+
+export const Overpass: OverpassApi = {
+  ENDPOINTS,
+  // the names given first, in their order and without repeats, then the rest of the default. An
+  // order naming an endpoint not in DEFAULT_ORDER is a stale choice, so it reads as the default
+  // whole rather than promoting whatever follows the unknown name.
+  setOrder(keys: string[]) {
+    const known = keys.every((k) => DEFAULT_ORDER.includes(k)) ? keys : [];
+    order = [...new Set([...known, ...DEFAULT_ORDER])];
+  },
+  // whether a post can reach this endpoint: false for an unknown name, and for nextgis while the
+  // page holds no key
+  has: (name: string) => !!urlOf(name),
+  post,
+  // the cap of the endpoint asked first that is not on hold (the first one when all are), read at
+  // each use since the key, the order and the holds change; its slots are every caller's together,
+  // so a caller keeps at most this many open. A held NextGIS sends every post to overpass-api.de's
+  // 2 slots, so counting 4 would leave 2 posts queued with no first-byte timer running.
+  cap: () => {
+    const names = order.filter((name) => urlOf(name));
+    return CAPS[
+      (names.find((name) => stateOf(urlOf(name) as string).until <= Overpass._now()) ||
+        names[0]) as string
+    ];
+  },
+  // test-only hooks, used between settled posts: a fake clock, fake timers, the two limits, and a
+  // way back to the initial state
+  ...defaultHooks(),
+  _reset() {
+    order = DEFAULT_ORDER.slice();
+    state = {};
+    slots = {};
+    warned = {};
+    Object.assign(Overpass, defaultHooks());
+  },
+};

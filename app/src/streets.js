@@ -25,7 +25,7 @@
   // a way short, and dropping to EVICT_TO frees room for several reads, not one drop per read
   const EVICT_AT = 0.85, EVICT_TO = 0.7;
   const CORRIDOR_M = 30;         // full width Fog of World clears as you travel
-  const TILE_DEG = 0.025;        // fetch grid, ~2.8 x 1.75 km at 51°N: streets are fetched and remembered per tile; changing it means bumping the version in streetCache.js keys
+  const TILE_DEG = 0.025;        // fetch grid, ~2.8 x 1.75 km at 51°N: streets are fetched and remembered per tile; changing it means bumping the version in streetCache.ts keys
   const TILE_EPS = 1e-9;         // in tiles: keeps a bound that sits on a tile edge from reaching into the neighbouring tile
   // a run sends no further request past this (the requests already open finish and keep all their
   // tiles), so a server that never recovers ends it with its progress; long, because every request
@@ -521,7 +521,7 @@
   // text, with its [timeout:25] read as [timeout:60] (bench/lib/fetch-cache.js), so any edit
   // but a return to [timeout:60] makes every saved rectQuery answer miss. [timeout:25]
   // caps the server's run once the query leaves its queue. overpass-api.de sends nothing until the
-  // run ends, so the client guard that binds is FIRST_BYTE_MS in overpass.js, whose comment holds the
+  // run ends, so the client guard that binds is FIRST_BYTE_MS in overpass.ts, whose comment holds the
   // queue measurement: a queue plus a 25 s run can still overrun it, and that request counts as a stall.
   StreetIndex.rectQuery = function (boxes) {
     const bb = (r) => [r.s, r.w, r.n, r.e].map((x) => x.toFixed(4)).join(",");
@@ -539,7 +539,7 @@
 
   // A request asks for at most one street block, a 2x2 group of tiles starting at even tile indices
   // (not Fog of World's bitmap block). overpass-api.de queues even a one-tile request for tens of
-  // seconds (measurements in overpass.js, #185), so requests open at once (Overpass.cap()) share that
+  // seconds (measurements in overpass.ts, #185), so requests open at once (Overpass.cap()) share that
   // wait where requests in a row add it up, and a failure loses only its street block. Splits tiles (nearest
   // first) by street block, street blocks in the order of their nearest tile.
   function batches(tiles) {
