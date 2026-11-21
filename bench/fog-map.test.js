@@ -272,4 +272,35 @@ const sameBytes = (a, b) => assert.deepEqual(Array.from(a), Array.from(b));
     assert.equal(brute(ax, ay, bx, by), want, name + " (cell by cell)");
   }
 }
+{ // an empty or inverted rect counts nothing, even over visited cells
+  const map = new FogMap();
+  map.addCells(pairs([cellOf(3, 3, 0, 0, 5, 5), cellOf(3, 3, 0, 0, 6, 5)]));
+  const [x, y] = cellOf(3, 3, 0, 0, 5, 5);
+  assert.equal(map.countVisitedInCellRect(x, y, x + 2, y + 1), 2, "the cells are there");
+  assert.equal(map.countVisitedInCellRect(x, y, x, y + 1), 0, "cx1 == cx0");
+  assert.equal(map.countVisitedInCellRect(x, y, x + 2, y), 0, "cy1 == cy0");
+  assert.equal(map.countVisitedInCellRect(x + 2, y, x, y + 1), 0, "cx1 < cx0");
+  assert.equal(map.countVisitedInCellRect(x, y + 1, x + 2, y), 0, "cy1 < cy0");
+  assert.equal(map.countVisitedInCellRect(x + 0.2, y + 0.2, x + 0.4, y + 0.4), 1, "a rect inside one cell rounds out to that whole cell, so it is not empty");
+}
+{ // a header index equal to the number of blocks stored is the last valid one: it loads, where one past it throws
+  const good = tileBytes([{ bx: 0, by: 0, cells: [[0, 0]] }, { bx: 1, by: 0, cells: [[1, 0]] }]);
+  const lastIndex = good.slice();
+  new DataView(lastIndex.buffer).setUint16(2 * 7, 2, true); // another position points at block 2, the last stored
+  const map = new FogMap();
+  map.addTile(nameOf(idOf(7, 8)), lastIndex);
+  assert.equal(map.tileCount, 1);
+  const pastEnd = good.slice();
+  new DataView(pastEnd.buffer).setUint16(2 * 7, 3, true);
+  assert.throws(() => new FogMap().addTile(nameOf(idOf(7, 8)), pastEnd), /blocks stored/);
+}
+{ // parseTileId reads the digits between the md5 prefix and the last two letters, however many: a name longer than the format's is not rejected for its length
+  const { parseTileId } = global.FogParser;
+  const digits = (id) => String(id).split("").map((d) => "olhwjsktri"[d]).join("");
+  assert.equal(parseTileId("0000" + digits(7) + "xx"), 7);
+  assert.equal(parseTileId("0000" + "o".repeat(20) + digits(7) + "xx"), 7, "leading zero digits of any number");
+  assert.equal(parseTileId("0000" + digits(512 * 512) + "xx"), null, "an id past the map is refused");
+  assert.equal(parseTileId("0000" + "o".repeat(20) + digits(512 * 512) + "xx"), null);
+}
+
 console.log("fog-map.test.js ok");

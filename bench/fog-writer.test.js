@@ -274,4 +274,34 @@ function cellsOf(files) {
   assert.equal(html, withoutComments(raw), "readPage is the page with its comments removed");
   assert.ok(!html.includes("<!--"), "no comment is left in what the tests read");
 }
+{ // every failure of the writer carries one of a fixed list of reasons, which name no position
+  assert.deepEqual([...FogWriter.REASONS].sort(), ["bad-block", "bad-id", "no-bytes", "verify-bytes", "verify-checksum", "verify-inflate", "verify-name"]);
+  const reasonOf = (fn) => { try { fn(); } catch (e) { return e.reason; } assert.fail("expected a throw"); };
+  assert.equal(reasonOf(() => FogWriter.tileName(-1)), "bad-id");
+  const bitmap = new Uint8Array(512);
+  bitmap[0] = 1;
+  const ok = { bx: 3, by: 4, bitmap, extra: null };
+  for (const bad of [{ ...ok, bitmap: bitmap.subarray(0, 511) }, { ...ok, bx: 128 }, { ...ok, extra: Uint8Array.of(1, 2) }]) {
+    assert.equal(reasonOf(() => FogWriter.writeTile([bad])), "bad-block");
+  }
+  assert.equal(reasonOf(() => FogWriter.writeTile([ok, { ...ok }])), "bad-block", "a block given twice");
+  const map = new FogMap();
+  map.addCells(pairs([cellOf(1, 1, 0, 0, 0, 0)]));
+  assert.equal(reasonOf(() => FogWriter.writeSync(map, { deflate: () => new Uint8Array(0) })), "no-bytes");
+  assert.equal(reasonOf(() => FogWriter.writeSync(map, { deflate: (b) => deflate5(b.subarray(0, b.length - 1)) })), "verify-bytes", "a byte lost");
+  assert.equal(reasonOf(() => FogWriter.writeSync(map, { deflate: deflate5, inflate: () => undefined })), "verify-bytes", "an inflate that returns nothing");
+  assert.equal(reasonOf(() => FogWriter.writeSync(map, { deflate: () => Uint8Array.of(1, 2, 3) })), "verify-inflate", "not zlib at all");
+  assert.equal(reasonOf(() => FogWriter.writeSync(map, { deflate: deflate5, inflate: () => { throw new Error("mine"); } })), "verify-inflate");
+  // the two read-back checks writeSync cannot reach (it writes the name and the checksums itself) are tripped on a file made by hand
+  const id = idOf(1, 1);
+  const raw = FogWriter.writeTile([{ bx: 0, by: 0, bitmap, extra: null }]);
+  const file = { name: FogWriter.tileName(id), bytes: new Uint8Array(1) };
+  const { verify } = require("../app/src/fogWriter.ts").FogWriter; // not on the page: only writeSync calls it
+  verify(file, id, raw, () => raw); // a sound file passes
+  assert.equal(reasonOf(() => verify({ ...file, name: FogWriter.tileName(id + 1) }, id, raw, () => raw)), "verify-name");
+  const wrong = raw.slice();
+  wrong[HEADER + 512 + 2] ^= 1; // the checksum byte of the only block
+  assert.equal(reasonOf(() => verify(file, id, wrong, () => wrong)), "verify-checksum");
+}
+
 console.log("fog-writer.test.js ok");

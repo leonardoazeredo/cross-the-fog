@@ -75,7 +75,12 @@ export function pageGlobals(page: PageWindow) {
     // copies, so a host that replaces or patches a member leaves the module's own objects alone
     FogParser: { ...FogParser },
     MD5: { ...MD5 },
-    FogWriter: { tileName: writer.tileName, writeTile: writer.writeTile, writeSync },
+    FogWriter: {
+      tileName: writer.tileName,
+      writeTile: writer.writeTile,
+      writeSync,
+      REASONS: writer.REASONS,
+    },
     FogZip: {
       unzip: (buffer: ArrayBuffer) =>
         zip.unzip(buffer, {

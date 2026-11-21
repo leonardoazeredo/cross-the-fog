@@ -25,7 +25,12 @@
     return out;
   }
 
-  const logFailure = (e) => console.warn("[export] Fog of World export failed", e && e.name); // the class only: no positions in a log
+  // The class, and the writer's fixed reason when it has one: no positions, no text from the error, in a log.
+  const logFailure = (e) => {
+    const known = (global.FogWriter && global.FogWriter.REASONS) || [];
+    const reason = e && known.includes(e.reason) ? e.reason : null;
+    console.warn(...["[export] Fog of World export failed", e && e.name].concat(reason ? [reason] : []));
+  };
 
   // -> the number of files sent, 0 when there is no fog to export, null when no phone is attached or it could not be written.
   function run({ fogMap, phone, exportId }) {
