@@ -698,8 +698,8 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
       }
       // a source that swallowed the caller's throw and resolved anyway still hands the bug on
       if (broke) throw broke;
-      // a source may hand tiles over in its Map alone; anything else it returns is the source's fault, worded
-      // generically, not a bug of the run's own
+      // a source may hand tiles over in its Map alone, or return nothing; a value that is neither is the
+      // source's fault, worded generically, not a bug of the run's own
       if (answers != null && !(answers instanceof Map))
         throw short(
           Object.assign(new Error("street source: the answer is not a Map"), { reason: "server" }),
