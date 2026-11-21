@@ -219,7 +219,8 @@ it("gives every app-to-page type a route in the session or the page API, or name
   // subscribes: an event no `crossfog.on(...)` in index.ts names is dropped without a word.
   const index = read("web-adapter/index.ts");
   expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
-  // A type is routed once: a case in the session and a page event would deliver it twice.
+  // A page event reaches the page API only through the session's default branch: a session case for the same
+  // type would shadow it, and the page would never hear it.
   expect(session.filter((t) => pageEvents.includes(t))).toEqual([]);
 });
 
