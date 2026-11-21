@@ -6,6 +6,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 require("./lib/host.js");
+require("./lib/leaflet-stub.js"); // this test draws on a fake map or builds the route editor
 require("../app/src/engine.ts");
 const { SuggestTool, StreetIndex } = global;
 const { splitRuns } = require("../app/src/suggestPure.ts");
