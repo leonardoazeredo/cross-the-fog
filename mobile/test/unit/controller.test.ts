@@ -756,6 +756,20 @@ it("refuses a restore while an import is running and says why", async () => {
   pick.resolve(null);
 });
 
+it("lets the next message through after a restore it refused", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const pick = deferred<SourceFile | null>();
+  h.pickFile.mockReturnValueOnce(pick.promise);
+  const importing = h.c.onWebMessage(pickBackup);
+  await h.c.onWebMessage({ v: 1, type: "restore" });
+  pick.resolve(null);
+  await importing;
+  await h.c.onWebMessage(pickBackup);
+  expect(h.pickFile).toHaveBeenCalledTimes(2);
+  expect(h.notified).not.toContain(COPY.restoreRunning);
+});
+
 it("refuses an import, a clear and a shared file while a restore runs", async () => {
   const h = createHarness();
   await h.c.start();

@@ -70,8 +70,8 @@ export function createSession(deps: SessionDeps): { onMessage(msg: NativeToWeb):
 
   type SessionMessage = Extract<NativeToWeb, { type: keyof typeof SESSION_MESSAGES }>;
 
-  // The messages the session answers itself. The page API takes every other type (`PAGE_MESSAGES`), so a type
-  // in neither table does not compile.
+  // The messages the session answers itself, checked against the session half of the table: a session type with
+  // no handler, or a handler for any other type, does not compile. Every other type is the page API's.
   const handlers = {
     none: async () => {
       await cache.clearAll();

@@ -11,7 +11,7 @@ export function handlerFor(
   handlers: object,
   msg: { type: string },
 ): (() => void | Promise<void>) | undefined {
-  if (!Object.hasOwn(handlers, msg.type)) return undefined;
+  if (typeof msg.type !== "string" || !Object.hasOwn(handlers, msg.type)) return undefined;
   const handler = (handlers as Record<string, (m: unknown) => void | Promise<void>>)[msg.type];
   return handler && (() => handler(msg));
 }

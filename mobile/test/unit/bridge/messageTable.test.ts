@@ -12,8 +12,8 @@ import { inspectWebToNative, parseNativeToWeb } from "../../../src/bridge/protoc
 
 // Every message type of both unions, by name, read out of the message tables: a type added to messages.ts fails these
 // cases until it is listed here with a sample, and until the controller (or the session and page API) handles it
-// or the list of types ignored on purpose names it. The controller's switch has no `never` check, so a type with
-// no case compiles and is dropped without a word; these cases are what notices it.
+// or the list of types ignored on purpose names it. The controller's and the session's handler maps are checked
+// against their unions by tsc; these cases check the maps are still declared that way.
 
 const root = resolve(import.meta.dirname, "../../..");
 // The sources are scanned without their comments: a commented-out case or literal is not one.
@@ -34,7 +34,7 @@ function between(src: string, from: string, to?: string): string {
 
 const casesIn = (src: string) => [...src.matchAll(/case "([^"]+)":/g)].map((m) => m[1] as string);
 
-// The types the controller answers to with no handler of its own, on purpose. Empty today:
+// The types the controller ignores with no handler of its own, on purpose. Empty today:
 // `devAddActivity` has a case that does nothing unless `__DEV__` (controller.test.ts pins both).
 const IGNORED_ON_PURPOSE_BY_THE_CONTROLLER: string[] = [];
 
@@ -256,7 +256,7 @@ it("splits the app-to-page types between the session and the page API, each half
   expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
 });
 
-it("finds a type nothing handles (control for the two cases above)", () => {
+it("finds a type nothing handles (control for the helpers of the cases above)", () => {
   expect(unhandled(["a", "b"], ["a"], [])).toEqual(["b"]);
   expect(unhandled(["a", "b"], ["a"], ["b"])).toEqual([]);
   expect(casesIn('switch (x) { case "a": break; case "b:c": break; }')).toEqual(["a", "b:c"]);
