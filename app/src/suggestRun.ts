@@ -1,4 +1,4 @@
-// The run state of the suggestion tool: the held street graph and the wrapper around one run.
+// The run state of the suggestion tool: the held street graph, the wrapper around one run and its street download.
 // Each function is a SuggestTool method, called with the tool as `this`; none touches the map.
 import { GraphPlanner } from "./planner.ts";
 import { sortOutcome } from "./streetDownload.ts";
