@@ -99,7 +99,7 @@
   RouteTool.prototype._makeWp = function (latlng, index) {
     const marker = L.marker(latlng, { draggable: true, icon: wpIcon(index + 1) }).addTo(this.map);
     const wp = { marker, latlng, _ri: -1 };
-    marker.on("dragend", () => { wp.latlng = marker.getLatLng(); this._recalc(); });
+    marker.on("dragend", () => { wp.latlng = marker.getLatLng(); this._emitWps(); this._recalc(); });
     marker.on("click", (e) => { L.DomEvent.stop(e); this._remove(wp); });
     return wp;
   };
