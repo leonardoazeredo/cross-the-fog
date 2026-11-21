@@ -60,6 +60,7 @@
     if (st.heartRateAvg != null) heart.push(Math.round(st.heartRateAvg) + " avg");
     if (st.heartRateMax != null) heart.push(Math.round(st.heartRateMax) + " max");
     if (heart.length) lines.push("♥ " + heart.join(" · "));
+    if (st.skippedPoints > 0) lines.push(Math.round(st.skippedPoints) + (Math.round(st.skippedPoints) === 1 ? " point skipped" : " points skipped"));
     return lines;
   }
 

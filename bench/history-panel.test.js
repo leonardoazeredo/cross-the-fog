@@ -63,6 +63,11 @@ const { formatDuration, formatDistance, paceSecondsPerKm, formatPace, statLines,
   const noPace = { ...base, stats: { durationS: 600, distanceM: 40 } };
   assert.deepEqual(statLines(noPace, "imperial"), ["131 ft", "10 min"], "less ground than the minimum for a pace has none");
 
+  const skipped = { ...base, stats: { durationS: 1800, distanceM: 5000, skippedPoints: 1 } };
+  assert.equal(statLines(skipped, "metric").at(-1), "1 point skipped");
+  assert.equal(statLines({ ...base, stats: { ...skipped.stats, skippedPoints: 3 } }, "metric").at(-1), "3 points skipped");
+  assert.ok(!statLines({ ...base, stats: { ...skipped.stats, skippedPoints: 0 } }, "metric").some((l) => /skipped/.test(l)), "no line for none");
+
   const onlyAvg = { ...base, stats: { durationS: 1800, distanceM: 5000, heartRateAvg: 98 } };
   assert.ok(statLines(onlyAvg, "metric").includes("♥ 98 avg"), "heart rate with only an average");
 }

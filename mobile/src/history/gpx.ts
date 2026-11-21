@@ -17,6 +17,8 @@ export interface ParsedGpx {
   endedAt: string;
   /** Length of the track, not counting the jump across a pause between two segments. */
   trackDistanceM: number;
+  /** Track points left out for having no valid position or time. */
+  skippedPoints: number;
 }
 
 // Messages never carry file content: a track is where the owner walked.
@@ -73,15 +75,16 @@ function dropUndefined<R>(o: Record<string, unknown>): R {
   return o as R;
 }
 
-function readPoint(tag: string, body: string): TrackPoint {
+// Null for a point with no valid position or time: one bad point does not cost the walk, the caller counts it.
+function readPoint(tag: string, body: string): TrackPoint | null {
   const lat = attribute(tag, "lat");
   const lon = attribute(tag, "lon");
   if (lat === undefined || lon === undefined || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-    throw new GpxError("a track point has no valid position");
+    return null;
   }
   const time = elementText(body, "time");
   const t = time === undefined ? Number.NaN : Date.parse(time);
-  if (!Number.isFinite(t) || t < 0) throw new GpxError("a track point has no valid time");
+  if (!Number.isFinite(t) || t < 0) return null;
   return dropUndefined<TrackPoint>({
     t,
     lat,
@@ -136,10 +139,13 @@ export function parseGpx(text: string): ParsedGpx {
   }
 
   const points: TrackPoint[] = [];
+  let skippedPoints = 0;
   let trackDistanceM = 0;
   let segment = -1;
   let previous: TrackPoint | undefined;
   for (let at = text.indexOf("<trkpt"); at >= 0; at = text.indexOf("<trkpt", at + 6)) {
+    // <trkptExt> and the like share the prefix but are not points
+    if (!/[\s>/]/.test(text.charAt(at + 6))) continue;
     const tagEnd = text.indexOf(">", at);
     if (tagEnd < 0) throw new GpxError("a track point is not closed");
     const tag = text.slice(at, tagEnd);
@@ -150,6 +156,10 @@ export function parseGpx(text: string): ParsedGpx {
       body = text.slice(tagEnd + 1, close);
     }
     const point = readPoint(tag, body);
+    if (point === null) {
+      skippedPoints++;
+      continue;
+    }
 
     let inSegment = segment;
     while (segmentStarts[inSegment + 1] !== undefined && (segmentStarts[inSegment + 1] ?? 0) < at) {
@@ -161,6 +171,8 @@ export function parseGpx(text: string): ParsedGpx {
     points.push(point);
   }
   if (points.length === 0) throw new GpxError("the file has no track points");
+  if (skippedPoints > 0 && points.length < 2)
+    throw new GpxError("too few valid track points are left");
 
   let first = points[0]?.t ?? 0;
   let last = first;
@@ -175,6 +187,7 @@ export function parseGpx(text: string): ParsedGpx {
     startedAt: new Date(first).toISOString(),
     endedAt: new Date(last).toISOString(),
     trackDistanceM,
+    skippedPoints,
   };
 }
 
@@ -192,5 +205,6 @@ export function activityStats(parsed: ParsedGpx): ActivitySummary["stats"] {
     calories: s?.calories,
     heartRateAvg: s?.heartRateAvg,
     heartRateMax: s?.heartRateMax,
+    skippedPoints: parsed.skippedPoints > 0 ? parsed.skippedPoints : undefined,
   });
 }

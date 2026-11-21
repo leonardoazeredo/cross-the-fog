@@ -53,6 +53,7 @@ function linkStatus({ paired, reachable }: LinkStatus, unsentRoutes = 0): Native
 
 export function createSendFlow(deps: SendDeps): SendFlow {
   const { link, routes } = deps;
+  let running: (() => void) | undefined;
 
   function send(msg: NativeToWeb): void {
     try {
@@ -123,6 +124,8 @@ export function createSendFlow(deps: SendDeps): SendFlow {
     },
 
     start() {
+      // A second call while running would add a second set of listeners and every status would reach the page twice.
+      if (running) return running;
       const offRoute = link.on("routeSaved", ({ routeId, revision }) => {
         void (async () => {
           // The watch has the route whether or not the record could be marked, so the page hears it either way.
@@ -146,11 +149,15 @@ export function createSendFlow(deps: SendDeps): SendFlow {
         send(routeStatus(routeId, "failed", { why: COPY.routeNotSent, revision }));
       });
       const offStatus = link.on("linkStatus", (status) => send(linkStatus(status)));
-      return () => {
+      const stopRun = () => {
+        if (running !== stopRun) return;
+        running = undefined;
         offRoute();
         offAside();
         offStatus();
       };
+      running = stopRun;
+      return stopRun;
     },
   };
 }
