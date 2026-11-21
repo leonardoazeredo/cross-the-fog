@@ -7,6 +7,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 require("./lib/host.js");
+require("./lib/leaflet-stub.js"); // this test draws on a fake map or builds the route editor
 require("../app/src/engine.ts");
 const { createFakeIDB } = require("./lib/fake-idb.js");
 const src = path.join(__dirname, "..", "app", "src");

@@ -1,4 +1,5 @@
-// Minimal Leaflet stand-in: just enough surface for suggest.ts to run headless.
+// Minimal Leaflet stand-in: just enough surface for the screen half of suggest.ts and the route editor to run in a test.
+// The planner needs none of it.
 // Geometry helpers are real (haversine); everything visual is a no-op.
 "use strict";
 
