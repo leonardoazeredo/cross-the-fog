@@ -5,14 +5,23 @@
 
 // bench/cache/ holds overpass-api.de answers; asking that instance first keeps the bench on the same data
 // as the saved baseline; the street source installed here is how a bench run posts to Overpass.
-// Assumes one ensureRects call per index: a later call replaces the rects the query is built from, and
-// its text then differs from the saved one, so the cache misses.
+// Serves the rects of one ensureRects call per index: a later call that has to fetch for other rects would build a
+// query whose text differs from the saved one (a cache miss), so it throws instead. A later call over rects that are
+// already held fetches nothing. The query asks only for the rects, not the whole tiles they touch, so the index
+// treats a whole tile as covered although streets outside the rects were not fetched: newAreaM2 can score a small
+// area there where the app's own source (whole street blocks) would have found streets, so the bench's scores are
+// not strictly the app's; the graphs, which read only the ways held, are the same.
 function installTileFetch(streets) {
   global.Overpass.setOrder(["main", "nextgis"]);
   const ensureRects = streets.ensureRects.bind(streets);
-  let rects = null;
+  let rects = null, fetchedFor = null;
   streets.ensureRects = (r, opts) => { rects = r; return ensureRects(r, opts); };
   streets.fetchStreets = async (tiles, onTile) => {
+    const key = JSON.stringify(rects);
+    if (fetchedFor !== null && fetchedFor !== key) {
+      throw new Error("bench/lib/tileFetch.js serves one set of rects per index: a second one would not match bench/cache/");
+    }
+    fetchedFor = key;
     const q = global.StreetIndex.rectQuery(rects);
     const answers = global.StreetIndex.splitAnswer(await global.Overpass.post("data=" + encodeURIComponent(q)), tiles);
     if (onTile) for (const t of tiles) onTile(t, answers.get(global.StreetIndex.tileId(t)));

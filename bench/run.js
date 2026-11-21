@@ -21,7 +21,8 @@ const filter = process.argv[3] || "";
   const gain = gainOver(fogMap);
   console.log(`fog tiles: ${fogMap.tileCount}`);
   const all = [];
-  let live = 0; // requests the disk cache did not have
+  let live = 0; // requests the disk cache did not have, over the scenarios that returned
+  let failed = 0; // scenarios that threw: their requests are not counted
 
   for (const sc of scenarios) {
     if (filter && !sc.name.includes(filter)) continue;
@@ -32,6 +33,7 @@ const filter = process.argv[3] || "";
     } catch (e) {
       console.log(`  FAILED: ${e.message}`);
       all.push({ scenario: sc.name, error: e.message });
+      failed++;
       continue;
     }
     live += out.requests - out.cacheHits;
@@ -67,5 +69,9 @@ const filter = process.argv[3] || "";
   fs.writeFileSync(file, JSON.stringify({ date: new Date().toISOString(), scenarios: all }, null, 1));
   console.log(`\nwrote ${file}`);
   console.log(`live Overpass requests: ${live}`);
-  if (live) process.exitCode = 1; // a miss is a new or cleared cache, or a changed query text: check StreetIndex.rectQuery before refetching
+  console.log(`scenarios that threw: ${failed}`);
+  // a miss is a new or cleared cache, or a changed query text: check StreetIndex.rectQuery before refetching;
+  // BENCH_ALLOW_LIVE=1 is for the run that fills a cleared cache on purpose
+  if (live && !process.env.BENCH_ALLOW_LIVE) process.exitCode = 1;
+  if (failed) process.exitCode = 1;
 })();
