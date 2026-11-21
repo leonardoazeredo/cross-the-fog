@@ -21,7 +21,6 @@ import {
 } from "./suggestPure.ts";
 import {
   _cancel,
-  createEngine,
   _diversify,
   _graph,
   _holdGraph,
@@ -43,6 +42,7 @@ import {
   _suggestP2P,
   _viaCandidates,
   _viaPoint,
+  createEngine,
   FIT_ROUTES,
   fitLoopSize,
   type Self,
