@@ -80,5 +80,21 @@ function build(mode, ways) {
     assert.deepEqual([S.lat, S.lng], [a.lat, a.lng], "loop: the start is the pin's point");
     assert.ok(Array.isArray(cands) && cands.length > 0, "loop: candidates were handed on");
   }
+
+  // The loop drops square candidates that retrace over 30% of themselves, except planned ones; when that leaves
+  // nothing it hands on all of them. The candidates are crafted and the pool stubbed (the first wave answers with
+  // them, the later waves with nothing), so only the filter is under test.
+  const crafted = (id, overlap, planned) => ({ id, overlap, planned, adoptWps: [], r: { lenM: 3000, coords: [[13.7, 51], [13.71 + id / 1000, 51.01]], legs: [] } });
+  for (const [name, wave, expected] of [
+    ["mixed", [crafted(1, 0.5, false), crafted(2, 0.1, false), crafted(3, 0.9, true), crafted(4, 0.31, false)], [2, 3]],
+    ["all retrace", [crafted(5, 0.5, false), crafted(6, 0.8, false)], [5, 6]],
+  ]) {
+    const { tool, calls } = build("loop", ring);
+    let waves = 0;
+    tool._pool = async () => (waves++ === 0 ? wave : []);
+    await tool.suggest({ distM: 3000, buffer: 0.15 });
+    assert.equal(calls.length, 1, `retrace filter ${name}: one finish`);
+    assert.deepEqual(calls[0][1].map((c) => c.id), expected, `retrace filter ${name}: the candidates handed on`);
+  }
   console.log("suggest-handoff: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
