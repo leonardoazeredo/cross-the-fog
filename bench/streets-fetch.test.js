@@ -119,12 +119,28 @@ function ticker() {
 // Runs one test case with its own fake fetch, a clean Overpass (holds, slots, clock, order) and no NextGIS
 // key. Until the body installs a fetch, fetch refuses, so a case that forgets its fake fails instead of
 // reaching the network. All of it is put back afterwards, also when the case throws.
-async function testCase(body) {
+async function runCase(body) {
   const real = global.fetch;
   const clean = () => { global.Overpass._reset(); delete global.crossfogNextgisKey; };
   clean();
   global.fetch = async () => { throw new Error("this test case installed no fake fetch"); };
   try { await body(); } finally { global.fetch = real; clean(); }
+}
+// The cases are collected and run after the last is registered, in the order CASE_ORDER names: unset is as
+// written, "reverse", or "shuffle:<seed>" (a fixed permutation), so a case that leans on an earlier one fails
+// when that one runs later.
+const cases = [];
+const testCase = async (body) => { cases.push(body); };
+function inOrder(list, how) {
+  if (!how) return list;
+  if (how === "reverse") return list.slice().reverse();
+  const m = /^shuffle:(\d+)$/.exec(how);
+  if (!m) throw new Error("CASE_ORDER is unset, reverse or shuffle:<seed>, not " + how);
+  let x = Number(m[1]) >>> 0 || 1;
+  const rand = () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
 }
 
 // Every run's reports stay within total and never go back down (concurrent runs included): checked here for
@@ -326,6 +342,30 @@ async function testCase(body) {
     const flat = { type: "way", id: 43, nodes: [430, 431], geometry: [{ lat: 51.01, lon: 13.71 }, { lat: 51.01, lon: 13.78 }] };
     const row = StreetIndex.splitAnswer({ elements: [flat, count] }, [T(548, 2040), T(549, 2040), T(550, 2040), T(549, 2041)]);
     assert.deepEqual([...row.entries()].filter(([, a]) => a.ways.length).map(([k]) => k), ["548:2040", "549:2040", "550:2040"]);
+  });
+  await testCase(async () => { // a vertex or a segment exactly on the edge two tiles share is in both (the edges count); a hair off it is in one
+    const A = StreetIndex.tileBounds(T(549, 2040)), B = StreetIndex.tileBounds(T(550, 2040)), C = StreetIndex.tileBounds(T(549, 2041));
+    assert.equal(A.e, B.w, "the tiles share the edge exactly");
+    assert.equal(A.n, C.s);
+    const tiles = [T(549, 2040), T(550, 2040), T(549, 2041)];
+    const mid = (A.s + A.n) / 2;
+    const w = (id, ...g) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: g });
+    const at = (lat, lon) => ({ lat, lon });
+    const out = StreetIndex.splitAnswer({ elements: [
+      w(1, at(mid, A.e), at(mid, A.e)),                    // one point on the shared edge
+      w(2, at(A.s + 0.001, A.e), at(A.n - 0.001, A.e)),    // a segment lying along it
+      w(3, at(mid, A.e + 1e-9), at(mid, A.e + 2e-9)),      // a hair east of it: tile B only
+      w(4, at(mid, A.e - 2e-9), at(mid, A.e - 1e-9)),      // a hair west of it: tile A only
+      w(5, at(A.n, A.w + 0.001), at(A.n, A.w + 0.002)),    // along the north edge: A and C
+      w(6, at(A.n, A.e), at(A.n, A.e)),                    // the corner A, B and C meet at (no tile D requested)
+      count] }, tiles);
+    const where = (id) => [...out.entries()].filter(([, a]) => a.ways.some((x) => x.id === id)).map(([k]) => k).sort();
+    assert.deepEqual(where(1), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(2), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(3), ["550:2040"]);
+    assert.deepEqual(where(4), ["549:2040"]);
+    assert.deepEqual(where(5), ["549:2040", "549:2041"]);
+    assert.deepEqual(where(6), ["549:2040", "549:2041", "550:2040"]);
   });
   await testCase(async () => { // a source that leaves a requested tile out is an error, and nothing is recorded as fetched
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => new Map() });
@@ -1494,5 +1534,66 @@ async function testCase(body) {
       assert.deepEqual([sentCount, clock.sleeps, err.cause.reason], [1, [], reason], reason);
     }
   });
+  await testCase(async () => { // a throw from onTile on the first tile of an answer: the second tile of that answer still reaches onTile before the run rejects
+    tileServer();
+    const bug = new TypeError("bug");
+    const heard = [];
+    const err = await StreetIndex.overpassFetch([{ x: 548, y: 2040 }, { x: 549, y: 2040 }], (t) => { heard.push(t.x); if (heard.length === 1) throw bug; }).then(() => null, (e) => e);
+    assert.equal(err, bug);
+    assert.deepEqual(heard, [548, 549]);
+  });
+  await testCase(async () => { // a 406, a stall and a rejected fetch over three street blocks: no request after the first failure, no sleep, reason set
+    const silent = (url, opts) => new Promise((_, reject) => opts.signal.addEventListener("abort", () => reject(opts.signal.reason)));
+    const behaviours = {
+      blocked: () => ({ ok: false, status: 406, json: async () => ({}) }),
+      stalled: silent,
+      offline: () => { throw new TypeError("Failed to fetch"); }
+    };
+    for (const [reason, behave] of Object.entries(behaviours)) {
+      global.Overpass._reset();
+      global.Overpass._firstByteMs = 5;
+      const asked = [];
+      global.fetch = async (url, opts) => { asked.push(boxesOf(opts.body).join(" ")); return behave(url, opts); };
+      const clock = fakeClock();
+      const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+      const err = await within(s.ensureRects(twelve).then(() => null, (e) => e));
+      assert.deepEqual([clock.sleeps, err.cause.reason, err.done], [[], reason, 0], reason);
+      assert.ok(asked.length <= 2, reason + ": at most the two requests that were open together, not the third block (" + asked.length + ")");
+    }
+  });
+  await testCase(async () => { // the deadline with four requests open (a key: NextGIS takes four): they finish and keep their tiles, the other two blocks are never asked
+    withKey();
+    const clock = fakeClock();
+    const srv = heldServer();
+    const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+    const run = within(s.ensureRects(twentyFour, { deadlineMs: 1000 }).then((r) => r, (e) => e));
+    await settle();
+    assert.equal(srv.pending.length, 4);
+    clock.t = 5000;
+    while (srv.pending.length) await srv.reply(0);
+    const err = await run;
+    assert.equal(srv.asked.length, 4, "the fifth and sixth block are never asked");
+    assert.deepEqual([err.reason, err.cause.reason, err.done, err.total], ["streets-partial", "stalled", 16, 24]);
+  });
+  await testCase(async () => { // NextGIS held (a 429) with a key: a 16-tile run goes to overpass-api.de, two requests open at most, none sent to NextGIS meanwhile
+    withKey();
+    const clock = fakeClock();
+    global.Overpass._now = clock.now;
+    global.fetch = async (url) => (url.includes("nextgis") ? { ok: false, status: 429, json: async () => ({}), headers: { get: () => null } } : { ok: true, status: 200, json: async () => ({ elements: EMPTY }) });
+    await global.Overpass.post("data=x").catch(() => {});
+    assert.equal(global.Overpass.cap(), 2, "NextGIS is held: the cap is overpass-api.de's");
+    const srv = heldServer();
+    const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+    const progress = [];
+    const run = s.ensureRects(sixteen, { onProgress: (p) => progress.push(p) });
+    await settle();
+    assert.equal(srv.pending.length, 2, "two open, not four queued behind overpass-api.de's two slots");
+    while (srv.pending.length) await srv.reply(0);
+    assert.deepEqual(await run, { done: 16, total: 16 });
+    assert.deepEqual([srv.most.main, srv.most.nextgis, srv.asked.length], [2, undefined, 4]);
+    assert.deepEqual(progress[progress.length - 1], { done: 16, total: 16 });
+  });
+  assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
+  for (const body of inOrder(cases, process.env.CASE_ORDER)) await runCase(body);
   console.log("streets-fetch.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });

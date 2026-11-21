@@ -108,6 +108,8 @@ const street = [[1, [1, 2], [0, 0], [500, 0]], [2, [2, 3], [500, 0], [1000, 0]],
     assert.ok(held.length > 0 && editor, "the loop run planned on a held graph");
     assert.ok(held.every(([p, isHeld]) => p === held[0][0] && isHeld === true), "one held graph for the whole loop run");
     assert.notEqual(editor, held[0][0], "the editor is not handed the loop's graph");
+    assert.ok(!held[0][0].edges.some((e) => e.way === 9), "the way injected after the hold is not in the loop's graph");
+    assert.ok(editor.edges.some((e) => e.way === 9), "the editor's graph has it");
     assert.equal(tool._hold, null, "released when the run ends");
     assert.equal(held[0][0].held, false);
   }

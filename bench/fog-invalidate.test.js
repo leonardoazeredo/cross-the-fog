@@ -107,4 +107,12 @@ const sum = (a) => a.reduce((s, v) => s + v, 0);
   assert.ok(Math.abs(sum(planner.reward) - reward) < 1e-6, `reward ${sum(planner.reward)} vs ${reward}`);
 }
 
+{ // taking the overlay back is a fog change the index follows too: the area a reveal took away returns, with nobody telling it
+  const { fogMap, streets } = world();
+  const before = streets.newAreaM2(centre, 400);
+  fogMap.addCells(walkAlongStreet());
+  assert.ok(streets.newAreaM2(centre, 400) < before * 0.5);
+  fogMap.clearOverlay();
+  assert.ok(Math.abs(streets.newAreaM2(centre, 400) - before) < 1e-6, "scored on the fog as it is again");
+}
 console.log("fog-invalidate.test.js ok");

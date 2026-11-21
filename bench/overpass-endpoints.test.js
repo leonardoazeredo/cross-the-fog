@@ -681,6 +681,10 @@ const realFetch = global.fetch;
     global.fetch = routed({ [M]: unreachable, [N]: status(500) });
     const e = await rejection(Overpass.post("data=x"));
     assert.equal(e.reason, "server");
+    // the failed fetch was remapped to "server" because NextGIS answered a status; the first failure with the reason
+    // is main's, so that is the error thrown, and NextGIS's 500 is not
+    assert.equal(e.message, "Failed to fetch");
+    assert.equal(e.cause.message, "Failed to fetch");
     reset();
     global.fetch = routed({ [M]: status(500), [N]: status(500) });
     Object.defineProperty(global.navigator, "onLine", { value: false, configurable: true });
@@ -840,6 +844,34 @@ const realFetch = global.fetch;
         assert.ok(e.retryAt > t, "the hold's end is still reported");
       } finally { delete global.navigator.onLine; }
     }
+  }
+  { // 20b. a stall-held endpoint (no headers in time) with the browser offline: held from an earlier post, nothing is asked, offline wins
+    reset({ key: null });
+    global.fetch = routed({ [M]: silent });
+    const first = Overpass.post("data=x");
+    first.catch(() => {});
+    await settle();
+    await advance(90_001); // the first-byte guard fires; played() would run on past the 30 s hold
+    await rejection(first);
+    Object.defineProperty(global.navigator, "onLine", { value: false, configurable: true });
+    try {
+      calls = [];
+      const e = await rejection(Overpass.post("data=x"));
+      assert.deepEqual(calls, [], "held: nothing sent");
+      assert.equal(e.reason, "offline");
+      assert.ok(e.retryAt > t, "the hold's end is still reported");
+    } finally { delete global.navigator.onLine; }
+  }
+  { // 20c. an order naming only overpass-api.de, with a NextGIS key set: overpass-api.de first, NextGIS after it as the fallback, cap() overpass-api.de's
+    reset({ order: null });
+    Overpass.setOrder(["main"]);
+    assert.equal(Overpass.cap(), 2);
+    assert.deepEqual(await Overpass.post("data=x"), { from: M });
+    assert.deepEqual(calls, [M], "NextGIS is not asked while overpass-api.de answers");
+    global.fetch = routed({ [M]: status(500), [N]: answer });
+    calls = [];
+    assert.deepEqual(await Overpass.post("data=x"), { from: N });
+    assert.deepEqual(calls, [M, N], "a name the order leaves out still follows the ones it names");
   }
   { // 21. cap() is the cap of the first endpoint that is not held: NextGIS's 4, overpass-api.de's 2 while
     //     NextGIS is held, NextGIS's again when the hold ends or when every endpoint is held
