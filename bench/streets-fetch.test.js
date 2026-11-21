@@ -1604,12 +1604,14 @@ function inOrder(list, how) {
     assert.equal(got.size, 0);
     assert.equal(asked.length, 0);
   });
-  await testCase(async () => { // a custom source that returns something that is not a Map gives a raw TypeError: a bug, not a download error
+  await testCase(async () => { // a custom source that returns something that is not a Map is a server failure with a fixed message, not a raw TypeError
     for (const bad of [[], {}, "x", 5]) {
       const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => bad });
       const err = await s.ensureRects(rect).then(() => null, (e) => e);
-      assert.ok(err instanceof TypeError, JSON.stringify(bad));
-      assert.ok(!StreetIndex.isDownloadError(err), JSON.stringify(bad));
+      assert.ok(StreetIndex.isDownloadError(err), JSON.stringify(bad));
+      assert.deepEqual([err.reason, err.done, err.total], ["server", 0, 1], JSON.stringify(bad));
+      assert.equal(err.message, "streets: got 0 of 1 tiles: street source: the answer is not a Map");
+      assert.deepEqual(heldAround(s, rect), [], "nothing is recorded as fetched");
     }
   });
   assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
