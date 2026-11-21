@@ -215,8 +215,8 @@ it("gives every app-to-page type a route in the session or the page API, or name
     ),
   ).toEqual([]);
   expect([...session, ...pageEvents].filter((t) => !NATIVE_TO_WEB_TYPES.includes(t))).toEqual([]);
-  // A page event only reaches the page once something subscribes to it: PAGE_EVENTS builds the listener table and
-  // nothing else, so an event no `crossfog.on(...)` in index.ts names is dropped without a word.
+  // Listing an event in PAGE_EVENTS routes it to the page API, but the page hears it only once something
+  // subscribes: an event no `crossfog.on(...)` in index.ts names is dropped without a word.
   const index = read("web-adapter/index.ts");
   expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
   // A type is routed once: a case in the session and a page event would deliver it twice.
