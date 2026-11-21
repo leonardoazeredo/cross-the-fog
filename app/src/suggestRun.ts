@@ -2,6 +2,8 @@
 // Each function is a SuggestTool method, called with the tool as `this`; none touches the map.
 import { GraphPlanner } from "./planner.ts";
 
+// The tool and its candidates are plain objects built and read field by field; this file does not restructure them.
+// biome-ignore lint/suspicious/noExplicitAny: see above
 export type Self = { [field: string]: any };
 
 const DEFAULT_BUFFER = 0.15; // p2p: max length over the fastest route, or ± around a wanted distance; loop: tolerance around target

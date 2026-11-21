@@ -7,7 +7,6 @@
 
 import { createFogGain } from "./fogGain.ts";
 import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
-import { GraphPlanner } from "./planner.ts";
 import { LocalRouter } from "./router.ts";
 import { sortOutcome } from "./streetDownload.ts";
 import { HOLD_AS } from "./streetGrid.ts";
@@ -61,9 +60,6 @@ function leaflet(): any {
   if (!host?.L) throw new ReferenceError("L is not defined");
   return host.L as any;
 }
-
-// The tool and its candidates are plain objects built and read field by field; this file does not restructure them.
-// biome-ignore lint/suspicious/noExplicitAny: see above
 
 const MAX_VIAS = 6; // fog-seeking detour candidates per p2p run
 const VIA_RETRIES = 2; // times a via is pulled back in when its route overshoots
