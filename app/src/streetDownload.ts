@@ -354,7 +354,7 @@ export const overpassFetch = (
 // offline run in a partly cached area still says offline.
 // A cause that is itself such an error is unwrapped, so `cause` is always the first failure.
 export const downloadError = (done: number, total: number, cause: any, arrived?: number) => {
-  const first = cause && typeof cause.total === "number" && cause.cause ? cause.cause : cause;
+  const first = isDownloadError(cause) && cause.cause ? cause.cause : cause;
   const err = new Error(
     `streets: got ${done} of ${total} tiles` + (first && first.message ? ": " + first.message : ""),
   ) as StreetError;
