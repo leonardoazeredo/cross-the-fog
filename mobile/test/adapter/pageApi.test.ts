@@ -1,6 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import type { ExportChunk, RouteRecord, WebToNative } from "../../src/bridge/protocol.js";
-import { installPageApi } from "../../web-adapter/pageApi.js";
+import { PAGE_MESSAGES, SESSION_MESSAGES } from "../../src/bridge/messages.js";
+import type {
+  ExportChunk,
+  NativeToWeb,
+  RouteRecord,
+  WebToNative,
+} from "../../src/bridge/protocol.js";
+import { installPageApi, isPageMessage } from "../../web-adapter/pageApi.js";
 
 const routeId = "6f1c1a52-3f1e-4c55-9d52-0a1d6c2b7e10";
 const activityId = "0b9d8c1e-7a44-4f0b-8f3e-2d5c9a6b1f77";
@@ -204,4 +210,16 @@ it("hands routeStatus, linkStatus and activities to their listeners without the 
   expect(onRoute).toHaveBeenLastCalledWith({ routeId, state: "onWatch", revision: "a".repeat(64) });
   expect(onLink).toHaveBeenCalledExactlyOnceWith({ paired: true, reachable: false });
   expect(onActivities).toHaveBeenCalledExactlyOnceWith({ items: [] });
+});
+
+// The session routes by this: a session type taken for a page message would never reach its handler, and a name
+// from Object.prototype taken for one would be dispatched to a listener set that does not exist.
+it.each([
+  ...Object.keys(PAGE_MESSAGES).map((type) => [type, true] as const),
+  ...Object.keys(SESSION_MESSAGES).map((type) => [type, false] as const),
+  ...["constructor", "toString", "hasOwnProperty", "__proto__", "mystery"].map(
+    (type) => [type, false] as const,
+  ),
+])("says whether the type %s is a page message: %s", (type, expected) => {
+  expect(isPageMessage({ v: 1, type } as unknown as NativeToWeb)).toBe(expected);
 });

@@ -246,9 +246,9 @@ export function createController(deps: ControllerDeps): Controller {
     deleteActivity: (msg) => deps.flows.deleteActivity(msg.activityId),
     exportBinary: async (msg) => {
       const { v: _v, type: _type, ...exportChunk } = msg;
-      await deps.flows.exportBinary(exportChunk);
+      await deps.flows.exportBinary?.(exportChunk);
     },
-    backup: () => deps.flows.backup(),
+    backup: () => deps.flows.backup?.(),
     restore: async () => {
       if (importFlow.active()) {
         deps.notify(COPY.restoreBusy);
@@ -256,7 +256,7 @@ export function createController(deps: ControllerDeps): Controller {
       }
       restoring = true;
       try {
-        if (await deps.flows.restore()) {
+        if (await deps.flows.restore?.()) {
           await guard.reset();
           await doRemount();
         }
@@ -264,8 +264,8 @@ export function createController(deps: ControllerDeps): Controller {
         restoring = false;
       }
     },
-    settings: (msg) => deps.flows.settings(msg.json),
-    settingsApplied: () => deps.flows.settingsApplied(),
+    settings: (msg) => deps.flows.settings?.(msg.json),
+    settingsApplied: () => deps.flows.settingsApplied?.(),
     devAddActivity: async () => {
       if (__DEV__) await deps.devAddActivity?.();
     },

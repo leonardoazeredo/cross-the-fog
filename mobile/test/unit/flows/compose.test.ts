@@ -234,7 +234,7 @@ describe("composed flows", () => {
     expect(await activities.get(B)).toBeNull();
   });
 
-  it("hands an export chunk to the export flow when there is one, and drops it otherwise", async () => {
+  it("hands an export chunk to the export flow when there is one, and has no export handler otherwise", async () => {
     const chunk = { exportId: "e1", name: "abcd", index: 0, total: 1, files: 1, data: "" };
     const onChunk = vi.fn(async () => {});
     const withExport = createFlows({
@@ -246,9 +246,43 @@ describe("composed flows", () => {
       exportFlow: { onChunk, abandon: async () => {}, clear: async () => {} },
       now: () => 0,
     });
-    await withExport.exportBinary(chunk);
+    await withExport.exportBinary?.(chunk);
     expect(onChunk).toHaveBeenCalledExactlyOnceWith(chunk);
-    await expect(setup().flows.exportBinary(chunk)).resolves.toBeUndefined();
+    expect(setup().flows.exportBinary).toBeUndefined();
+  });
+
+  it("builds the backup, restore and settings flows only where the platform has them", async () => {
+    const bare = setup().flows;
+    expect([bare.backup, bare.restore, bare.settings, bare.settingsApplied]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+
+    const onSettings = vi.fn();
+    const onApplied = vi.fn();
+    const backup = vi.fn(async () => {});
+    const restore = vi.fn(async () => true);
+    const flows = createFlows({
+      revisionOf,
+      link: createFakeWatchLink(),
+      activities: createMemoryActivityStore(),
+      routes: createMemoryRouteStore(),
+      send: () => {},
+      backup: { backup, restore },
+      settings: { request: async () => "{}", apply: async () => {}, onSettings, onApplied },
+      now: () => 0,
+    });
+    await flows.backup?.();
+    expect(backup).toHaveBeenCalledOnce();
+    expect(await flows.restore?.()).toBe(true);
+    await flows.settings?.('{"a":1}');
+    expect(onSettings).toHaveBeenCalledExactlyOnceWith('{"a":1}');
+    expect(onApplied).not.toHaveBeenCalled();
+    await flows.settingsApplied?.();
+    expect(onApplied).toHaveBeenCalledOnce();
+    expect(onSettings).toHaveBeenCalledOnce();
   });
 
   it("does not lose an activity handed over between restore confirmation and swap", async () => {
@@ -266,7 +300,7 @@ describe("composed flows", () => {
     flows.start();
     await settle();
 
-    const restored = flows.restore();
+    const restored = flows.restore?.();
     confirmed();
     expect(await restored).toBe(true);
     await settle();
@@ -310,7 +344,7 @@ describe("composed flows", () => {
     const handOff = flows.handOffNow();
     await settle();
 
-    expect(await flows.restore()).toBe(true);
+    expect(await flows.restore?.()).toBe(true);
     await handOff;
     await settle();
 
@@ -329,7 +363,7 @@ describe("composed flows", () => {
     flows.start();
     await settle();
 
-    const restored = flows.restore();
+    const restored = flows.restore?.();
     await settle();
     link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     await settle();
@@ -353,7 +387,7 @@ describe("composed flows", () => {
     flows.start();
     await settle();
 
-    const restored = flows.restore();
+    const restored = flows.restore?.();
     await settle();
     link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
     await settle();
