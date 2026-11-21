@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
-import { NATIVE_TO_WEB_MESSAGES, WEB_TO_NATIVE_MESSAGES } from "../../../src/bridge/messages.js";
+import { z } from "zod";
+import {
+  NATIVE_TO_WEB_MESSAGES,
+  PAGE_MESSAGES,
+  SESSION_MESSAGES,
+  WEB_TO_NATIVE_MESSAGES,
+} from "../../../src/bridge/messages.js";
 import { inspectWebToNative, parseNativeToWeb } from "../../../src/bridge/protocol.js";
 
 // Every message type of both unions, by name, read out of the message tables: a type added to messages.ts fails these
@@ -28,10 +34,9 @@ function between(src: string, from: string, to?: string): string {
 
 const casesIn = (src: string) => [...src.matchAll(/case "([^"]+)":/g)].map((m) => m[1] as string);
 
-// The types the controller and the session answer to with no case of their own, on purpose. Empty today:
+// The types the controller answers to with no handler of its own, on purpose. Empty today:
 // `devAddActivity` has a case that does nothing unless `__DEV__` (controller.test.ts pins both).
 const IGNORED_ON_PURPOSE_BY_THE_CONTROLLER: string[] = [];
-const IGNORED_ON_PURPOSE_BY_THE_PAGE_SIDE: string[] = [];
 
 // The types in `types` that nothing handles and no one ignored on purpose.
 const unhandled = (types: string[], handled: string[], ignored: string[]) =>
@@ -192,6 +197,23 @@ it("accepts both shapes of loaded and names the field that broke the one it was 
   expect(dropped({ fingerprint, ok: "maybe" })).toEqual({ type: "loaded", paths: ["ok", "tiles"] });
 });
 
+// parseNativeToWeb returns the parsed message or null for any failure, and nothing else reads the union, so the
+// order of its members matters only if two of them could accept one message. Each type has one schema and a
+// schema accepts only its own type literal, so none can; the reversed union proves it on every sample.
+it("gives each app-to-page type one schema, so the order of the union cannot show", () => {
+  for (const [type, schemas] of Object.entries(NATIVE_TO_WEB_MESSAGES)) {
+    expect(schemas, type).toHaveLength(1);
+  }
+  const reversed = z.union(Object.values(NATIVE_TO_WEB_MESSAGES).flat().reverse());
+  for (const [type, row] of Object.entries(NATIVE_TO_WEB)) {
+    for (const fields of [row.valid, ...(row.bad ? [row.bad] : [])]) {
+      const raw = msg(type, fields);
+      const other = reversed.safeParse(JSON.parse(raw));
+      expect(other.success ? other.data : null, type).toEqual(parseNativeToWeb(raw));
+    }
+  }
+});
+
 it("rejects each type in the other direction", () => {
   for (const [type, row] of Object.entries(WEB_TO_NATIVE)) {
     expect(parseNativeToWeb(msg(type, row.valid)), `${type} read as app to page`).toBeNull();
@@ -212,30 +234,26 @@ it("keeps the controller's handler map checked against every page-to-app type", 
   expect(keys.filter((k) => !WEB_TO_NATIVE_TYPES.includes(k))).toEqual([]);
 });
 
-it("gives every app-to-page type a route in the session or the page API, or names it as ignored on purpose", () => {
-  const session = casesIn(
-    between(read("web-adapter/session.ts"), "async onMessage(msg: NativeToWeb)"),
-  );
-  const pageEvents = [
-    ...between(read("web-adapter/pageApi.ts"), "const PAGE_EVENTS = [", "] as const").matchAll(
-      /"([^"]+)"/g,
-    ),
-  ].map((m) => m[1] as string);
-  expect(
-    unhandled(
-      NATIVE_TO_WEB_TYPES,
-      [...session, ...pageEvents],
-      IGNORED_ON_PURPOSE_BY_THE_PAGE_SIDE,
-    ),
-  ).toEqual([]);
-  expect([...session, ...pageEvents].filter((t) => !NATIVE_TO_WEB_TYPES.includes(t))).toEqual([]);
-  // Listing an event in PAGE_EVENTS routes it to the page API, but the page hears it only once something
-  // subscribes: an event no `crossfog.on(...)` in index.ts names is dropped without a word.
+// The app-to-page types are two halves: the session answers one itself, the page API hands the other to
+// `window.crossfog.on` listeners. A type is in exactly one, and each half is checked where it is declared.
+it("splits the app-to-page types between the session and the page API, each half checked", () => {
+  const sessionTypes = Object.keys(SESSION_MESSAGES);
+  const pageEvents = Object.keys(PAGE_MESSAGES);
+  expect([...sessionTypes, ...pageEvents].sort()).toEqual([...NATIVE_TO_WEB_TYPES].sort());
+  expect(sessionTypes.filter((t) => pageEvents.includes(t))).toEqual([]);
+
+  const session = read("web-adapter/session.ts");
+  expect(session).toContain("} satisfies Handlers<SessionMessage>;");
+  const map = between(session, "const handlers = {", "} satisfies Handlers<SessionMessage>;");
+  const keys = [...map.matchAll(/^ {4}"?([\w:]+)"?: /gm)].map((m) => m[1] as string);
+  expect(keys.sort()).toEqual([...sessionTypes].sort());
+
+  // PAGE_EVENTS is the page half's keys, not a second list.
+  expect(read("web-adapter/pageApi.ts")).toContain("Object.keys(PAGE_MESSAGES)");
+  // A page event only reaches the page once something subscribes: an event no `crossfog.on(...)` in index.ts
+  // names is dropped without a word.
   const index = read("web-adapter/index.ts");
   expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
-  // A page event reaches the page API only through the session's default branch: a session case for the same
-  // type would shadow it, and the page would never hear it.
-  expect(session.filter((t) => pageEvents.includes(t))).toEqual([]);
 });
 
 it("finds a type nothing handles (control for the two cases above)", () => {

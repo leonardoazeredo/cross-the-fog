@@ -1,3 +1,5 @@
+import { type Handlers, handlerFor } from "../src/bridge/handlers.js";
+import type { SESSION_MESSAGES } from "../src/bridge/messages.js";
 import type { NativeToWeb, WebToNative } from "../src/bridge/protocol.js";
 import type { Send } from "./bridge.js";
 import type { FogCache } from "./fogCache.js";
@@ -66,98 +68,95 @@ export function createSession(deps: SessionDeps): { onMessage(msg: NativeToWeb):
     }
   }
 
+  type SessionMessage = Extract<NativeToWeb, { type: keyof typeof SESSION_MESSAGES }>;
+
+  // The messages the session answers itself. The page API takes every other type (`PAGE_MESSAGES`), so a type
+  // in neither table does not compile.
+  const handlers = {
+    none: async () => {
+      await cache.clearAll();
+      status.hide();
+    },
+
+    reload: async (msg) => {
+      const cached = await cache.get(msg.fingerprint);
+      if (cached != null) {
+        const outcome = await load(cached, msg.name);
+        await afterLoad(outcome, msg, false, cached);
+      } else {
+        active = {
+          fingerprint: msg.fingerprint,
+          name: msg.name,
+          savedAt: msg.savedAt,
+          size: msg.size,
+          role: msg.role,
+          receiver: createReceiver(msg.fingerprint, sha256Hex),
+          mismatches: 0,
+          transferred: true,
+        };
+        send({ v: 1, type: "needBytes", fingerprint: msg.fingerprint });
+        status.showProgress(0, msg.size);
+      }
+    },
+
+    chunk: async (msg) => {
+      if (active == null || msg.fingerprint !== active.fingerprint) return;
+      const result = await active.receiver.accept(msg);
+      if (result.kind === "partial") {
+        status.showProgress(result.receivedBytes, active.size);
+      } else if (result.kind === "complete") {
+        const { fingerprint, name, savedAt, role, transferred } = active;
+        active = null;
+        const outcome = await load(result.bytes, name);
+        await afterLoad(outcome, { fingerprint, name, savedAt, role }, transferred, result.bytes);
+      } else {
+        active.mismatches++;
+        if (active.mismatches === 1) {
+          send({ v: 1, type: "needBytes", fingerprint: active.fingerprint });
+          active.receiver = createReceiver(active.fingerprint, sha256Hex);
+        } else {
+          const { fingerprint, role } = active;
+          active = null;
+          const loaded: WebToNative = {
+            v: 1,
+            type: "loaded",
+            fingerprint,
+            ok: false,
+            reason: "checksum",
+          };
+          send(loaded);
+          if (role === "current") status.showRetry("failed");
+        }
+      }
+    },
+
+    reloadSuspended: () => {
+      status.showRetry("suspended");
+    },
+
+    notice: (msg) => {
+      status.showNotice(msg.text);
+    },
+
+    back: () => {
+      send({ v: 1, type: "back:result", handled: handleBack() });
+    },
+
+    needSettings: () => {
+      send({ v: 1, type: "settings", json: settings.collect() });
+    },
+
+    applySettings: (msg) => {
+      // The phone waits for this answer before it reloads the page, so the saved choices are in place when the page starts again.
+      if (settings.apply(msg.json)) send({ v: 1, type: "settingsApplied" });
+    },
+  } satisfies Handlers<SessionMessage>;
+
   return {
     async onMessage(msg: NativeToWeb): Promise<void> {
-      switch (msg.type) {
-        case "none":
-          await cache.clearAll();
-          status.hide();
-          break;
-
-        case "reload": {
-          const cached = await cache.get(msg.fingerprint);
-          if (cached != null) {
-            const outcome = await load(cached, msg.name);
-            await afterLoad(outcome, msg, false, cached);
-          } else {
-            active = {
-              fingerprint: msg.fingerprint,
-              name: msg.name,
-              savedAt: msg.savedAt,
-              size: msg.size,
-              role: msg.role,
-              receiver: createReceiver(msg.fingerprint, sha256Hex),
-              mismatches: 0,
-              transferred: true,
-            };
-            send({ v: 1, type: "needBytes", fingerprint: msg.fingerprint });
-            status.showProgress(0, msg.size);
-          }
-          break;
-        }
-
-        case "chunk":
-          if (active == null || msg.fingerprint !== active.fingerprint) break;
-          {
-            const result = await active.receiver.accept(msg);
-            if (result.kind === "partial") {
-              status.showProgress(result.receivedBytes, active.size);
-            } else if (result.kind === "complete") {
-              const { fingerprint, name, savedAt, role, transferred } = active;
-              active = null;
-              const outcome = await load(result.bytes, name);
-              await afterLoad(
-                outcome,
-                { fingerprint, name, savedAt, role },
-                transferred,
-                result.bytes,
-              );
-            } else {
-              active.mismatches++;
-              if (active.mismatches === 1) {
-                send({ v: 1, type: "needBytes", fingerprint: active.fingerprint });
-                active.receiver = createReceiver(active.fingerprint, sha256Hex);
-              } else {
-                const { fingerprint, role } = active;
-                active = null;
-                const loaded: WebToNative = {
-                  v: 1,
-                  type: "loaded",
-                  fingerprint,
-                  ok: false,
-                  reason: "checksum",
-                };
-                send(loaded);
-                if (role === "current") status.showRetry("failed");
-              }
-            }
-          }
-          break;
-
-        case "reloadSuspended":
-          status.showRetry("suspended");
-          break;
-
-        case "notice":
-          status.showNotice(msg.text);
-          break;
-
-        case "back":
-          send({ v: 1, type: "back:result", handled: handleBack() });
-          break;
-
-        case "needSettings":
-          send({ v: 1, type: "settings", json: settings.collect() });
-          break;
-
-        case "applySettings":
-          // The phone waits for this answer before it reloads the page, so the saved choices are in place when the page starts again.
-          if (settings.apply(msg.json)) send({ v: 1, type: "settingsApplied" });
-          break;
-
-        default:
-          if (isPageMessage(msg)) pageApi.dispatch(msg);
-      }
+      const handle = handlerFor(handlers, msg);
+      if (handle) await handle();
+      else if (isPageMessage(msg)) pageApi.dispatch(msg);
     },
   };
 }
