@@ -9,7 +9,10 @@ import { inspectWebToNative, parseNativeToWeb } from "../../../src/bridge/protoc
 // no case compiles and is dropped without a word; these cases are what notices it.
 
 const root = resolve(import.meta.dirname, "../../..");
-const read = (path: string) => readFileSync(resolve(root, path), "utf-8");
+// The sources are scanned without their comments: a commented-out case or literal is not one.
+const withoutComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const read = (path: string) => withoutComments(readFileSync(resolve(root, path), "utf-8"));
 
 const protocol = read("src/bridge/protocol.ts");
 const split = protocol.indexOf("const nativeToWebSchema");
@@ -212,6 +215,10 @@ it("gives every app-to-page type a route in the session or the page API, or name
     ),
   ).toEqual([]);
   expect([...session, ...pageEvents].filter((t) => !NATIVE_TO_WEB_TYPES.includes(t))).toEqual([]);
+  // A page event only reaches the page once something subscribes to it: PAGE_EVENTS builds the listener table and
+  // nothing else, so an event no `crossfog.on(...)` in index.ts names is dropped without a word.
+  const index = read("web-adapter/index.ts");
+  expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
   // A type is routed once: a case in the session and a page event would deliver it twice.
   expect(session.filter((t) => pageEvents.includes(t))).toEqual([]);
 });
@@ -220,6 +227,12 @@ it("finds a type nothing handles (control for the two cases above)", () => {
   expect(unhandled(["a", "b"], ["a"], [])).toEqual(["b"]);
   expect(unhandled(["a", "b"], ["a"], ["b"])).toEqual([]);
   expect(casesIn('switch (x) { case "a": break; case "b:c": break; }')).toEqual(["a", "b:c"]);
+  expect(
+    casesIn(
+      withoutComments('switch (x) {\n  // case "a":\n  /* case "b": */\n  case "c": break; }'),
+    ),
+  ).toEqual(["c"]);
+  expect(typesIn(withoutComments('// type: z.literal("a")\n type: z.literal("b")'))).toEqual(["b"]);
   expect(typesIn('z.object({ type: z.literal("a") }), z.object({ type: z.literal("a") })')).toEqual(
     ["a"],
   );
