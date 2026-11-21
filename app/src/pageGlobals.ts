@@ -25,7 +25,7 @@ import { RouteLocal } from "./routeLocal.ts";
 import { LocalRouter } from "./router.ts";
 import { StreetCache } from "./streetCache.ts";
 import { StreetMessages } from "./streetMessages.ts";
-import { bindStreetsHost, StreetIndex, type StreetsHost } from "./streets.ts";
+import { StreetIndex } from "./streets.ts";
 import { bindSuggestHost, type SuggestHost, SuggestTool } from "./suggest.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
@@ -36,12 +36,7 @@ interface Pako {
   inflate(bytes: Uint8Array): Uint8Array;
   inflateRaw(bytes: Uint8Array): Uint8Array;
 }
-export interface PageWindow
-  extends OverpassHost,
-    ElevationHost,
-    StreetsHost,
-    PlannerHost,
-    SuggestHost {
+export interface PageWindow extends OverpassHost, ElevationHost, PlannerHost, SuggestHost {
   pako?: Pako;
   indexedDB?: IDBFactory | null;
   [name: string]: unknown;
@@ -51,8 +46,6 @@ export function pageGlobals(page: PageWindow) {
   // Overpass keeps its state at module level, one instance for the bundle, so it has one host: the last window given.
   // It reads that window's fetch, `navigator.onLine` and `crossfogNextgisKey` each time a request, `has` or `cap` runs.
   bindOverpassHost(page);
-  // StreetIndex likewise has one host for the bundle: `snapPoint` reads the page's Leaflet `L` when it runs.
-  bindStreetsHost(page);
   // and the planner, which reads `L` when it resamples a plan's waypoints
   bindPlannerHost(page);
   // and the suggestion tool, which reads `L` and `matchMedia` when it draws or places a pin

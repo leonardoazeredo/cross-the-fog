@@ -3,17 +3,6 @@
 // only through the StreetSeam interface there.
 import { type Tile, type TileAnswer, tileId, tileOf, type Vertex, type Way } from "./streetGrid.ts";
 
-// What snapPoint reads from the page, looked up on the host when it runs, never at load: pageGlobals.ts passes the
-// page's own object.
-export interface StreetsHost {
-  L?: { latLng(lat: number, lng: number): unknown };
-}
-
-let host: StreetsHost | null = null;
-export function bindStreetsHost(h: StreetsHost): void {
-  host = h;
-}
-
 interface Segment {
   x: number;
   y: number;
@@ -217,8 +206,7 @@ StreetStore.prototype.snapPoint = function (
   g?: number,
 ) {
   g = g || 0.006;
-  if (!host?.L) throw new ReferenceError("L is not defined");
-  return host.L.latLng(Math.round(latlng.lat / g) * g, Math.round(latlng.lng / g) * g);
+  return { lat: Math.round(latlng.lat / g) * g, lng: Math.round(latlng.lng / g) * g };
 };
 
 // One tile's answer, read from the tile `from`, into the index; the version bump tells graphs built before it to rebuild.

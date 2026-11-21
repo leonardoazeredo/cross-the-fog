@@ -24,7 +24,6 @@ import {
   splitAnswer,
 } from "./streetDownload.ts";
 import {
-  nearestFirst,
   type Rect,
   TILE_DEG,
   type Tile,
@@ -35,15 +34,7 @@ import {
   tilesCovering,
   tilesOf,
 } from "./streetGrid.ts";
-import {
-  bindStreetsHost,
-  type StoreOptions,
-  StreetStore,
-  type StreetStoreSelf,
-  type StreetsHost,
-} from "./streetStore.ts";
-
-export { bindStreetsHost, type StreetsHost };
+import { type StoreOptions, StreetStore, type StreetStoreSelf } from "./streetStore.ts";
 
 // The street index: a street store (streetStore.ts) and a street download (streetDownload.ts) on one
 // object, so a caller reads the ways, the version and the scores off the same instance that
@@ -96,7 +87,6 @@ StreetIndex.tilesCovering = tilesCovering;
 StreetIndex.tilesOf = tilesOf;
 StreetIndex.tileBounds = tileBounds;
 StreetIndex.tileId = tileId;
-StreetIndex.nearestFirst = nearestFirst;
 StreetIndex.rectQuery = rectQuery;
 StreetIndex.splitAnswer = splitAnswer;
 // The query and the answer split are read off the constructor when a request is built or answered, so a
