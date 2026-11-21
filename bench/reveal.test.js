@@ -324,6 +324,21 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
   assert.ok((pts.length - 1) * perSegment > 1.5 * (1 << 20) && mid * perSegment < 0.9 * (1 << 20));
 }
 
+// the compaction threshold doubles past the unique cells, so a long track is compacted a handful of times, not at every point
+{
+  const lat = 48, lon0 = 11, stepM = 20;
+  const pts = [];
+  for (let i = 0; i <= 250; i++) pts.push([lon0 + lonShift(lat, i * stepM), lat]);
+  const t = track(pts, 1000);
+  const never = Reveal.reveal(t, Reveal.RULES, { flushAt: Infinity });
+  let compactions = 0;
+  const small = Reveal.reveal(t, Reveal.RULES, { flushAt: 16, onCompact: () => { compactions++; } });
+  assert.deepEqual(small, never, "compacting early changes nothing in the answer");
+  // 1300 unique cells from a threshold of 16 is about 7 doublings; a threshold stuck at 16 would compact at every point (250)
+  assert.ok(small.length / 2 > 16 * 16, "the track must pass the threshold many times over");
+  assert.ok(compactions >= 2 && compactions < 30, `${compactions} compactions`);
+}
+
 // empty and degenerate input
 {
   assert.equal(Reveal.reveal([]).length, 0);
