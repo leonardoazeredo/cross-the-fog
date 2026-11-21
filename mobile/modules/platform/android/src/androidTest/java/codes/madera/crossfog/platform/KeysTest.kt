@@ -359,4 +359,79 @@ class KeysTest {
       listOf(Keys.KEK_ALIAS, Keys.STAGING_ALIAS).forEach { if (containsAlias(it)) deleteEntry(it) }
     }
   }
+
+  // A Keystore read that the test controls: it fails or finds no key while `mode` says so, and reads the real
+  // Keystore otherwise, so one instance can create a key and then see it fail.
+  private class Reads {
+    var mode: Mode = Mode.REAL
+    enum class Mode { REAL, BUSY, NO_KEY }
+
+    fun read(alias: String): javax.crypto.SecretKey? = when (mode) {
+      Mode.BUSY -> throw java.security.UnrecoverableKeyException("keystore busy")
+      Mode.NO_KEY -> null
+      Mode.REAL -> KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.getKey(alias, null) as javax.crypto.SecretKey?
+    }
+  }
+
+  private fun keysWith(reads: Reads) = Keys(context, sqliteDir, readKek = reads::read)
+
+  @Test
+  fun resetIsRefusedForAKeyThatReadsExistingAfterATransientFailure() {
+    val reads = Reads()
+    val keys = keysWith(reads)
+    val key = keys.databaseKey()
+    reads.mode = Reads.Mode.BUSY
+    assertEquals(KeyState.EXISTING, keys.keyState())
+    assertThrows(KeyRefusedException::class.java) { keys.resetKeys() }
+    // Nothing was deleted: the file and the alias are there and the key reads again once the Keystore does.
+    assertTrue(keys.databaseKeyFile.exists())
+    assertTrue(aliasPresent())
+    reads.mode = Reads.Mode.REAL
+    assertArrayEquals(key, keys.databaseKey())
+  }
+
+  @Test
+  fun replacingIsRefusedForAKeyThatReadsExistingAfterATransientFailure() {
+    val reads = Reads()
+    val keys = keysWith(reads)
+    val key = keys.databaseKey()
+    reads.mode = Reads.Mode.BUSY
+    assertThrows(KeyRefusedException::class.java) {
+      keys.replaceLostDatabaseKey(ByteArray(32) { (it + 1).toByte() })
+    }
+    assertTrue(keys.databaseKeyFile.exists())
+    assertTrue(aliasPresent())
+    reads.mode = Reads.Mode.REAL
+    assertArrayEquals(key, keys.databaseKey())
+  }
+
+  @Test
+  fun anAliasWithNoKeystoreKeyBehindItReadsLostAndAResetWithNoDatabaseSucceeds() {
+    val reads = Reads()
+    val keys = keysWith(reads)
+    keys.databaseKey()
+    reads.mode = Reads.Mode.NO_KEY
+    assertEquals(KeyState.LOST, keys.keyState())
+    assertThrows(KeyLostException::class.java) { keys.databaseKey() }.also {
+      assertEquals(KeyLoss.ABSENT, it.loss)
+    }
+    reads.mode = Reads.Mode.NO_KEY
+    keys.resetKeys()
+    reads.mode = Reads.Mode.REAL
+    assertEquals(KeyState.FRESH, keys.keyState())
+    assertEquals(32, keys.databaseKey().size)
+  }
+
+  @Test
+  fun anAliasWithNoKeystoreKeyBehindItMayBeReplaced() {
+    val reads = Reads()
+    val keys = keysWith(reads)
+    keys.databaseKey()
+    reads.mode = Reads.Mode.NO_KEY
+    val fresh = ByteArray(32) { (it + 2).toByte() }
+    keys.replaceLostDatabaseKey(fresh.copyOf())
+    reads.mode = Reads.Mode.REAL
+    assertEquals(KeyState.EXISTING, keys.keyState())
+    assertArrayEquals(fresh, keys.databaseKey())
+  }
 }

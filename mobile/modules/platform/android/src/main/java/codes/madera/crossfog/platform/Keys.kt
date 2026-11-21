@@ -60,7 +60,9 @@ class Keys(
   context: Context,
   // expo-sqlite's default directory; the history database lives there as crossfog.db.
   private val sqliteDir: File = File(context.filesDir, StoredNames.SQLITE_DIR),
-  // A seam for the test of a Keystore that refuses to drop its entry.
+  // A seam for the test of a Keystore read that fails or finds no key under an alias that is there.
+  private val readKek: ((String) -> SecretKey?)? = null,
+  // A seam for the test of a Keystore that refuses to drop its entry. Last, so a trailing lambda binds to it.
   private val deleteAlias: ((String) -> Unit)? = null,
 ) {
   // noBackupFilesDir is outside Auto Backup and device transfer; a restored file would be undecryptable.
@@ -217,7 +219,7 @@ class Keys(
   }
 
   private fun readDatabaseKey(): ByteArray {
-    val kek = readKekOrLost { existingKey(KEK_ALIAS) }
+    val kek = readKekOrLost { (readKek ?: ::existingKey)(KEK_ALIAS) }
     return unwrapDatabaseKey(kek, KEK_ALIAS, databaseKeyFile.readBytes())
   }
 
