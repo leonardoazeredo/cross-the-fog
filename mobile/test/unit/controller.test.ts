@@ -761,6 +761,9 @@ it("ignores the export, backup, restore and settings messages where the platform
   }
   expect(h.remounts.count).toBe(0);
   expect(h.notified).toEqual([]);
+  // None of them is taken for a flow the platform does have.
+  expect(h.flows.deleteActivity).not.toHaveBeenCalled();
+  expect(h.flows.sendRoute).not.toHaveBeenCalled();
   // The restore marked itself running while it found nothing to run; a pick right after is not refused.
   await h.c.onWebMessage({ v: 1, type: "pickBackup" });
   expect(h.notified).not.toContain(COPY.restoreRunning);
