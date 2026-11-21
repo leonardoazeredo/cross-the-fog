@@ -7,7 +7,6 @@ import { createController } from "../../src/controller.js";
 import { COPY } from "../../src/copy.js";
 import { createBackupFlows } from "../../src/flows/backup.js";
 import type { Flows } from "../../src/flows/types.js";
-import { createNoopFlows } from "../../src/flows/types.js";
 import { createReloadGuard } from "../../src/fog/reloadGuard.js";
 import type { SourceFile } from "../../src/fog/store.js";
 import { createFogStore } from "../../src/fog/store.js";
@@ -58,11 +57,13 @@ interface Harness {
   openExternal: ReturnType<typeof vi.fn>;
   openAbout: ReturnType<typeof vi.fn>;
   busy: boolean[];
-  flows: { [K in keyof Flows]: ReturnType<typeof vi.fn> };
+  flows: { [K in keyof Flows]-?: ReturnType<typeof vi.fn> };
   devAddActivity: ReturnType<typeof vi.fn>;
 }
 
-function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = {}): Harness {
+function createHarness(
+  opts: { devHandler?: boolean; releaseFails?: boolean; bareFlows?: boolean } = {},
+): Harness {
   const fs = createMemoryFileStore({ sources });
   const clock = { value: NOW };
   const store = createFogStore(fs, {
@@ -84,17 +85,17 @@ function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = 
   const openAbout = vi.fn();
   const busy: boolean[] = [];
   const devAddActivity = vi.fn(() => Promise.resolve());
-  const noop = createNoopFlows();
+  const done = () => Promise.resolve();
   const flows = {
-    ready: vi.fn(noop.ready),
-    sendRoute: vi.fn(noop.sendRoute),
-    needTrack: vi.fn(noop.needTrack),
-    deleteActivity: vi.fn(noop.deleteActivity),
-    exportBinary: vi.fn(noop.exportBinary),
-    backup: vi.fn(noop.backup),
-    restore: vi.fn(noop.restore),
-    settings: vi.fn(noop.settings),
-    settingsApplied: vi.fn(noop.settingsApplied),
+    ready: vi.fn(done),
+    sendRoute: vi.fn(done),
+    needTrack: vi.fn(done),
+    deleteActivity: vi.fn(done),
+    exportBinary: vi.fn(done),
+    backup: vi.fn(done),
+    restore: vi.fn(() => Promise.resolve(false)),
+    settings: vi.fn(done),
+    settingsApplied: vi.fn(done),
   };
 
   const c = createController({
@@ -124,7 +125,15 @@ function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = 
     now: () => clock.value,
     setBusy: (on) => busy.push(on),
     chunkBytes: 1_048_576,
-    flows,
+    // A platform with no export, backup or settings has none of those flows; the rest every platform has.
+    flows: opts.bareFlows
+      ? {
+          ready: flows.ready,
+          sendRoute: flows.sendRoute,
+          needTrack: flows.needTrack,
+          deleteActivity: flows.deleteActivity,
+        }
+      : flows,
     ...(opts.devHandler === false ? {} : { devAddActivity }),
   });
 
@@ -735,6 +744,26 @@ it("reloads the page after a restore that replaced the data", async () => {
   h.flows.restore.mockResolvedValueOnce(true);
   await h.c.onWebMessage({ v: 1, type: "restore" });
   expect(h.remounts.count).toBe(1);
+});
+
+it("ignores the export, backup, restore and settings messages where the platform has no such flow", async () => {
+  const h = createHarness({ bareFlows: true });
+  await h.c.start();
+  const chunk = { exportId: "e1", name: "abcd", index: 0, total: 1, files: 1, data: "" };
+  for (const msg of [
+    { v: 1, type: "exportBinary", ...chunk },
+    { v: 1, type: "backup" },
+    { v: 1, type: "restore" },
+    { v: 1, type: "settings", json: "{}" },
+    { v: 1, type: "settingsApplied" },
+  ] as const) {
+    await h.c.onWebMessage(msg);
+  }
+  expect(h.remounts.count).toBe(0);
+  expect(h.notified).toEqual([]);
+  // The restore marked itself running while it found nothing to run; a pick right after is not refused.
+  await h.c.onWebMessage({ v: 1, type: "pickBackup" });
+  expect(h.notified).not.toContain(COPY.restoreRunning);
 });
 
 it("leaves the page alone after a restore that changed nothing", async () => {

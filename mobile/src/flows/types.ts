@@ -8,27 +8,13 @@ export interface Flows {
   sendRoute(route: RouteRecord): Promise<void>;
   needTrack(activityId: string): Promise<void>;
   deleteActivity(activityId: string): Promise<void>;
-  exportBinary(chunk: ExportChunk): Promise<void>;
-  backup(): Promise<void>;
+  // The three below are absent where the platform has none (the controller ignores the message then).
+  exportBinary?(chunk: ExportChunk): Promise<void>;
+  backup?(): Promise<void>;
   /** Resolves true when the phone's data was replaced and the page must reload. */
-  restore(): Promise<boolean>;
+  restore?(): Promise<boolean>;
   /** The page's answer to `needSettings`. */
-  settings(json: string): Promise<void>;
+  settings?(json: string): Promise<void>;
   /** The page's confirmation that it wrote the settings from `applySettings`. */
-  settingsApplied(): Promise<void>;
-}
-
-export function createNoopFlows(): Flows {
-  const done = () => Promise.resolve();
-  return {
-    ready: done,
-    sendRoute: done,
-    needTrack: done,
-    deleteActivity: done,
-    exportBinary: done,
-    backup: done,
-    restore: () => Promise.resolve(false),
-    settings: done,
-    settingsApplied: done,
-  };
+  settingsApplied?(): Promise<void>;
 }
