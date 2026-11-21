@@ -1,7 +1,7 @@
 // Exact diff of two bench/run.js outputs: what a move that must not change a suggestion is held to.
 //   node bench/identical.js <reference.json> <candidate.json> [--exclude=a,b] [--subset]
-// Every field of the reference must equal the candidate's; --subset lets the candidate hold fields the reference
-// lacks (a run recorded before a field was added). --exclude names fields skipped wherever they occur, for the ones
+// Every field of the reference must equal the candidate's; --subset lets the candidate hold fields (and scenarios)
+// the reference lacks (a run recorded before a field was added). --exclude names fields skipped wherever they occur, for the ones
 // that differ between two runs of the same code. The output is counts and field names only: the recorded values
 // derive from the Sync/ folder and go in no log, fixture or report.
 // Exit: 0 identical, 1 differ, 2 usage.
@@ -17,7 +17,18 @@ if (files.length !== 2) {
   console.error("usage: node bench/identical.js <reference.json> <candidate.json> [--exclude=a,b] [--subset]");
   process.exit(2);
 }
-const [ref, cand] = files.map((f) => JSON.parse(fs.readFileSync(f, "utf8")));
+// a parse error would print the source line, which is recorded data: say the class only
+const read = (f, i) => {
+  try {
+    const run = JSON.parse(fs.readFileSync(f, "utf8"));
+    if (Array.isArray(run.scenarios)) return run;
+    console.error(`file ${i + 1}: no scenarios list`);
+  } catch (e) {
+    console.error(`file ${i + 1}: not readable JSON (${e.name})`);
+  }
+  process.exit(2);
+};
+const [ref, cand] = files.map(read);
 
 // differing field name -> how many places it differs; array indexes are left out of the name
 const differ = new Map();
