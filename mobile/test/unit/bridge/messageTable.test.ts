@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
+import { NATIVE_TO_WEB_MESSAGES, WEB_TO_NATIVE_MESSAGES } from "../../../src/bridge/messages.js";
 import { inspectWebToNative, parseNativeToWeb } from "../../../src/bridge/protocol.js";
 
-// Every message type of both unions, by name, read out of the sources: a type added to protocol.ts fails these
+// Every message type of both unions, by name, read out of the message tables: a type added to messages.ts fails these
 // cases until it is listed here with a sample, and until the controller (or the session and page API) handles it
 // or the list of types ignored on purpose names it. The controller's switch has no `never` check, so a type with
 // no case compiles and is dropped without a word; these cases are what notices it.
@@ -14,15 +15,8 @@ const withoutComments = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 const read = (path: string) => withoutComments(readFileSync(resolve(root, path), "utf-8"));
 
-const protocol = read("src/bridge/protocol.ts");
-const split = protocol.indexOf("const nativeToWebSchema");
-const typesIn = (src: string) => [
-  ...new Set([...src.matchAll(/type: z\.literal\("([^"]+)"\)/g)].map((m) => m[1] as string)),
-];
-const WEB_TO_NATIVE_TYPES = typesIn(
-  protocol.slice(protocol.indexOf("const webToNativeSchema"), split),
-);
-const NATIVE_TO_WEB_TYPES = typesIn(protocol.slice(split));
+const WEB_TO_NATIVE_TYPES = Object.keys(WEB_TO_NATIVE_MESSAGES);
+const NATIVE_TO_WEB_TYPES = Object.keys(NATIVE_TO_WEB_MESSAGES);
 
 function between(src: string, from: string, to?: string): string {
   const start = src.indexOf(from);
@@ -181,6 +175,23 @@ it.each(Object.entries(NATIVE_TO_WEB))(
   },
 );
 
+// `loaded` is two schemas of one type; a broken message is reported against the branch it came closest to, so the
+// order and the shape of the union show in the paths named.
+it("accepts both shapes of loaded and names the field that broke the one it was closest to", () => {
+  const ok = { fingerprint, ok: true, tiles: 3 };
+  const failed = { fingerprint, ok: false, reason: "checksum" };
+  expect(inspectWebToNative(msg("loaded", ok)).ok).toBe(true);
+  expect(inspectWebToNative(msg("loaded", failed)).ok).toBe(true);
+  const dropped = (fields: Record<string, unknown>) => {
+    const r = inspectWebToNative(msg("loaded", fields));
+    return r.ok ? null : r.drop;
+  };
+  expect(dropped({ ...ok, tiles: 0 })).toEqual({ type: "loaded", paths: ["tiles"] });
+  expect(dropped({ ...failed, reason: "nope" })).toEqual({ type: "loaded", paths: ["reason"] });
+  // A tie between the two shapes goes to the first listed.
+  expect(dropped({ fingerprint, ok: "maybe" })).toEqual({ type: "loaded", paths: ["ok", "tiles"] });
+});
+
 it("rejects each type in the other direction", () => {
   for (const [type, row] of Object.entries(WEB_TO_NATIVE)) {
     expect(parseNativeToWeb(msg(type, row.valid)), `${type} read as app to page`).toBeNull();
@@ -233,8 +244,13 @@ it("finds a type nothing handles (control for the two cases above)", () => {
       withoutComments('switch (x) {\n  // case "a":\n  /* case "b": */\n  case "c": break; }'),
     ),
   ).toEqual(["c"]);
-  expect(typesIn(withoutComments('// type: z.literal("a")\n type: z.literal("b")'))).toEqual(["b"]);
-  expect(typesIn('z.object({ type: z.literal("a") }), z.object({ type: z.literal("a") })')).toEqual(
-    ["a"],
-  );
+});
+
+it("keys each message table by the type literal of every schema under the key", () => {
+  for (const table of [WEB_TO_NATIVE_MESSAGES, NATIVE_TO_WEB_MESSAGES]) {
+    for (const [type, schemas] of Object.entries(table)) {
+      expect(schemas.length, `${type} has a schema`).toBeGreaterThan(0);
+      for (const schema of schemas) expect(schema.shape.type.value, type).toBe(type);
+    }
+  }
 });
