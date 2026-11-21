@@ -8,7 +8,7 @@ import type { ExportFlow } from "./exportFlow.js";
 import { createHandOffFlow } from "./handOff.js";
 import { createHistoryFlow } from "./history.js";
 import { createSendFlow } from "./send.js";
-import { createNoopFlows, type Flows } from "./types.js";
+import type { Flows } from "./types.js";
 import { warnClass } from "./warn.js";
 
 export interface ComposedFlows extends Flows {
@@ -91,7 +91,6 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
 
   const { backup } = deps;
   return {
-    ...createNoopFlows(),
     async ready() {
       await history.publish();
       if (unreadable > 0) sendUnreadable();

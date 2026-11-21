@@ -1,25 +1,17 @@
+import { PAGE_MESSAGES } from "../src/bridge/messages.js";
 import type { ExportChunk, NativeToWeb, RouteRecord } from "../src/bridge/protocol.js";
 import type { Send } from "./bridge.js";
 
+type PageEvent = keyof typeof PAGE_MESSAGES;
 type PageMessage<E extends PageEvent> = Extract<NativeToWeb, { type: E }>;
 
-// The one list of native-to-page events: the listener table, `isPageMessage` and the session's routing all follow it.
-// `satisfies` makes a name that is not a NativeToWeb type a compile error rather than a silent no-op.
-const PAGE_EVENTS = [
-  "routeStatus",
-  "linkStatus",
-  "activities",
-  "track",
-  "trackUnavailable",
-  "unreadableActivities",
-  "exportStatus",
-] as const satisfies readonly NativeToWeb["type"][];
-
-type PageEvent = Extract<NativeToWeb["type"], (typeof PAGE_EVENTS)[number]>;
+// The one list of native-to-page events: the keys of the page half of the message table. The listener table,
+// `isPageMessage` and the session's routing all follow it, and the session's handlers are the other half.
+const PAGE_EVENTS = Object.keys(PAGE_MESSAGES) as PageEvent[];
 
 // True for a message the page API delivers to `window.crossfog.on` listeners.
 export function isPageMessage(msg: NativeToWeb): msg is PageMessage<PageEvent> {
-  return (PAGE_EVENTS as readonly string[]).includes(msg.type);
+  return Object.hasOwn(PAGE_MESSAGES, msg.type);
 }
 
 // The page never sees the bridge envelope (`v`, `type`), only the payload.
@@ -46,14 +38,14 @@ export interface PageApi {
 }
 
 export function installPageApi(win: Window, send: Send): PageApi {
-  type Entry = { fn: (payload: never) => void };
-  const listeners = Object.fromEntries(PAGE_EVENTS.map((e) => [e, new Set<Entry>()])) as Record<
-    PageEvent,
-    Set<Entry>
-  >;
+  // One set per event, each holding listeners of that event's payload, so `on` and `emit` need no cast.
+  type Entry<E extends PageEvent> = { fn: PageListener<E> };
+  type Listeners = { [E in PageEvent]: Set<Entry<E>> };
+  // `Object.fromEntries` types its values as one type for every key; the keys are exactly PAGE_EVENTS.
+  const listeners = Object.fromEntries(PAGE_EVENTS.map((e) => [e, new Set()])) as Listeners;
 
   function on<E extends PageEvent>(event: E, fn: PageListener<E>): () => void {
-    const entry: Entry = { fn };
+    const entry: Entry<E> = { fn };
     listeners[event].add(entry);
     return () => {
       listeners[event].delete(entry);
@@ -70,12 +62,12 @@ export function installPageApi(win: Window, send: Send): PageApi {
     on,
   };
 
-  function emit(event: PageEvent, payload: object): void {
+  function emit<E extends PageEvent>(event: E, payload: Omit<PageMessage<E>, "v" | "type">): void {
     // Iterate a copy: a listener added during dispatch must not receive this message, and one that
     // re-subscribes on every call must not loop.
     for (const { fn } of [...listeners[event]]) {
       try {
-        (fn as (p: object) => void)(payload);
+        fn(payload);
       } catch (err) {
         // A throwing listener must not stop the others or reach the caller of dispatch. Only the event
         // name is logged: the payload carries positions, which must not reach logs.

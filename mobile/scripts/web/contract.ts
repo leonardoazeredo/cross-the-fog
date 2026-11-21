@@ -4,6 +4,7 @@ import { encodeBase64 } from "../../src/bridge/base64.js";
 import type { NativeToWeb } from "../../src/bridge/protocol.js";
 import { encode, ORIGIN } from "../../src/bridge/protocol.js";
 import { parseWebToNative } from "../../test/support/parseWebToNative.js";
+import type { CrossfogPageApi } from "../../web-adapter/crossfogPage.js";
 
 const ELEMENTS = ["zip", "folder", "loadStatus", "sidebar", "brandName", "hint"];
 // Sha256.hex is read only on Send, so a page that lost it would load without an error: the list names it.
@@ -13,10 +14,34 @@ const GLOBALS = [
   "Sha256.hex",
   "FogGain.create",
 ];
-// What the adapter reads off window.CrossfogPage (CrossfogPageApi in web-adapter/history.ts, index.ts, loader.ts).
-// A field main.js stops setting shows up only as a feature that does nothing: the history never reaches the panel,
-// the Send chip never changes, a damaged import goes unreported.
-const CROSSFOG_PAGE_FIELDS: Record<string, "function" | "object" | "number"> = {
+type FieldKind = "function" | "object" | "number";
+type Fn = (...args: never[]) => unknown;
+// Every path of the interface that ends in a function or a plain value, which is what the adapter reads.
+type LeafPaths<T, P extends string = ""> = {
+  [K in keyof T & string]-?: NonNullable<T[K]> extends Fn
+    ? `${P}${K}`
+    : NonNullable<T[K]> extends object
+      ? LeafPaths<NonNullable<T[K]>, `${P}${K}.`>
+      : `${P}${K}`;
+}[keyof T & string];
+// Those paths and the objects on the way to them (not the members of a function), which the list may name too.
+type AllPaths<T, P extends string = ""> = {
+  [K in keyof T & string]-?:
+    | `${P}${K}`
+    | (NonNullable<T[K]> extends Fn
+        ? never
+        : NonNullable<T[K]> extends object
+          ? AllPaths<NonNullable<T[K]>, `${P}${K}.`>
+          : never);
+}[keyof T & string];
+
+// What the adapter reads off window.CrossfogPage, a path for every leaf of CrossfogPageApi (web-adapter/crossfogPage.d.ts):
+// a field added there without a path here does not compile, and a path the interface lacks is rejected too. Objects
+// on the way may be listed as well, to name the one that is missing. A field main.js stops setting shows up only as a
+// feature that does nothing: the history never reaches the panel, the Send chip never changes, a damaged import goes
+// unreported.
+const CROSSFOG_PAGE_FIELDS: Record<LeafPaths<CrossfogPageApi>, FieldKind> &
+  Partial<Record<AllPaths<CrossfogPageApi>, FieldKind>> = {
   "fogMap.addCells": "function",
   "fogMap.clearOverlay": "function",
   fogChanged: "function",

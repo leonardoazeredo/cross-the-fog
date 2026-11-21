@@ -7,7 +7,6 @@ import { createController } from "../../src/controller.js";
 import { COPY } from "../../src/copy.js";
 import { createBackupFlows } from "../../src/flows/backup.js";
 import type { Flows } from "../../src/flows/types.js";
-import { createNoopFlows } from "../../src/flows/types.js";
 import { createReloadGuard } from "../../src/fog/reloadGuard.js";
 import type { SourceFile } from "../../src/fog/store.js";
 import { createFogStore } from "../../src/fog/store.js";
@@ -58,11 +57,13 @@ interface Harness {
   openExternal: ReturnType<typeof vi.fn>;
   openAbout: ReturnType<typeof vi.fn>;
   busy: boolean[];
-  flows: { [K in keyof Flows]: ReturnType<typeof vi.fn> };
+  flows: { [K in keyof Flows]-?: ReturnType<typeof vi.fn> };
   devAddActivity: ReturnType<typeof vi.fn>;
 }
 
-function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = {}): Harness {
+function createHarness(
+  opts: { devHandler?: boolean; releaseFails?: boolean; bareFlows?: boolean } = {},
+): Harness {
   const fs = createMemoryFileStore({ sources });
   const clock = { value: NOW };
   const store = createFogStore(fs, {
@@ -84,17 +85,17 @@ function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = 
   const openAbout = vi.fn();
   const busy: boolean[] = [];
   const devAddActivity = vi.fn(() => Promise.resolve());
-  const noop = createNoopFlows();
+  const done = () => Promise.resolve();
   const flows = {
-    ready: vi.fn(noop.ready),
-    sendRoute: vi.fn(noop.sendRoute),
-    needTrack: vi.fn(noop.needTrack),
-    deleteActivity: vi.fn(noop.deleteActivity),
-    exportBinary: vi.fn(noop.exportBinary),
-    backup: vi.fn(noop.backup),
-    restore: vi.fn(noop.restore),
-    settings: vi.fn(noop.settings),
-    settingsApplied: vi.fn(noop.settingsApplied),
+    ready: vi.fn(done),
+    sendRoute: vi.fn(done),
+    needTrack: vi.fn(done),
+    deleteActivity: vi.fn(done),
+    exportBinary: vi.fn(done),
+    backup: vi.fn(done),
+    restore: vi.fn(() => Promise.resolve(false)),
+    settings: vi.fn(done),
+    settingsApplied: vi.fn(done),
   };
 
   const c = createController({
@@ -124,7 +125,14 @@ function createHarness(opts: { devHandler?: boolean; releaseFails?: boolean } = 
     now: () => clock.value,
     setBusy: (on) => busy.push(on),
     chunkBytes: 1_048_576,
-    flows,
+    flows: opts.bareFlows
+      ? {
+          ready: flows.ready,
+          sendRoute: flows.sendRoute,
+          needTrack: flows.needTrack,
+          deleteActivity: flows.deleteActivity,
+        }
+      : flows,
     ...(opts.devHandler === false ? {} : { devAddActivity }),
   });
 
@@ -737,6 +745,27 @@ it("reloads the page after a restore that replaced the data", async () => {
   expect(h.remounts.count).toBe(1);
 });
 
+it("ignores the export, backup, restore and settings messages where the platform has no such flow", async () => {
+  const h = createHarness({ bareFlows: true });
+  await h.c.start();
+  const chunk = { exportId: "e1", name: "abcd", index: 0, total: 1, files: 1, data: "" };
+  for (const msg of [
+    { v: 1, type: "exportBinary", ...chunk },
+    { v: 1, type: "backup" },
+    { v: 1, type: "restore" },
+    { v: 1, type: "settings", json: "{}" },
+    { v: 1, type: "settingsApplied" },
+  ] as const) {
+    await h.c.onWebMessage(msg);
+  }
+  expect(h.remounts.count).toBe(0);
+  expect(h.notified).toEqual([]);
+  expect(h.flows.deleteActivity).not.toHaveBeenCalled();
+  expect(h.flows.sendRoute).not.toHaveBeenCalled();
+  await h.c.onWebMessage({ v: 1, type: "pickBackup" });
+  expect(h.notified).not.toContain(COPY.restoreRunning);
+});
+
 it("leaves the page alone after a restore that changed nothing", async () => {
   const h = createHarness();
   await h.c.start();
@@ -754,6 +783,20 @@ it("refuses a restore while an import is running and says why", async () => {
   expect(h.flows.restore).not.toHaveBeenCalled();
   expect(h.notified).toContain(COPY.restoreBusy);
   pick.resolve(null);
+});
+
+it("lets the next message through after a restore it refused", async () => {
+  const h = createHarness();
+  await h.c.start();
+  const pick = deferred<SourceFile | null>();
+  h.pickFile.mockReturnValueOnce(pick.promise);
+  const importing = h.c.onWebMessage(pickBackup);
+  await h.c.onWebMessage({ v: 1, type: "restore" });
+  pick.resolve(null);
+  await importing;
+  await h.c.onWebMessage(pickBackup);
+  expect(h.pickFile).toHaveBeenCalledTimes(2);
+  expect(h.notified).not.toContain(COPY.restoreRunning);
 });
 
 it("refuses an import, a clear and a shared file while a restore runs", async () => {
@@ -879,33 +922,37 @@ it("does nothing for the developer add-activity message in a debug app with no h
   expect(h.sent).toEqual([]);
 });
 
-// The switch has no default: a message type it has no case for is dropped with no effect and no error, so a
-// type added to the schema and not to the switch fails nowhere but test/unit/bridge/messageTable.test.ts.
-it("does nothing, and says nothing, for a type it has no case for", async () => {
-  const h = createHarness();
-  await h.c.start();
-  await expect(
-    h.c.onWebMessage({ v: 1, type: "mystery" } as unknown as WebToNative),
-  ).resolves.toBeUndefined();
-  expect(h.sent).toEqual([]);
-  expect(h.notified).toEqual([]);
-  expect(h.remounts.count).toBe(0);
-  expect(h.busy).toEqual([]);
-  expect(h.released).toEqual([]);
-  expect(h.exited.value).toBe(false);
-  for (const fn of [
-    h.pickFile,
-    h.confirmReplace,
-    h.confirmClear,
-    h.shareExport,
-    h.openExternal,
-    h.openAbout,
-    h.devAddActivity,
-  ]) {
-    expect(fn).not.toHaveBeenCalled();
-  }
-  for (const fn of Object.values(h.flows)) expect(fn).not.toHaveBeenCalled();
-});
+// tsc checks the handler map against the union, so a message that passed the schema has an entry. One that did
+// not (a caller that skipped the parse) names no entry of the map's own and is dropped with no effect and no error.
+// The names of Object.prototype are types it has no handler for too: a lookup by type must not find a function there.
+it.each(["mystery", "constructor", "toString", "hasOwnProperty", "__proto__"])(
+  "does nothing, and says nothing, for the type %s, which it has no handler for",
+  async (type) => {
+    const h = createHarness();
+    await h.c.start();
+    await expect(
+      h.c.onWebMessage({ v: 1, type } as unknown as WebToNative),
+    ).resolves.toBeUndefined();
+    expect(h.sent).toEqual([]);
+    expect(h.notified).toEqual([]);
+    expect(h.remounts.count).toBe(0);
+    expect(h.busy).toEqual([]);
+    expect(h.released).toEqual([]);
+    expect(h.exited.value).toBe(false);
+    for (const fn of [
+      h.pickFile,
+      h.confirmReplace,
+      h.confirmClear,
+      h.shareExport,
+      h.openExternal,
+      h.openAbout,
+      h.devAddActivity,
+    ]) {
+      expect(fn).not.toHaveBeenCalled();
+    }
+    for (const fn of Object.values(h.flows)) expect(fn).not.toHaveBeenCalled();
+  },
+);
 
 // A store read can fail while an import waits for the page's verdict; WebShell does not await onWebMessage,
 // so a rejection here would be unhandled and leave the import busy.
