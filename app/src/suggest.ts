@@ -31,6 +31,7 @@ import {
   statsFromCoords,
 } from "./suggestPure.ts";
 import {
+  _cancel,
   _graph,
   _holdGraph,
   _loadStreets,
@@ -130,6 +131,7 @@ function SuggestTool(this: Self, map: any, opts: any) {
 SuggestTool.prototype.streetGraph = streetGraph;
 SuggestTool.prototype._holdGraph = _holdGraph;
 SuggestTool.prototype._releaseGraph = _releaseGraph;
+SuggestTool.prototype._cancel = _cancel;
 SuggestTool.prototype._graph = _graph;
 SuggestTool.prototype.suggest = suggest;
 SuggestTool.prototype._loadStreets = _loadStreets;
@@ -193,8 +195,13 @@ SuggestTool.prototype.reset = function (this: Self) {
 };
 
 SuggestTool.prototype.clearResults = function (this: Self) {
-  this._runId++; // cancels any in-flight run
-  this._releaseGraph();
+  this._cancel();
+  this._clearScreen();
+};
+
+// Kept apart from _cancel so the run state can be cancelled without a map: a run only needs its id
+// bumped and its graph released, while the layers and the page's cards exist only on the screen.
+SuggestTool.prototype._clearScreen = function (this: Self) {
   this.lines.forEach((l: any) => {
     this.map.removeLayer(l.solid);
     this.map.removeLayer(l.dashed);
@@ -372,16 +379,10 @@ SuggestTool.prototype._diversify = function (
   return picked.concat(rest);
 };
 
-// Score, dedupe, rank and present the top 3 of a run.
-SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, extra: any, S?: any) {
-  if (runId !== this._runId) return;
-  const emit = (s: any) => {
-    if (this.onResults) this.onResults(s);
-  };
-  if (!cands.length) {
-    emit(Object.assign({ empty: true }, extra));
-    return;
-  }
+// The engine half of a finished run: score, rank, dedupe and diversify the candidates. Returns
+// {results}, the (at most three) routes to show, or {empty}, the state to emit when there is nothing to show.
+SuggestTool.prototype._rank = function (this: Self, cands: any, extra: any, S?: any) {
+  if (!cands.length) return { empty: Object.assign({ empty: true }, extra) };
   // Score first, rank, THEN dedupe, because near-identical routes must collapse onto the
   // best-gaining of the pair, not whichever happened to be scored first.
   let scored = cands.map((c: any) =>
@@ -394,10 +395,7 @@ SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, ex
   );
   // a route that breaks <1% new ground isn't a suggestion, it's a re-walk
   scored = scored.filter((c: any) => c.gain.area > 0 && c.gain.newPct >= 1);
-  if (!scored.length) {
-    emit(Object.assign({ empty: true, reason: "defogged" }, extra));
-    return;
-  }
+  if (!scored.length) return { empty: Object.assign({ empty: true, reason: "defogged" }, extra) };
   // A to B also loses up to RETRACE_WEIGHT of its score in proportion to the share it
   // retraces (rankKey); loops use the plain key below.
   // rank by area, blended with share-of-length-on-new-ground: between two
@@ -419,8 +417,15 @@ SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, ex
     c.cells = footprint(c.r.coords, kx, ky);
     unique.push(c);
   }
-  this.results = this._diversify(unique, extra, kx, ky, S).slice(0, 3);
+  return { results: this._diversify(unique, extra, kx, ky, S).slice(0, 3) };
+};
 
+// The screen half, apart from _rank so ranking needs no map. The best option is selected before the
+// cards are emitted because the page reads `selected` when it renders them.
+SuggestTool.prototype._show = function (this: Self, extra: any) {
+  const emit = (s: any) => {
+    if (this.onResults) this.onResults(s);
+  };
   this.lines = this.results.map((c: any, i: any) => {
     const runs = splitRuns(c.r.coords, this.isNew);
     return {
@@ -466,6 +471,18 @@ SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, ex
       })),
     }),
   );
+};
+
+// Ends a run: ranks its candidates, then draws and presents them unless the run was replaced.
+SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, extra: any, S?: any) {
+  if (runId !== this._runId) return;
+  const ranked = this._rank(cands, extra, S);
+  if (ranked.empty) {
+    if (this.onResults) this.onResults(ranked.empty);
+    return;
+  }
+  this.results = ranked.results;
+  this._show(extra);
 };
 
 // ----- point-to-point ---------------------------------------------------------
