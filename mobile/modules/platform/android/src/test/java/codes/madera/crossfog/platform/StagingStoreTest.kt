@@ -26,7 +26,7 @@ class StagingStoreTest {
     key: SecretKeySpec = this.key,
     syncDir: (File) -> Unit = {},
     beforeRename: (String) -> Unit = {},
-  ) = StagingStore(dir, key, syncDir, beforeRename)
+  ) = StagingStore(dir, key, StoreKind.STAGING, syncDir, beforeRename)
 
   private class Crash : RuntimeException("injected crash")
 
@@ -209,5 +209,27 @@ class StagingStoreTest {
     assertFalse(dir.exists())
     store().stage(a, byteArrayOf(1))
     assertTrue(dir.isDirectory)
+  }
+
+  @Test
+  fun anItemMovedToTheOtherStoreIsUnreadable() {
+    val staging = StagingStore(File(tmp.root, "staging"), key, StoreKind.STAGING, {})
+    val outbox = StagingStore(File(tmp.root, "outbox"), key, StoreKind.OUTBOX, {})
+    staging.stage(a, "walk".toByteArray())
+    outbox.stage(b, "route".toByteArray())
+    File(tmp.root, "outbox").mkdirs()
+    File(tmp.root, "staging/$a.bin").copyTo(File(tmp.root, "outbox/$a.bin"))
+    File(tmp.root, "outbox/$b.bin").copyTo(File(tmp.root, "staging/$b.bin"))
+    assertThrows(UnreadableItemException::class.java) { outbox.read(a) }
+    assertThrows(UnreadableItemException::class.java) { staging.read(b) }
+  }
+
+  @Test
+  fun anItemSealedWithTheIdAloneIsUnreadableNotACrash() {
+    dir.mkdirs()
+    File(dir, "$a.bin").writeBytes(KeyWrap(key, a).wrap("old".toByteArray()))
+    val s = store()
+    assertEquals(listOf(a), s.list())
+    assertThrows(UnreadableItemException::class.java) { s.read(a) }
   }
 }

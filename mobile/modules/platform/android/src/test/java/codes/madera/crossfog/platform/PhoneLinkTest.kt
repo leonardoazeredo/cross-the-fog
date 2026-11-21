@@ -23,8 +23,8 @@ class PhoneLinkTest {
   private val stores = StagingStores()
 
   private fun link() = PhoneLink(
-    staging = stores.forDir(File(tmp.root, "staging"), { key }, {}),
-    outbox = stores.forDir(File(tmp.root, "outbox"), { key }, {}),
+    staging = stores.forDir(File(tmp.root, "staging"), StoreKind.STAGING, { key }, {}),
+    outbox = stores.forDir(File(tmp.root, "outbox"), StoreKind.OUTBOX, { key }, {}),
     linkDir = File(tmp.root, "link"),
     syncDir = {},
     identityPresent = { true },
@@ -63,7 +63,7 @@ class PhoneLinkTest {
   fun aRouteSetAsideThatCouldNotBeOpenedIsAnnouncedWithoutARevision() {
     val l = link()
     File(tmp.root, "outbox").mkdirs()
-    stores.forDir(File(tmp.root, "outbox"), { key }, {}).stage(a, "not json".toByteArray())
+    stores.forDir(File(tmp.root, "outbox"), StoreKind.OUTBOX, { key }, {}).stage(a, "not json".toByteArray())
     repeat(3) {
       l.events.closedWith(CloseInfo(CloseReason.STORE_FAILED, ItemRef(ItemKind.ROUTE, a), ItemRef(ItemKind.ROUTE, a)))
     }

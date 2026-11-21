@@ -32,7 +32,7 @@ class StagingStoreKeystoreTest {
     dir.deleteRecursively()
   }
 
-  private fun store() = StagingStore(dir, Keys(context).stagingKey(), ::fsyncDirectory)
+  private fun store() = StagingStore(dir, Keys(context).stagingKey(), StoreKind.STAGING, ::fsyncDirectory)
 
   @Test
   fun stagedBytesReadBackUnderTheKeystoreKey() {
@@ -67,7 +67,7 @@ class StagingStoreKeystoreTest {
 
     KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(Keys.STAGING_ALIAS)
     val staged = readStagedActivities(
-      StagingStore(dir, Keys(context).stagingKey(listOf(dir)), ::fsyncDirectory),
+      StagingStore(dir, Keys(context).stagingKey(listOf(dir)), StoreKind.STAGING, ::fsyncDirectory),
     )
 
     assertEquals(0, staged.readable.size)

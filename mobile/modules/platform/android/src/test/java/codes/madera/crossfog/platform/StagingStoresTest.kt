@@ -21,17 +21,17 @@ class StagingStoresTest {
   fun theSameDirectoryGivesTheSameStoreWhateverWayItIsSpelled() {
     val stores = StagingStores()
     val a = File(tmp.root, "staging")
-    val first = stores.forDir(a, { key }, {})
-    assertSame(first, stores.forDir(File(tmp.root, "staging"), { key }, {}))
-    assertSame(first, stores.forDir(File(tmp.root, "x/../staging"), { key }, {}))
+    val first = stores.forDir(a, StoreKind.STAGING, { key }, {})
+    assertSame(first, stores.forDir(File(tmp.root, "staging"), StoreKind.STAGING, { key }, {}))
+    assertSame(first, stores.forDir(File(tmp.root, "x/../staging"), StoreKind.STAGING, { key }, {}))
   }
 
   @Test
   fun anotherDirectoryGivesAnotherStore() {
     val stores = StagingStores()
     assertNotSame(
-      stores.forDir(File(tmp.root, "staging"), { key }, {}),
-      stores.forDir(File(tmp.root, "outbox"), { key }, {}),
+      stores.forDir(File(tmp.root, "staging"), StoreKind.STAGING, { key }, {}),
+      stores.forDir(File(tmp.root, "outbox"), StoreKind.OUTBOX, { key }, {}),
     )
   }
 
@@ -40,8 +40,8 @@ class StagingStoresTest {
     val stores = StagingStores()
     var asked = 0
     val dir = File(tmp.root, "staging")
-    stores.forDir(dir, { asked++; key }, {})
-    stores.forDir(dir, { asked++; key }, {})
+    stores.forDir(dir, StoreKind.STAGING, { asked++; key }, {})
+    stores.forDir(dir, StoreKind.STAGING, { asked++; key }, {})
     assertEquals(1, asked)
   }
 
@@ -50,7 +50,7 @@ class StagingStoresTest {
     val stores = StagingStores()
     val dir = File(tmp.root, "staging")
     var fail = true
-    val attempt = { stores.forDir(dir, { if (fail) throw java.security.UnrecoverableKeyException("gone") else key }, {}) }
+    val attempt = { stores.forDir(dir, StoreKind.STAGING, { if (fail) throw java.security.UnrecoverableKeyException("gone") else key }, {}) }
     org.junit.Assert.assertThrows(java.security.UnrecoverableKeyException::class.java) { attempt() }
     fail = false
     attempt()
@@ -68,7 +68,7 @@ class StagingStoresTest {
       pool.execute {
         try {
           go.await()
-          val store = stores.forDir(dir, { key }, {})
+          val store = stores.forDir(dir, StoreKind.STAGING, { key }, {})
           repeat(50) {
             store.stage(id, "v$n-$it".toByteArray())
             store.release(id)

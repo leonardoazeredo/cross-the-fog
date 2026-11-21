@@ -25,7 +25,7 @@ class UnsentRoutesTest {
   private val dir get() = File(tmp.root, "outbox")
   private val reports = mutableListOf<String>()
 
-  private fun store(key: SecretKeySpec = sealing) = StagingStore(dir, key, {})
+  private fun store(key: SecretKeySpec = sealing) = StagingStore(dir, key, StoreKind.STAGING, {})
 
   private fun route(id: String) =
     """{"routeId":"$id","name":"Route","createdAt":"2026-11-16T10:00:00Z","gpx":"<gpx/>"}""".toByteArray()

@@ -13,9 +13,9 @@ class StagingStores {
   private val stores = HashMap<String, StagingStore>()
 
   @Synchronized
-  fun forDir(dir: File, key: () -> SecretKey, syncDir: (File) -> Unit): StagingStore {
+  fun forDir(dir: File, kind: StoreKind, key: () -> SecretKey, syncDir: (File) -> Unit): StagingStore {
     val name = dir.canonicalPath
-    return stores[name] ?: StagingStore(dir, key(), syncDir).also { stores[name] = it }
+    return stores[name] ?: StagingStore(dir, key(), kind, syncDir).also { stores[name] = it }
   }
 }
 

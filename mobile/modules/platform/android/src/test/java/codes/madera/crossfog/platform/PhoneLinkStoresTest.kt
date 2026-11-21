@@ -46,8 +46,8 @@ class PhoneLinkStoresTest {
   private val saved = mutableListOf<Pair<String, String>>()
   private val staged = mutableListOf<String>()
 
-  private fun outboxStore() = StagingStore(outboxDir, key, {})
-  private fun stagingStore() = StagingStore(stagingDir, key, {})
+  private fun outboxStore() = StagingStore(outboxDir, key, StoreKind.OUTBOX, {})
+  private fun stagingStore() = StagingStore(stagingDir, key, StoreKind.STAGING, {})
   private fun ledger() = ItemLedger(ledgerStore, ItemKind.ROUTE)
 
   private fun routes(store: StagingStore = outboxStore(), ledger: ItemLedger = ledger()) =
@@ -112,7 +112,7 @@ class PhoneLinkStoresTest {
     r.queue(b, routeJson(b))
     File(outboxDir, "$b.bin").setLastModified(2_000_000)
     // sealed under another key: it can never be opened
-    StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+    StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), StoreKind.OUTBOX, {}).stage(a, routeJson(a))
     File(outboxDir, "$a.bin").setLastModified(1_000_000)
     assertEquals(b, r.nextQueued()!!.routeId)
   }
@@ -182,7 +182,7 @@ class PhoneLinkStoresTest {
     r.queue(c, routeJson(c))
     File(outboxDir, "$a.bin").setLastModified(1_000_000)
     File(outboxDir, "$c.bin").setLastModified(2_000_000)
-    // a is no longer demoted: it is first by age again
+    // the older file is first again once its age is back
     assertEquals(a, r.nextQueued()!!.routeId)
   }
 
@@ -211,7 +211,7 @@ class PhoneLinkStoresTest {
     val r = routes()
     r.queue(a, routeJson(a))
     val revision = r.nextQueued()!!.revision
-    StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+    StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), StoreKind.OUTBOX, {}).stage(a, routeJson(a))
     assertFalse(r.markDelivered(a, revision))
     assertTrue(saved.isEmpty())
   }
@@ -354,7 +354,7 @@ class PhoneLinkStoresTest {
   @Test
   fun aStagedCopyThatCannotBeOpenedIsStagedAgainSoTheWalkIsNotLost() {
     // sealed under a key that was since replaced
-    StagingStore(stagingDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, "x".toByteArray())
+    StagingStore(stagingDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), StoreKind.STAGING, {}).stage(a, "x".toByteArray())
     assertEquals(SaveResult.SAVED, sink().store(activity(a)))
     assertEquals(listOf(a), staged)
     assertEquals(a, Frames.parseActivityOffer(stagingStore().read(a)!!).activityId)
@@ -398,7 +398,7 @@ class PhoneLinkStoresTest {
 
   @Test
   fun aStoreThatCannotWriteMakesTheSinkThrowAndAnnounceNothing() {
-    val failing = StagingStore(stagingDir, key, { throw java.io.IOException("sync failed") })
+    val failing = StagingStore(stagingDir, key, StoreKind.STAGING, { throw java.io.IOException("sync failed") })
     val s = StagingSink(failing) { staged += it }
     assertThrows(java.io.IOException::class.java) { s.store(activity(a)) }
     assertTrue(staged.isEmpty())

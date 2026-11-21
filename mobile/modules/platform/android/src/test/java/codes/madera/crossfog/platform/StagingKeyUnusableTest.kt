@@ -44,7 +44,7 @@ class StagingKeyUnusableTest {
 
   private fun stores(e: Exception) = StagingStores().forDirWith(e)
 
-  private fun StagingStores.forDirWith(e: Exception): () -> StagingStore = { forDir(dir, { throw e }, {}) }
+  private fun StagingStores.forDirWith(e: Exception): () -> StagingStore = { forDir(dir, StoreKind.STAGING, { throw e }, {}) }
 
   private fun everyCall(): Map<String, (() -> StagingStore) -> Unit> =
     mapOf(
@@ -70,7 +70,7 @@ class StagingKeyUnusableTest {
   @Test
   fun nothingIsDeletedAndNoStoreIsLeftBehind() {
     // An item the page has not handed off is the only copy the watch gave up.
-    StagingStore(dir, sealing, {}).stage(id, activity)
+    StagingStore(dir, sealing, StoreKind.STAGING, {}).stage(id, activity)
     val before = dir.listFiles().orEmpty().map { it.name to it.length() }.sortedBy { it.first }
     for (e in unusable) {
       for ((_, call) in everyCall()) failureOf { call(stores(e)) }
@@ -83,8 +83,8 @@ class StagingKeyUnusableTest {
   fun theNextCallAsksTheKeyAgain() {
     // The lookup failed, so nothing was cached: a later call with a usable key works.
     val shared = StagingStores()
-    assertEquals("ERR_STAGING_KEY_UNUSABLE", failureOf { shared.forDir(dir, { throw unusable[0] }, {}).stage(id, activity) }?.code)
-    shared.forDir(dir, { sealing }, {}).stage(id, activity)
+    assertEquals("ERR_STAGING_KEY_UNUSABLE", failureOf { shared.forDir(dir, StoreKind.STAGING, { throw unusable[0] }, {}).stage(id, activity) }?.code)
+    shared.forDir(dir, StoreKind.STAGING, { sealing }, {}).stage(id, activity)
     assertTrue(File(dir, "$id.bin").exists())
   }
 }
