@@ -117,6 +117,9 @@ abstract class Endpoint(
     confirmDeadline = null
   }
 
+  /** Tells the caller the peer refused one of this end's own items; the session is still open. */
+  protected fun report(refusal: Refusal) = events.itemRefused(refusal)
+
   /** This end's own item that is offered and not yet confirmed, or null. */
   protected open fun inFlight(): ItemRef? = null
 

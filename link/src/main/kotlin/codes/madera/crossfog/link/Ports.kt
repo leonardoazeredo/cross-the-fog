@@ -25,6 +25,23 @@ interface Clock {
 /** What a store did with an item it was given; a store that cannot keep the item throws, so neither result is a failure. */
 enum class SaveResult { SAVED, ALREADY_HELD }
 
+/** Why a receiver will never take an item. The wire names are fixed and nothing else is ever sent as a reason, so no peer text reaches a log. */
+enum class RefusalReason(val wire: String) {
+  /** The item's content cannot be read (a route's GPX that does not parse). */
+  UNREADABLE("unreadable");
+
+  companion object {
+    fun of(wire: String): RefusalReason? = entries.firstOrNull { it.wire == wire }
+  }
+}
+
+/**
+ * What a store or sink throws for an item it will never take because of what the item holds. The endpoint
+ * answers it with `itemRefused` and keeps the session open. Anything else a store throws is a failure of
+ * the store itself (disk, key, I/O): nothing is sent, the session closes and the item is kept and retried.
+ */
+class ItemRefusedException(val reason: RefusalReason) : Exception(reason.wire)
+
 /** The phone's queue of routes for the watch. Items are read afresh each time, so no endpoint keeps a track in memory between sends. */
 interface PhoneRouteStore {
   /** The oldest route not yet delivered, or null. */
@@ -110,6 +127,13 @@ data class ItemRef(val kind: ItemKind, val id: String)
  */
 data class CloseInfo(val reason: CloseReason, val failed: ItemRef?, val inFlight: ItemRef?)
 
+/**
+ * The peer refused [item], one of this end's own, for [reason]. [revision] is the revision of the route
+ * that was offered (null for an activity), so a caller can set the route aside only if its queued copy
+ * still has it.
+ */
+data class Refusal(val item: ItemRef, val reason: RefusalReason, val revision: String?)
+
 /** What the caller wants to know about the link. */
 interface LinkEvents {
   /** Hello exchanged and a version agreed; items flow from here on. Always before [closed], including when the first item sent closes the session. */
@@ -131,6 +155,13 @@ interface LinkEvents {
    * [closed]; one that wants the in-flight item implements this.
    */
   fun closedWith(info: CloseInfo) = closed(info.reason, info.failed?.id)
+
+  /**
+   * The peer will never take an item this end offered, and the session is still open. The caller sets the
+   * item aside (never deletes it) before this returns, so the next item can go out in this session; the
+   * endpoint does not offer the same id and revision again in this session either way. The default does nothing.
+   */
+  fun itemRefused(refusal: Refusal) {}
 }
 
 /**
