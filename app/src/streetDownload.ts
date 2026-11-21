@@ -387,6 +387,30 @@ export const downloadFacts = (e: any) => ({
   cause: e && e.cause ? { reason: e.cause.reason } : undefined,
 });
 
+// What a street download came to, sorted once for every caller: `failed` carries downloadFacts of a
+// download that fell short, `superseded` a run a newer one replaced, `bug` what a run rethrew as
+// itself (a caller logs its class only).
+export type Outcome =
+  | { kind: "done"; done: number; total: number }
+  | { kind: "failed"; facts: ReturnType<typeof downloadFacts> }
+  | { kind: "superseded" }
+  | { kind: "bug"; error: unknown };
+
+// Runs `start` (an ensureRects call) and sorts how it ended; never rejects. `start` is a function so
+// that a throw before a promise exists is sorted as a bug too, and a run that resolves with nothing
+// (a stand-in in a test) is `done` all the same.
+export const sortOutcome = async (start: () => Promise<unknown>): Promise<Outcome> => {
+  let ran: { done?: number; total?: number } | undefined;
+  try {
+    ran = (await start()) as typeof ran;
+  } catch (e) {
+    if (isSuperseded(e)) return { kind: "superseded" };
+    if (!isDownloadError(e)) return { kind: "bug", error: e };
+    return { kind: "failed", facts: downloadFacts(e) };
+  }
+  return { kind: "done", done: ran?.done as number, total: ran?.total as number };
+};
+
 // Whether the segment a-b touches the box (Liang-Barsky; the edges count).
 function segmentTouches(a: Vertex, b: Vertex, r: Rect) {
   const dx = b.lon - a.lon,

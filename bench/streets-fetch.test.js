@@ -1038,6 +1038,7 @@ async function testCase(body) {
     const second = s.ensureRects(one, { onProgress: (p) => reports.push(p) });
     await settle();
     assert.equal(srv.asked.length, 1, "the second run asks nothing of its own");
+    assert.equal(s.download.idle(), false, "a request is open, so the download is not idle");
     await srv.reply(0);
     assert.deepEqual(await within(Promise.all([first, second])), [{ done: 1, total: 1 }, { done: 1, total: 1 }]);
     assert.deepEqual(reports, [{ done: 0, total: 1 }, { done: 1, total: 1 }]);

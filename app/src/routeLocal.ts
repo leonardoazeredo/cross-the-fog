@@ -2,7 +2,7 @@
 // estimates. Nothing here talks to a routing service; the only requests are the street and elevation
 // tile fetches the injected sources make.
 import { LocalRouter } from "./router.ts";
-import { StreetIndex } from "./streets.ts";
+import { sortOutcome } from "./streetDownload.ts";
 
 const PAD_M = 1000; // streets are fetched this far around each leg, so a detour past a pin has data
 const KY = 110540; // metres per degree of latitude, as the planner uses
@@ -43,27 +43,29 @@ export function create({ streets, streetGraph, elevation, estimates }: Deps) {
   // true means a newer request replaced this one, so the download asks for nothing further.
   // -> {coords, stats: {km, seconds, ascent, descent}} or {error: true, why}
   return async function routeWaypoints(points: any, onProgress: any, stale: any) {
-    const rects = [];
+    const rects: ReturnType<typeof legRect>[] = [];
     for (let i = 1; i < points.length; i++) {
       if (legM(points[i - 1], points[i]) > MAX_LEG_M) return TOO_FAR;
       rects.push(legRect(points[i - 1], points[i]));
     }
     // a failed download logs its reason, a bug its class, never a message: messages name tiles
-    try {
-      await streets.ensureRects(rects, { onProgress, stale, holdAs: "route" });
-    } catch (e: any) {
-      if (StreetIndex.isSuperseded(e)) return SUPERSEDED; // replaced by a newer request, which route.js ignores; nothing to log
-      // a bug is logged even when the request is stale: staleness only keeps it from being shown
-      if (!StreetIndex.isDownloadError(e)) {
+    const out = await sortOutcome(() =>
+      streets.ensureRects(rects, { onProgress, stale, holdAs: "route" }),
+    );
+    switch (out.kind) {
+      case "superseded":
+        return SUPERSEDED; // replaced by a newer request, which route.js ignores; nothing to log
+      case "bug": {
+        // a bug is logged even when the request is stale: staleness only keeps it from being shown
+        const e = out.error as { name?: string } | null;
         console.error("[route] reading streets threw", e && e.name);
         return stale && stale() ? SUPERSEDED : INTERNAL;
       }
-      if (stale && stale()) return SUPERSEDED; // a download failure nobody will see
-      console.warn("[route] streets unavailable", e.reason);
-      return {
-        error: true,
-        why: { reason: "streets-fetch", download: StreetIndex.downloadFacts(e) },
-      };
+      case "failed":
+        if (stale && stale()) return SUPERSEDED; // a download failure nobody will see
+        console.warn("[route] streets unavailable", out.facts.reason);
+        return { error: true, why: { reason: "streets-fetch", download: out.facts } };
+      default:
     }
     const planner = streetGraph();
     if (!planner) return NO_STREETS;

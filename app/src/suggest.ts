@@ -10,7 +10,7 @@ import { createFogGain } from "./fogGain.ts";
 import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
 import { GraphPlanner } from "./planner.ts";
 import { LocalRouter } from "./router.ts";
-import { StreetIndex } from "./streets.ts";
+import { sortOutcome } from "./streetDownload.ts";
 
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
 // polylines, bounds) and `matchMedia`. pageGlobals.ts binds the page's own object.
@@ -351,23 +351,29 @@ SuggestTool.prototype._loadStreets = async function (
   // progress is heard only while some tile is missing from the index, so a rerun over covered
   // ground stays silent; waitUntil is set while a busy server is waited out
   const onProgress = (p: any) => emit(Object.assign({ loading: true, phase: "streets" }, p));
-  try {
-    await this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" });
-  } catch (e: any) {
-    if (StreetIndex.isSuperseded(e)) return false;
-    // a bug is not a failed download: the class only, as a message can name tiles. Logged even
-    // when the run is stale, which only keeps it from being shown.
-    if (!StreetIndex.isDownloadError(e)) {
-      console.error("[suggest] reading streets threw", e?.name);
+  const out = await sortOutcome(() =>
+    this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" }),
+  );
+  switch (out.kind) {
+    case "superseded":
+      return false;
+    case "bug":
+      // a bug is not a failed download: the class only, as a message can name tiles. Logged even
+      // when the run is stale, which only keeps it from being shown.
+      console.error(
+        "[suggest] reading streets threw",
+        (out.error as { name?: string } | null)?.name,
+      );
       if (!stale()) emit({ error: true, reason: "internal" });
       return false;
-    }
-    if (stale()) return false;
-    console.warn("[suggest] streets unavailable", e.reason);
-    emit({ error: true, reason: "streets-fetch", download: StreetIndex.downloadFacts(e) });
-    return false;
+    case "failed":
+      if (stale()) return false;
+      console.warn("[suggest] streets unavailable", out.facts.reason);
+      emit({ error: true, reason: "streets-fetch", download: out.facts });
+      return false;
+    default:
+      return !stale();
   }
-  return !stale();
 };
 
 // The street graph: what planning and routing (suggestions and the route editor) run on;
