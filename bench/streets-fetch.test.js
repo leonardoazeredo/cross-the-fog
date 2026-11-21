@@ -1614,6 +1614,19 @@ function inOrder(list, how) {
       assert.deepEqual(heldAround(s, rect), [], "nothing is recorded as fetched");
     }
   });
+  await testCase(async () => { // a wait that throws an error with a street reason (the run's own superseded) comes out of the default source as that object, not wrapped in a download error
+    tileServer((n) => (n === 1 ? 429 : 0));
+    const stop = Object.assign(new Error("replaced"), { reason: "superseded" });
+    const err = await StreetIndex.overpassFetch([{ x: 548, y: 2040 }], () => {}, { wait: async () => { throw stop; }, now: () => 0 }).then(() => null, (e) => e);
+    assert.equal(err, stop);
+  });
+  await testCase(async () => { // a source that hands every tile through onTile and returns nothing, or null, is whole: only a value that is neither nothing nor a Map fails
+    for (const nothing of [undefined, null]) {
+      const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles, onTile) => { for (const t of tiles) onTile(t, { ways: [way(1)], groups: {} }); return nothing; } });
+      assert.deepEqual(await s.ensureRects(rect), { done: 1, total: 1 }, String(nothing));
+      assert.equal(heldAround(s, rect).length, 1, String(nothing));
+    }
+  });
   assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
   for (const body of inOrder(cases, process.env.CASE_ORDER)) await runCase(body);
   console.log("streets-fetch.test.js ok");
