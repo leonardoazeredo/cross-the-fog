@@ -1,5 +1,5 @@
 import { COPY } from "../copy.js";
-import type { DroppedMessage, NativeToWeb } from "./protocol.js";
+import type { AnswerableType, DroppedMessage, NativeToWeb } from "./protocol.js";
 
 // A dropped message the page waits on is answered when its id is valid: sendRoute as failed (so the Send
 // chip does not stay blank), deleteActivity with a notice (the card has closed and the row stays),
@@ -37,7 +37,11 @@ export function reportDropped(
         send({ v: 1, type: "trackUnavailable", activityId: drop.activityId, reason: "readFailed" });
       }
       break;
-    default:
+    default: {
+      // Fails to compile when ANSWERABLE_TYPES names a type with no case above.
+      const unanswered: Exclude<DroppedMessage["type"], AnswerableType> = drop.type;
+      void unanswered;
       break;
+    }
   }
 }
