@@ -14,6 +14,7 @@ import {
   tilesOf,
   type Vertex,
 } from "./streetGrid.ts";
+import { createInFlight, type Entry, type InFlight } from "./streetInFlight.ts";
 
 export interface StreetError extends Error {
   reason?: string;
@@ -38,11 +39,6 @@ export interface EnsureOptions {
   stale?: () => boolean;
   holdAs?: HoldName;
   now?: () => number;
-}
-interface Claim {
-  key: string;
-  promise: Promise<unknown>;
-  done: (via?: { cached?: boolean }) => void;
 }
 // What the download needs of the street store, and all it touches of it.
 export interface StreetSeam {
@@ -515,19 +511,18 @@ export const splitAnswer = (gj: any, tiles: Tile[]) => {
 };
 
 export function createDownload(settings: RunSettings, store: StreetSeam): StreetDownload {
-  // tileId -> {key, promise, done}: a tile a running ensureRects is asking for, which a later run waits for
-  const inFlight = new Map<string, Claim>();
+  const inFlight = createInFlight();
   const d: Run = { settings, store, inFlight };
   return {
     ensureRects: (rects, opts) => ensureRects(d, rects, opts),
-    idle: () => inFlight.size === 0,
+    idle: () => inFlight.idle(),
   };
 }
 
 interface Run {
   settings: RunSettings;
   store: StreetSeam;
-  inFlight: Map<string, Claim>;
+  inFlight: InFlight;
 }
 
 // Fetch streets for the tiles under the given rects (skipping ones already covered), nearest the
@@ -637,29 +632,8 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
     return true;
   };
   // A tile a normal run asks for is in flight from then until it is read or the run's call to the
-  // source ends, and a later run that needs it waits for it instead of asking again. A run's claims
-  // end with its own call to the source, which never waits for another run, so two runs never wait
-  // on each other.
-  const claims = new Map(); // "x:y" -> this run's in-flight entry for it
-  const claim = (tiles: Tile[]) => {
-    for (const t of tiles) {
-      const entry = { key: tid(t) } as Claim;
-      entry.promise = new Promise((resolve) => {
-        entry.done = resolve;
-      });
-      claims.set(tid(t), entry);
-      inFlight.set(entry.key, entry);
-    }
-  };
-  // via: what the source said of the tile it read ({cached: true} from the street cache), or
-  // nothing when the run gave the tile up
-  const unclaim = (id: string, via?: { cached?: boolean }) => {
-    const entry = claims.get(id);
-    if (!entry) return;
-    claims.delete(id);
-    if (inFlight.get(entry.key) === entry) inFlight.delete(entry.key);
-    entry.done(via);
-  };
+  // source ends (streetInFlight.ts), and a later run that needs it waits for it instead of asking again.
+  const mine = inFlight.forRun();
   const take = (t: Tile, answer: TileAnswer | undefined, via?: { cached?: boolean }) => {
     const id = tid(t);
     // a street block's tile that came in its box unasked: read and covered unless already held, so a later
@@ -673,7 +647,7 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
     store.cover([t]);
     read.add(id);
     if (!(via && via.cached)) downloaded++;
-    unclaim(id, via || {});
+    mine.release(id, via || {});
     progress();
   };
   const ownStops = new Set(); // the deadline errors this run threw from onTile, which a source hands back as its failure
@@ -694,7 +668,7 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
   };
   // One call to the street source; its tiles are in flight for this run until it ends.
   const fetchSome = async (tiles: Tile[]) => {
-    claim(tiles);
+    mine.claim(tiles);
     try {
       let answers: Map<string, TileAnswer | undefined> | undefined;
       try {
@@ -732,16 +706,16 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
         );
       for (const t of tiles) take(t, answers && answers.get(tid(t)));
     } finally {
-      for (const t of tiles) unclaim(tid(t));
+      for (const t of tiles) mine.release(tid(t));
     }
   };
 
   // the tiles another run is already bringing; the rest this run asks for itself
   const split = (tiles: Tile[]) => {
-    const shared: Array<{ t: Tile; entry: Claim }> = [],
+    const shared: Array<{ t: Tile; entry: Entry }> = [],
       ask: Tile[] = [];
     for (const t of tiles) {
-      const entry = inFlight.get(tid(t));
+      const entry = inFlight.of(tid(t));
       if (entry) shared.push({ t, entry });
       else ask.push(t);
     }
@@ -752,7 +726,7 @@ async function runRects(d: Run, rects: Rect[], opts?: EnsureOptions) {
   // error whose cause is superseded, when a shared tile lands while this run is stale or at a check every
   // STALE_POLL_MS, and with the deadline at that check, leaving the other run's request alone: the run
   // bringing the tile may take minutes, or never deliver.
-  const waitFor = (shared: Array<{ t: Tile; entry: Claim }>) =>
+  const waitFor = (shared: Array<{ t: Tile; entry: Entry }>) =>
     new Promise<void>((resolveWait, rejectWait) => {
       let left = shared.length;
       const resolve = () => {
