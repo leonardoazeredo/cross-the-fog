@@ -413,6 +413,28 @@ const realFetch = global.fetch;
     const e = await rejection(Overpass.post("data=x"));
     assert.equal(e.reason, "server", "every endpoint answered something that is no answer");
   }
+  // 15d. a caller that gives accept() has its own idea of an answer: an array, {} or a remark object that
+  //      accept refuses moves on and holds nothing too, and without accept the post takes any object
+  {
+    const usable = (j) => Array.isArray(j.elements) && !j.remark && j.elements.some((el) => el && el.type === "count");
+    const good = () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => ({ from: N, elements: [{ type: "count" }] }) });
+    const fromN = { from: N, elements: [{ type: "count" }] };
+    for (const body of [[], {}, { remark: "runtime error", elements: [{ type: "count" }] }, { elements: [] }]) {
+      reset();
+      global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => body }), [N]: good });
+      assert.deepEqual(await Overpass.post("data=x", { accept: usable }), fromN, JSON.stringify(body));
+      calls = [];
+      await Overpass.post("data=x", { accept: usable });
+      assert.deepEqual(calls, [M, N], "main is not on hold after " + JSON.stringify(body));
+      reset();
+      global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => body }), [N]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => ({}) }) });
+      const e = await rejection(Overpass.post("data=x", { accept: usable }));
+      assert.equal(e.reason, "server", "every endpoint answered something the caller refuses");
+      reset();
+      global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => body }), [N]: answer });
+      assert.deepEqual(await Overpass.post("data=x"), body, "no accept: any object is an answer");
+    }
+  }
   { // 15c. the parser's SyntaxError quotes the body; none of that text reaches the error a caller reads
     reset({ key: null });
     global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => { throw new SyntaxError("Unexpected token '<', \"<html>PORTAL-TEXT\" is not valid JSON"); } }) });
@@ -759,7 +781,7 @@ const realFetch = global.fetch;
   }
   { // main.js's endpoint choice, run against a key the phone app hands in after the page loaded:
     // NextGIS is hidden until the key's event, then offered and asked first, whether the user
-    // stored that choice, stored nothing (the default) or holds a name that no longer exists
+    // chose it, chose nothing (the default) or holds a name that does not exist
     // ("coffee"), which reads as the default; a stored choice of overpass-api.de stays
     const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "app", "src", "main.js"), "utf8");
     const from = src.indexOf('  const ORDER_KEY = "f2m_overpassOrder"'), to = src.indexOf("\n", src.indexOf('$("overpass").addEventListener("change"'));
