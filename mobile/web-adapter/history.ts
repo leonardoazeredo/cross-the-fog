@@ -1,20 +1,6 @@
-import type {
-  ActivitySummary,
-  ExportState,
-  RouteRecord,
-  TrackPoint,
-  TrackUnavailableReason,
-} from "../src/bridge/protocol.js";
+import type { ActivitySummary, RouteRecord, TrackPoint } from "../src/bridge/protocol.js";
+import type { CrossfogPageApi, RevealRules } from "./crossfogPage.js";
 import type { FogCache, RevealStamp } from "./fogCache.js";
-
-// app/src/reveal.ts `Reveal.RULES`: a cached reveal is reused only while a hash of all these fields matches.
-export interface RevealRules {
-  version: number;
-  maxAccuracyM: number;
-  maxGapS: number;
-  maxGapM: number;
-  halfWidthM: number;
-}
 
 // FNV-1a over the rules with sorted keys: it only has to notice a changed number, not resist forgery.
 function hashRules(rules: RevealRules): string {
@@ -38,49 +24,6 @@ export function stampFor(rules: RevealRules, item: ActivitySummary): RevealStamp
 }
 
 type RouteGeometry = { coords: RouteRecord["coords"] };
-
-// What app/src/main.js hands the adapter as `window.CrossfogPage`.
-export interface CrossfogPageApi {
-  fogMap: {
-    addCells(cells: Int32Array): number;
-    clearOverlay(): void;
-  };
-  fogChanged(): void;
-  /** The History tab; absent on a page without it. */
-  history?: {
-    setActivities(items: ActivitySummary[]): void;
-    setTrack(activityId: string, points: TrackPoint[], route?: RouteGeometry): void;
-    trackUnavailable(activityId: string, reason: TrackUnavailableReason): void;
-    setUnreadable?(count: number): void;
-  };
-  /** The Send button's answers from the phone. */
-  routeStatus?(msg: {
-    routeId: string;
-    state: string;
-    why?: string | undefined;
-    revision?: string | undefined;
-  }): void;
-  linkStatus?(msg: {
-    paired: boolean;
-    reachable: boolean;
-    unsentRoutes?: number | undefined;
-  }): void;
-  /** What became of a Fog of World export the page sent. */
-  exportStatus?(msg: { exportId: string; state: ExportState }): void;
-  reveal: {
-    RULES: RevealRules;
-    reveal(
-      track: Array<{ t: number; lat: number; lon: number; accuracy?: number | undefined }>,
-      rules: RevealRules,
-    ): Int32Array;
-  };
-}
-
-declare global {
-  interface Window {
-    CrossfogPage?: CrossfogPageApi;
-  }
-}
 
 interface TrackChunk {
   activityId: string;

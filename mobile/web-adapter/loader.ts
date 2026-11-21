@@ -22,9 +22,7 @@ export const assignFilesWithDataTransfer: AssignFiles = (input, file) => {
 // patch cannot see it) and keeps the count of its latest import on CrossfogPage.lastImport. A page that does not
 // publish it counts as no damage.
 function damagedTiles(win: Window): number {
-  const page = (win as unknown as { CrossfogPage?: { lastImport?: { corrupt?: unknown } } })
-    .CrossfogPage;
-  const n = page?.lastImport?.corrupt;
+  const n: unknown = win.CrossfogPage?.lastImport?.corrupt;
   return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
