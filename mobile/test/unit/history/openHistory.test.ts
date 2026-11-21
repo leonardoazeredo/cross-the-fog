@@ -33,6 +33,45 @@ function deps(over: Partial<OpenHistoryDeps> = {}): OpenHistoryDeps {
   };
 }
 
+describe("openHistory reporting a lost key it could not read", () => {
+  it("logs the presence, the state and the error class when a transient read failure reads as keyLost", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const d = deps({
+      keyState: vi.fn(async () => "existing" as const),
+      getDatabaseKeyHex: async () => {
+        throw keyLost();
+      },
+    });
+    expect((await openHistory(d)).kind).toBe("keyLost");
+    expect(warn).toHaveBeenCalledWith(
+      "crossfog: history key not read; reporting it lost",
+      "existing",
+      "existing",
+      "KeyLostError",
+    );
+    warn.mockRestore();
+  });
+
+  it("logs nothing for a key that opens", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await openHistory(deps());
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("logs no message from the error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const d = deps({
+      getDatabaseKeyHex: async () => {
+        throw Object.assign(new Error("key at /data/user/0"), { name: "KeyLostError" });
+      },
+    });
+    await openHistory(d);
+    expect(warn.mock.calls.flat().join(" ")).not.toContain("/data");
+    warn.mockRestore();
+  });
+});
+
 describe("openHistory", () => {
   it("opens and migrates when the key exists, reading it once and asking no state", async () => {
     const get = vi.fn(async () => checkedKeyHex("ab".repeat(32)));

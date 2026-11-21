@@ -1,10 +1,10 @@
 import { NativeModule, requireNativeModule } from "expo";
-import type { KeyState, PlatformNativeEvents } from "./Platform.types";
+import type { KeyPresence, KeyState, PlatformNativeEvents } from "./Platform.types";
 
 declare class PlatformModule extends NativeModule<PlatformNativeEvents> {
   getDatabaseKeyHex(): Promise<string>;
   keyState(): Promise<KeyState>;
-  keyPresence(): Promise<KeyState>;
+  keyPresence(): Promise<KeyPresence>;
   replaceLostDatabaseKey(keyHex: string): Promise<void>;
   resetKeys(): Promise<void>;
   createDocument(name: string, mime: string): Promise<string | null>;

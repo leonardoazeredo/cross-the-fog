@@ -1,7 +1,7 @@
-import type { KeyState } from "../platform/platformModule.js";
+import type { KeyPresence, KeyState } from "../platform/platformModule.js";
 import { NotADatabaseError, type SqlDriver } from "./driver.js";
 import type { DatabaseKeyHex } from "./keyHex.js";
-import { type KeyPresence, keyIsLostOrUnreadable } from "./keyState.js";
+import { keyIsLostOrUnreadable } from "./keyState.js";
 
 export type HistoryDatabase = { kind: "ready"; db: SqlDriver } | { kind: "keyLost" };
 
@@ -43,11 +43,15 @@ export interface OpenHistoryDeps {
 // A lost or unreadable key next to an existing database must never fall through to creating an
 // empty one: the owner would see a blank history and could overwrite what a backup can still restore.
 export async function openHistory(deps: OpenHistoryDeps): Promise<HistoryDatabase> {
+  let lastFailure: unknown;
   const readKey = async (): Promise<DatabaseKeyHex | null> => {
     try {
       return await deps.getDatabaseKeyHex();
     } catch (e) {
-      if (deps.isKeyLostError(e)) return null;
+      if (deps.isKeyLostError(e)) {
+        lastFailure = e;
+        return null;
+      }
       throw e;
     }
   };
@@ -64,14 +68,26 @@ export async function openHistory(deps: OpenHistoryDeps): Promise<HistoryDatabas
   if (presence === "lost" && !(await resetUnlessDatabase())) return { kind: "keyLost" };
 
   let keyHex = await readKey();
+  let stateAsked: KeyState | "not asked" = "not asked";
   if (keyHex === null && presence === "existing") {
     // Both halves are there but the read failed, so the state is worth the second unwrap: only a
     // key that can never read (or whose Keystore half is empty) is dropped.
-    if (keyIsLostOrUnreadable(await deps.keyState()) && (await resetUnlessDatabase())) {
+    stateAsked = await deps.keyState();
+    if (keyIsLostOrUnreadable(stateAsked) && (await resetUnlessDatabase())) {
       keyHex = await readKey();
     }
   }
-  if (keyHex === null) return { kind: "keyLost" };
+  if (keyHex === null) {
+    // A key that only failed to read this time (state "existing") reads as lost too: the class and the states are
+    // what tells that case from a key that is gone for good. The message can name a path, so it is not logged.
+    console.warn(
+      "crossfog: history key not read; reporting it lost",
+      presence,
+      stateAsked,
+      lastFailure instanceof Error ? lastFailure.name : "unknown",
+    );
+    return { kind: "keyLost" };
+  }
   const db = await deps.openDriver(keyHex);
   try {
     await deps.migrate(db);
