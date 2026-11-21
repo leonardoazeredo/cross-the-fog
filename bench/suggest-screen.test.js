@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 require("./lib/host.js");
 require("../app/src/engine.ts");
 const { SuggestTool, StreetIndex } = global;
+const { splitRuns } = require("../app/src/suggestPure.ts");
 
 const KX = 111320 * Math.cos(51 * Math.PI / 180), KY = 110540;
 const ll = (x, y) => ({ lat: 51 + y / KY, lon: 13.7 + x / KX });
@@ -41,12 +42,12 @@ function recorder() {
   return { log, polys, fits, removed, map };
 }
 
-function build(mode, ways, rec, computeGain) {
+function build(mode, ways, rec, computeGain, isNew) {
   const emits = [];
   const tool = new SuggestTool(rec.map, {
     fogMap: { tileCount: 0, hasFog: () => false },
     computeGain: computeGain || (() => ({ area: 1, newPct: 100 })),
-    isNew: () => true,
+    isNew: isNew || (() => true),
     streets: streetsWith(ways),
     // what the page sees at the moment of each emit
     onResults: (s) => emits.push({ raw: s, s: s && JSON.parse(JSON.stringify(s)), selected: tool.selected, lines: tool.lines.length, results: tool.results.length, polys: rec.polys.length, fits: rec.fits.length }),
@@ -72,7 +73,7 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
     assert.equal(emits[0].s, null, `${mode}: the first emit is the null of clearResults`);
     assert.deepEqual([emits[0].lines, emits[0].polys], [0, 0], `${mode}: and nothing was drawn yet`);
     assert.equal(emits.filter((e) => e.s && e.s.list).length, 1, `${mode}: one card list per run`);
-    assert.equal(emits.indexOf(last), emits.length - 1, `${mode}: and it is the last emit`);
+    assert.ok(last.s && last.s.list, `${mode}: and the last emit is that list`);
 
     // at the moment the cards are emitted the lines exist, the best one is selected and the map is fitted
     assert.deepEqual([last.lines, last.results, last.polys, last.fits, last.selected], [n, n, 2 * n, 1, 0],
@@ -141,6 +142,78 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
     emits.length = 0;
     tool._finish(old, [{ r: { coords: [[13.7, 51], [13.71, 51]], lenM: 100, legs: [] } }], { baseKm: 1 });
     assert.deepEqual([emits.length, rec.polys.length, rec.fits.length], [0, 0, 0]);
+  }
+
+  // Several candidates: the top three of five, in rank order, each with its own colour, line split, card values
+  // and the unselected line styles. Straight two-point routes from one start, a compass bearing apart (so the
+  // loop's bearing spread keeps all of them), a duplicate of the best one that dedupe drops, and an input order
+  // that is not the rank order.
+  const S0 = { lat: 51, lng: 13.7 };
+  // loopBearingOf reads raw degrees, so the offsets use one scale for both axes
+  const at = (brg, m) => [S0.lng + (m * Math.sin(brg * Math.PI / 180)) / KY, S0.lat + (m * Math.cos(brg * Math.PI / 180)) / KY];
+  const spec = [ // bearing, area, newPct, lenM, ascent, descent
+    [10, 50, 90, 700, 11, 12], [80, 40, 80, 710, 21, 22], [150, 30, 70, 720, 31, 32], [220, 20, 60, 730, 41, 42], [290, 10, 50, 740, 51, 52],
+  ];
+  const cand = ([brg, , , lenM, ascent, descent]) => ({ isBase: lenM === 710, r: { coords: [[S0.lng, S0.lat], at(brg, 600), at(brg, 650)], lenM, ascent, descent, legs: [] } });
+  const gains = new Map(spec.map((sp) => [cand(sp).r.coords[1].join(), { area: sp[1], newPct: sp[2] }]));
+  const dup = { r: Object.assign({}, cand(spec[0]).r, { lenM: 999 }) };
+  const southOld = (lon, lat) => lat >= S0.lat; // the routes heading south are old ground
+  for (const [mode, extra] of [["loop", { targetKm: 3, bufferPct: 15 }], ["p2p", { baseKm: 1, bufferPct: 15 }]]) {
+    const rec = recorder();
+    let calls = 0;
+    const { tool, emits } = build(mode, street, rec, (coords) => { calls++; return gains.get(coords[1].join()); }, southOld);
+    tool.clearResults();
+    emits.length = 0;
+    const order = [spec[3], spec[0], spec[4], spec[2], spec[1]].map(cand);
+    tool._finish(tool._runId, order.concat([dup]), extra, mode === "loop" ? { lat: S0.lat, lng: S0.lng } : undefined);
+    assert.equal(calls, 6, `${mode}: every candidate, the duplicate too, is scored`);
+    assert.equal(emits.length, 1, `${mode}: one emit`);
+    const list = emits[0].raw.list;
+    assert.equal(list.length, 3, `${mode}: the top three of five`);
+    assert.deepEqual(tool.results.map((c) => c.r.lenM), [700, 710, 720], `${mode}: in rank order, the duplicate dropped`);
+    list.forEach((c, i) => {
+      const sp = spec[i], res = tool.results[i];
+      assert.deepEqual(Object.assign({}, c), {
+        color: COLORS[i], km: sp[3] / 1000, deltaKm: sp[3] / 1000 - (extra.baseKm != null ? extra.baseKm : extra.targetKm),
+        ascent: sp[4], descent: sp[5], area: sp[1], newPct: sp[2],
+        retracePct: mode === "p2p" ? Math.round(res.retrace * 100) : undefined, isBase: i === 1,
+      }, `${mode}: card ${i}`);
+    });
+    assert.equal(emits[0].raw.bufferPct, 15, `${mode}: the run's own fields travel with the list`);
+    assert.deepEqual(rec.polys.map((p) => p.o.color), COLORS.flatMap((c) => [c, c]), `${mode}: solid and dashed per result, a colour each`);
+    tool.results.forEach((c, i) => {
+      const runs = splitRuns(c.r.coords, southOld);
+      assert.deepEqual(rec.polys[2 * i].latlngs, runs.newRuns, `${mode}: solid line ${i} draws the new ground`);
+      assert.deepEqual(rec.polys[2 * i + 1].latlngs, runs.oldRuns, `${mode}: dashed line ${i} draws the old ground`);
+    });
+    assert.ok(tool.results.some((c) => splitRuns(c.r.coords, southOld).newRuns.length) && tool.results.some((c) => splitRuns(c.r.coords, southOld).oldRuns.length), `${mode}: the scenario has both kinds of ground`);
+    rec.polys.forEach((p, k) => {
+      const sel = k >> 1 === 0;
+      assert.deepEqual(p.styles, [k % 2 === 0 ? { weight: sel ? 6 : 4, opacity: sel ? 0.95 : 0.65 } : { weight: sel ? 4.5 : 3, opacity: sel ? 0.9 : 0.55 }], `${mode}: polyline ${k} style`);
+    });
+    assert.equal(tool.selected, 0, `${mode}: the best is selected`);
+    const all = tool.results.flatMap((c) => c.r.coords.map((q) => [q[1], q[0]]));
+    assert.deepEqual(rec.fits[0][0].pts, [all[0]].concat(all), `${mode}: bounds run over every result`);
+    // clearing: the run is cancelled and its graph let go before the first layer is removed, in the order drawn
+    let idAtRemove, holdAtRemove;
+    const removeLayer = rec.map.removeLayer;
+    rec.map.removeLayer = (l) => { if (idAtRemove === undefined) { idAtRemove = tool._runId; holdAtRemove = tool._hold; } removeLayer(l); };
+    tool._hold = { runId: tool._runId, planner: {} };
+    const id = tool._runId;
+    tool.clearResults();
+    assert.equal(idAtRemove, id + 1, `${mode}: the run id moves before the layers go`);
+    assert.equal(holdAtRemove, null, `${mode}: the held graph is let go before the layers go`);
+    assert.deepEqual(rec.removed, rec.polys, `${mode}: layers leave in the order they were drawn`);
+  }
+
+  { // a replaced run is not even scored
+    const rec = recorder();
+    let calls = 0;
+    const { tool } = build("p2p", street, rec, () => { calls++; return { area: 1, newPct: 100 }; });
+    const old = tool._runId;
+    tool.clearResults();
+    tool._finish(old, [{ r: { coords: [[13.7, 51], [13.71, 51]], lenM: 100, legs: [] } }], { baseKm: 1 });
+    assert.equal(calls, 0, "a replaced run asks computeGain nothing");
   }
   console.log("suggest-screen: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
