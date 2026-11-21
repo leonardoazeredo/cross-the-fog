@@ -41,6 +41,11 @@ export function _holdGraph(this: Self, runId: any) {
   this._hold = { runId, planner };
   return planner;
 }
+// Ends any run in flight (its stale() turns true) and lets go of the graph it held.
+export function _cancel(this: Self) {
+  this._runId++;
+  this._releaseGraph();
+}
 // runId: let go only of that run's graph (undefined: of whichever run holds one)
 export function _releaseGraph(this: Self, runId: any) {
   const h = this._hold;
