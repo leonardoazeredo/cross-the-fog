@@ -201,12 +201,15 @@ it("rejects each type in the other direction", () => {
   }
 });
 
-it("gives every page-to-app type a case in the controller, or names it as ignored on purpose", () => {
+// A type with no handler in the controller's map is a compile error, but only while the map is declared against
+// the union: `satisfies Handlers<WebToNative>` is what makes it one.
+it("keeps the controller's handler map checked against every page-to-app type", () => {
   const controller = read("src/controller.ts");
-  const cases = casesIn(between(controller, "async onWebMessage", "async onIncoming"));
-  expect(unhandled(WEB_TO_NATIVE_TYPES, cases, IGNORED_ON_PURPOSE_BY_THE_CONTROLLER)).toEqual([]);
-  // No case for a type the schema does not have: it could never run.
-  expect(cases.filter((c) => !WEB_TO_NATIVE_TYPES.includes(c))).toEqual([]);
+  expect(controller).toContain("} satisfies Handlers<WebToNative>;");
+  const map = between(controller, "const handlers = {", "} satisfies Handlers<WebToNative>;");
+  const keys = [...map.matchAll(/^ {4}"?([\w:]+)"?: /gm)].map((m) => m[1] as string);
+  expect(unhandled(WEB_TO_NATIVE_TYPES, keys, IGNORED_ON_PURPOSE_BY_THE_CONTROLLER)).toEqual([]);
+  expect(keys.filter((k) => !WEB_TO_NATIVE_TYPES.includes(k))).toEqual([]);
 });
 
 it("gives every app-to-page type a route in the session or the page API, or names it as ignored on purpose", () => {
