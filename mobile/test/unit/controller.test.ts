@@ -125,7 +125,6 @@ function createHarness(
     now: () => clock.value,
     setBusy: (on) => busy.push(on),
     chunkBytes: 1_048_576,
-    // What `createFlows` returns on a platform with no export, backup or settings: the other four flows only.
     flows: opts.bareFlows
       ? {
           ready: flows.ready,
