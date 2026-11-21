@@ -33,6 +33,14 @@ import {
   splitRuns,
   statsFromCoords,
 } from "./suggestPure.ts";
+import {
+  _graph,
+  _holdGraph,
+  _releaseGraph,
+  type Self,
+  streetGraph,
+  suggest,
+} from "./suggestRun.ts";
 
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
 // polylines, bounds) and `matchMedia`. pageGlobals.ts binds the page's own object.
@@ -56,9 +64,7 @@ function leaflet(): any {
 
 // The tool and its candidates are plain objects built and read field by field; this file does not restructure them.
 // biome-ignore lint/suspicious/noExplicitAny: see above
-type Self = { [field: string]: any };
 
-const DEFAULT_BUFFER = 0.15; // p2p: max length over the fastest route, or ± around a wanted distance; loop: tolerance around target
 const MAX_VIAS = 6; // fog-seeking detour candidates per p2p run
 const VIA_RETRIES = 2; // times a via is pulled back in when its route overshoots
 const RETRACE_REROUTE_MIN = 0.12; // p2p: retraced share above which a via route's return leg is re-asked
@@ -125,6 +131,12 @@ function SuggestTool(this: Self, map: any, opts: any) {
   this._hold = null; // {runId, planner}: the graph the running suggestion plans on
   this._onClick = (e: any) => this._place(e.latlng);
 }
+
+SuggestTool.prototype.streetGraph = streetGraph;
+SuggestTool.prototype._holdGraph = _holdGraph;
+SuggestTool.prototype._releaseGraph = _releaseGraph;
+SuggestTool.prototype._graph = _graph;
+SuggestTool.prototype.suggest = suggest;
 
 SuggestTool.prototype.setActive = function (this: Self, on: any) {
   this.active = on;
@@ -303,49 +315,6 @@ SuggestTool.prototype._loadStreets = async function (
     default:
       return !out.stale;
   }
-};
-
-// The street graph: what planning and routing (suggestions and the route editor) run on;
-// built lazily, rebuilt when new streets arrive or the fog changes.
-SuggestTool.prototype.streetGraph = function (this: Self) {
-  if (!this.streets || !this.streets.ways.length) return null;
-  const had = this._planner;
-  // a held graph stays with its suggestion: once the streets or the fog outgrew it, the slot gets a
-  // fresh planner; any other one is rebuilt in place by build()
-  if (!had || (had.held && !had.isCurrent()))
-    this._planner = new (GraphPlanner as unknown as new (...a: unknown[]) => Self)(
-      this.streets,
-      this.streets.newFrac,
-      undefined,
-      undefined,
-      () => this.fogMap.version || 0,
-    );
-  return this._planner;
-};
-
-// A suggestion plans on one graph from its first route to its last: a tile another run merges
-// meanwhile (the route editor's) would rebuild it in place and renumber the edges, and a leg's
-// `edges`, the avoid set of the way home, would name other streets.
-// A fog change waits too; the gain is still scored on the fog as it is.
-SuggestTool.prototype._holdGraph = function (this: Self, runId: any) {
-  this._releaseGraph();
-  const planner = this.streetGraph();
-  if (!planner) return null;
-  planner.build();
-  planner.held = true;
-  this._hold = { runId, planner };
-  return planner;
-};
-// runId: let go only of that run's graph (undefined: of whichever run holds one)
-SuggestTool.prototype._releaseGraph = function (this: Self, runId: any) {
-  const h = this._hold;
-  if (!h || (runId !== undefined && h.runId !== runId)) return;
-  h.planner.held = false;
-  this._hold = null;
-};
-SuggestTool.prototype._graph = function (this: Self) {
-  const h = this._hold;
-  return h ? h.planner : this.streetGraph();
 };
 
 // Defoggable area (m²) reachable via the ways within rM of the point, or
@@ -538,23 +507,6 @@ SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, ex
       })),
     }),
   );
-};
-
-SuggestTool.prototype.suggest = async function (this: Self, o: any) {
-  o = o || {};
-  const buffer = o.buffer || DEFAULT_BUFFER;
-  const before = this._runId;
-  const run =
-    this.mode === "loop" ? this._suggestLoop(o.distM, buffer) : this._suggestP2P(buffer, o.targetM);
-  // a run starts (clearResults) before its first await; one that never started holds nothing, and
-  // the graph it would let go of is a running suggestion's
-  const runId = this._runId;
-  if (runId === before) return run;
-  try {
-    return await run;
-  } finally {
-    this._releaseGraph(runId);
-  }
 };
 
 // ----- point-to-point ---------------------------------------------------------
