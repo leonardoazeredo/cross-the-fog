@@ -555,6 +555,58 @@ async function testCase(body) {
     assert.ok(StreetIndex.isDownloadError(err));
     assert.equal(err.cause.reason, "superseded");
   });
+  await testCase(async () => { // a run already stale when the busy answer comes sleeps no wait and asks nothing further
+    const clock = fakeClock();
+    let stale = false, asked = 0;
+    global.fetch = async () => { asked++; stale = true; return { ok: false, status: 502, json: async () => ({}) }; };
+    const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+    const err = await s.ensureRects(rect, { stale: () => stale }).then(() => null, (e) => e);
+    assert.deepEqual([asked, clock.sleeps], [1, []], "no sleep, no second request");
+    assert.deepEqual([err.cause.reason, err.reason], ["superseded", "superseded"]);
+  });
+  await testCase(async () => { // a waiting run looks at stale() every second: a busy wait and a wait for another run's tile alike
+    const polls = [];
+    const every = (fn, ms) => { polls.push(ms); return () => {}; };
+    const one = [{ s: 51.0, w: 13.7, n: 51.02, e: 13.72 }];
+    const sleeping = new StreetIndex({ newFrac: () => 1, now: () => 0, sleep: () => new Promise(() => {}), every,
+      fetchStreets: async (tiles, onTile, opts) => { await opts.wait(opts.now() + 60000); return new Map(); } });
+    sleeping.ensureRects(rect).catch(() => {});
+    await settle();
+    assert.deepEqual(polls, [1000], "the busy wait looks every second");
+    polls.length = 0;
+    const sharing = new StreetIndex({ newFrac: () => 1, every, fetchStreets: () => new Promise(() => {}) });
+    sharing.ensureRects(one).catch(() => {});
+    sharing.ensureRects(one).catch(() => {});
+    await settle();
+    assert.deepEqual(polls, [1000], "the wait for another run's tile looks every second");
+  });
+  await testCase(async () => { // a replaced run waiting only on another run's tiles rejects when the next one lands, not when all have
+    const three = [{ s: 51.0, w: 13.7, n: 51.02, e: 13.77 }];
+    assert.equal(StreetIndex.tilesOf(three).length, 3);
+    const answer = { ways: [], groups: {} };
+    let landSecond, landThird;
+    const second = new Promise((r) => { landSecond = r; }), third = new Promise((r) => { landThird = r; });
+    const fetchStreets = async (asked, onTile) => {
+      onTile(asked[0], answer);
+      await second;
+      onTile(asked[1], answer);
+      await third;
+      onTile(asked[2], answer);
+      return new Map();
+    };
+    const s = new StreetIndex({ newFrac: () => 1, fetchStreets, every: ticker().every }); // a timer that never fires: only a landing can end the wait
+    let stale = false, err = null;
+    const first = s.ensureRects(three);
+    const waiting = s.ensureRects(three, { stale: () => stale }).then(() => assert.fail("expected a rejection"), (e) => { err = e; return e; });
+    await settle();
+    assert.equal(err, null, "one tile has landed and this run is still current");
+    stale = true;
+    landSecond();
+    assert.ok(StreetIndex.isSuperseded(await within(waiting)), "rejected at the second tile, the third still to come");
+    assert.equal(heldAround(s, three).length, 2, "the run bringing the tiles has read two so far");
+    landThird();
+    assert.deepEqual(await within(first), { done: 3, total: 3 }, "the run bringing the tiles carries on");
+  });
   await testCase(async () => { // a run superseded once a request has answered asks for no further block, and keeps the one still
     // open; one already stale asks nothing
     const asked = tileServer();
