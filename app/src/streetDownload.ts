@@ -129,7 +129,7 @@ export const rectQuery = (boxes: Rect[]) => {
 // seconds (measurements in overpass.ts, #185), so requests open at once (Overpass.cap()) share that
 // wait where requests in a row add it up, and a failure loses only its street block. Splits tiles (nearest
 // first) by street block, street blocks in the order of their nearest tile.
-function batches(tiles: Tile[]) {
+function streetBlocks(tiles: Tile[]) {
   const blocks = new Map();
   for (const t of tiles) {
     const b = Math.floor(t.x / 2) + ":" + Math.floor(t.y / 2);
@@ -143,17 +143,17 @@ function batches(tiles: Tile[]) {
 // block, a strip of two, one tile), so nothing already held is asked again; else the whole street
 // block, since one box over a ragged set covers it anyway. The missing tiles come first, since a way that
 // lands in no tile goes to the first.
-function batchTiles(batch: Tile[]) {
-  const xs = batch.map((t) => t.x),
-    ys = batch.map((t) => t.y);
+function requestTiles(block: Tile[]) {
+  const xs = block.map((t) => t.x),
+    ys = block.map((t) => t.y);
   if (
     (Math.max(...xs) - Math.min(...xs) + 1) * (Math.max(...ys) - Math.min(...ys) + 1) ===
-    batch.length
+    block.length
   )
-    return batch;
+    return block;
   const x0 = Math.floor((xs[0] as number) / 2) * 2,
     y0 = Math.floor((ys[0] as number) / 2) * 2;
-  const block = (
+  const whole = (
     [
       [0, 0],
       [1, 0],
@@ -161,11 +161,11 @@ function batchTiles(batch: Tile[]) {
       [1, 1],
     ] as Array<[number, number]>
   ).map(([dx, dy]) => ({ x: x0 + dx, y: y0 + dy }));
-  return batch.concat(block.filter((t) => !batch.some((b) => b.x === t.x && b.y === t.y)));
+  return block.concat(whole.filter((t) => !block.some((b) => b.x === t.x && b.y === t.y)));
 }
 
-// One box over the tiles a request brings (batchTiles), so the query has one area clause per highway list.
-function batchBoxes(tiles: Tile[]) {
+// One box over the tiles a request brings (requestTiles), so the query has one area clause per highway list.
+function requestBoxes(tiles: Tile[]) {
   const xs = tiles.map((t) => t.x),
     ys = tiles.map((t) => t.y);
   return [
@@ -178,7 +178,7 @@ function batchBoxes(tiles: Tile[]) {
   ];
 }
 
-// The default street source: one Overpass request per street block (batches above), up to
+// The default street source: one Overpass request per street block (streetBlocks above), up to
 // Overpass.cap() of them open at once, each answer split per tile into onTile as it lands, including
 // the street block's unasked tiles when a ragged set asks the whole street block (they come in the
 // box anyway, and the street cache keeps them). A busy answer puts its street block back in the queue
@@ -217,52 +217,56 @@ export const overpassFetch = (
     opts.wait ||
     ((until: number) =>
       new Promise((resolve) => setTimeout(() => resolve(true), Math.max(0, until - now()))));
-  const queue = batches(tiles).map((batch, rank) => ({ batch, rank }));
-  const got = () => tiles.filter((t) => out.has(tileId(t))).length;
+  const queue = streetBlocks(tiles).map((block, rank) => ({ block, rank }));
+  const tilesIn = () => tiles.filter((t) => out.has(tileId(t))).length;
   return new Promise<Map<string, TileAnswer | undefined>>((resolve, reject) => {
     // last: the wait set is the step past the schedule, ending the run unless recovered (a request
     // was answered while it was set) by the time the requests open with it have finished
     let open = 0,
       busy = 0,
-      until = 0,
+      waitEnds: number | null = null, // when the busy wait set ends; null when none is set
       lastBusy: StreetError | null = null,
       waiting = false,
       stop: { e: any; passThrough: boolean } | null = null,
       last = false,
       recovered = false;
     // an error without a street reason is a bug and passes through unchanged, like the caller's own throws
-    const fail = (e: any, passThrough?: boolean) => {
-      if (!stop) stop = { e, passThrough: passThrough || !STREET_REASONS.has(e && e.reason) };
+    const stopWith = (e: any, passThrough: boolean) => {
+      if (!stop) stop = { e, passThrough };
     };
+    const fail = (e: any) => stopWith(e, !STREET_REASONS.has(e && e.reason));
+    // the caller's own throw or a bug of ours: passed on unchanged whatever it carries
+    const failBug = (e: any) => stopWith(e, true);
     const pump = () => {
       if (stop) {
-        if (!open) reject(stop.passThrough ? stop.e : downloadError(got(), tiles.length, stop.e));
+        if (!open)
+          reject(stop.passThrough ? stop.e : downloadError(tilesIn(), tiles.length, stop.e));
         return;
       }
-      if (until) {
+      if (waitEnds !== null) {
         if (open || waiting) return;
         if (last) {
           last = false;
           if (!recovered) {
-            fail(lastBusy, false);
+            fail(lastBusy);
             return pump();
           }
           busy = 1;
         }
         waiting = true;
-        Promise.resolve(until)
+        Promise.resolve(waitEnds)
           .then(wait)
           .then(
             (go) => {
               waiting = false;
-              until = 0;
-              if (!go) fail(lastBusy, false);
+              waitEnds = null;
+              if (!go) fail(lastBusy);
               pump();
             },
             (e) => {
               waiting = false;
-              until = 0;
-              fail(e, true);
+              waitEnds = null;
+              failBug(e);
               pump();
             },
           );
@@ -272,19 +276,19 @@ export const overpassFetch = (
       // handler, where nothing would catch it and the run would never settle
       try {
         while (!stop && queue.length && open < (Overpass.cap() as number))
-          send(queue.shift() as { batch: Tile[]; rank: number });
+          send(queue.shift() as { block: Tile[]; rank: number });
       } catch (e) {
-        fail(e, true);
+        failBug(e);
       }
       if (stop) return pump();
       if (!open) resolve(out);
     };
-    const send = (item: { batch: Tile[]; rank: number }) => {
-      const ask = batchTiles(item.batch);
+    const send = (item: { block: Tile[]; rank: number }) => {
+      const asked = requestTiles(item.block);
       // the query is built and the request started before open++, so a throw from either never
       // leaves a counted request that no answer closes
       const request = Overpass.post(
-        "data=" + encodeURIComponent(statics.rectQuery(batchBoxes(ask))),
+        "data=" + encodeURIComponent(statics.rectQuery(requestBoxes(asked))),
         { stale: opts.stale },
       );
       open++;
@@ -293,7 +297,7 @@ export const overpassFetch = (
         try {
           handler(v);
         } catch (e) {
-          fail(e, true);
+          failBug(e);
           pump();
         }
       };
@@ -302,41 +306,41 @@ export const overpassFetch = (
           open--;
           // an answer with no wait set restarts the count; one that lands while the final wait is set
           // (open beside that busy) shows the server recovered, so the run waits again instead of ending
-          if (!until) busy = 0;
+          if (waitEnds === null) busy = 0;
           else if (last) recovered = true;
           let answers: Map<string, TileAnswer>;
           try {
-            answers = statics.splitAnswer(json, ask);
+            answers = statics.splitAnswer(json, asked);
           } catch (e) {
-            fail(e, false);
+            fail(e);
             return pump();
           }
           // the whole answer is in: every tile of it is handed over, whatever the caller throws
-          for (const t of ask) {
+          for (const t of asked) {
             const id = tileId(t),
               answer = answers.get(id);
             out.set(id, answer);
             try {
               if (onTile) onTile(t, answer);
             } catch (e) {
-              fail(e, true);
+              failBug(e);
             }
           }
           pump();
         }),
         guard((e: any) => {
           open--;
-          if (!e || e.reason !== "busy") fail(e, false);
+          if (!e || e.reason !== "busy") fail(e);
           else if (!stop) {
             lastBusy = e;
             queue.push(item);
             queue.sort((a, b) => a.rank - b.rank);
-            if (until) until = Math.max(until, e.retryAt || 0);
+            if (waitEnds !== null) waitEnds = Math.max(waitEnds, e.retryAt || 0);
             else if (busy === BUSY_RETRY_MS.length) {
               last = true;
               recovered = false;
-              until = Math.max(now() + (BUSY_RETRY_MS[0] as number), e.retryAt || 0);
-            } else until = Math.max(now() + (BUSY_RETRY_MS[busy++] as number), e.retryAt || 0);
+              waitEnds = Math.max(now() + (BUSY_RETRY_MS[0] as number), e.retryAt || 0);
+            } else waitEnds = Math.max(now() + (BUSY_RETRY_MS[busy++] as number), e.retryAt || 0);
           }
           pump();
         }),
