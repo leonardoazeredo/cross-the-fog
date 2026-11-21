@@ -106,12 +106,12 @@ function addSegment(keys: number[], a: Point, b: Point, halfWidthM: number): voi
   }
 }
 
-// A recorded point; a missing accuracy (undefined or null) keeps the point, any other value must be a number >= 0.
+// A recorded point; a missing accuracy (undefined or null) keeps the point, a string that reads as a number is that number, any other value must be a number >= 0.
 export interface TrackPoint {
   t: number;
   lat: number;
   lon: number;
-  accuracy?: number | null | undefined;
+  accuracy?: number | string | null | undefined;
 }
 
 // Test hooks and the drop report: flushAt replaces FLUSH_AT, onCompact hears each compaction of the key
@@ -147,11 +147,15 @@ export function reveal(
     // finite but impossible is a recorder bug (swapped fields, micro-degrees), not a point to clamp or wrap
     if (Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180)
       throw new RangeError("a track point lies outside the world");
-    const accuracy = p.accuracy;
-    if (accuracy != null) {
-      if (typeof accuracy !== "number")
+    if (p.accuracy != null) {
+      // a string that reads as a number is that number; anything else with no numeric reading is a bug upstream
+      const accuracy =
+        typeof p.accuracy === "string" && p.accuracy.trim() !== ""
+          ? Number(p.accuracy)
+          : p.accuracy;
+      if (typeof accuracy !== "number" || Number.isNaN(accuracy))
         throw new TypeError("a track point has an accuracy that is not a number");
-      if (!(accuracy >= 0)) throw new RangeError("a track point has an impossible accuracy");
+      if (accuracy < 0) throw new RangeError("a track point has an impossible accuracy");
       if (accuracy > rules.maxAccuracyM) {
         droppedAccuracy++;
         continue;

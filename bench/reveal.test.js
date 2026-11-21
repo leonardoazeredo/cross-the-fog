@@ -211,10 +211,12 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
   // a bad point throws wherever it sits in the track
   throwsFixed(() => Reveal.reveal(track([[10, 48], [10.0001, 48], [10.0002, 148]])), "last point");
   // accuracy: negative, NaN and anything that is not a number
-  for (const accuracy of [-1, -0.001, NaN, "5", "", {}, true]) throwsFixed(() => Reveal.reveal(track([[10, 48]], 5000, accuracy)), "accuracy " + String(accuracy));
+  for (const accuracy of [-1, -0.001, NaN, "-1", "abc", "", "NaN", {}, true]) throwsFixed(() => Reveal.reveal(track([[10, 48]], 5000, accuracy)), "accuracy " + String(accuracy));
   // the edges are real: 90 and 180 still read, 0 is a perfect fix, a missing accuracy keeps the point
   for (const [lon, lat] of [[10, 90], [10, -90], [180, 0], [-180, 0]]) assert.ok(Reveal.reveal(track([[lon, lat]])).length > 0, lon + "," + lat);
-  for (const accuracy of [0, 50, undefined, null]) assert.ok(Reveal.reveal(track([[10, 48]], 5000, accuracy)).length > 0, "accuracy " + accuracy);
+  for (const accuracy of [0, 50, undefined, null, "5", " 50 "]) assert.ok(Reveal.reveal(track([[10, 48]], 5000, accuracy)).length > 0, "accuracy " + accuracy);
+  // a numeric string compares as its number: "80" is worse than the limit and drops the point
+  assert.equal(Reveal.reveal(track([[10, 48]], 5000, "80")).length, 0, "a string over the limit");
   // a non-finite coordinate is still dropped, not an error
   assert.equal(Reveal.reveal([{ t: 0, lat: NaN, lon: 10 }]).length, 0);
   // a track that is not iterable, or holds something that is not a point
