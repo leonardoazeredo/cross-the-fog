@@ -473,7 +473,7 @@ SuggestTool.prototype._show = function (this: Self, extra: any) {
   );
 };
 
-// Ends a run unless it was replaced: ranks its candidates, then draws and presents them.
+// Ends a run: ranks its candidates, then draws and presents them unless the run was replaced.
 SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, extra: any, S?: any) {
   if (runId !== this._runId) return;
   const ranked = this._rank(cands, extra, S);
