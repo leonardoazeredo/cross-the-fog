@@ -175,10 +175,11 @@
   // a plain browser has none. With no stored choice, or one that cannot be honoured (an endpoint
   // that no longer exists, or NextGIS without a key), Overpass keeps its default order, so a key
   // that lands later still puts NextGIS first.
-  function setOverpassOrder(first, chosen) {
+  function setOverpassOrder(wanted, chosen) {
     const nextgis = Overpass.has("nextgis");
-    if (first !== "main" && !(first === "nextgis" && nextgis)) first = null;
-    Overpass.setOrder(first === "nextgis" ? ["nextgis", "main"] : first === "main" ? ["main", "nextgis"] : []);
+    // a name that is no endpoint, or NextGIS without a key, reads as no choice; setOrder appends the other endpoint
+    const first = wanted === "main" || (wanted === "nextgis" && nextgis) ? wanted : null;
+    Overpass.setOrder(first ? [first] : []);
     $("overpass").value = first || (nextgis ? "nextgis" : "main");
     if (chosen && first) localStorage.setItem(ORDER_KEY, first);
   }
@@ -373,7 +374,7 @@
       sendControl.update();
       if (!s) { clearRouteInfo(IDLE); setExports(false); return; }
       if (s.loading) {
-        routeHint.textContent = s.done < s.total ? StreetMessages.progress(s.done, s.total, s.waitUntil, Date.now()) : `Routing ${s.points} waypoints…`;
+        routeHint.textContent = s.done < s.total ? StreetMessages.progress(s, Date.now()) : `Routing ${s.points} waypoints…`;
         routeHint.style.display = ""; return;
       }
       if (s.error) { clearRouteInfo(routeErrorHint(s.why)); setExports(route.routeCoords.length >= 2); return; }
@@ -441,7 +442,7 @@
     if (s.loading) {
       sugResults.innerHTML = `<div class="muted" style="margin-top:10px">${
         s.phase === "baseline" ? "Finding the fastest route…" :
-        s.phase === "streets" ? (s.done < s.total ? StreetMessages.progress(s.done, s.total, s.waitUntil, Date.now()) : "Reading the street map…") :
+        s.phase === "streets" ? (s.done < s.total ? StreetMessages.progress(s, Date.now()) : "Reading the street map…") :
         s.phase === "loops" ? `Routing loops… ${s.done}/${s.total}` :
         s.phase === "shapes" ? `Trying more loops… ${s.done}/${s.total}` :
         `Exploring detours… ${s.done}/${s.total}`}</div>`;
