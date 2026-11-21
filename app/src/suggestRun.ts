@@ -84,6 +84,25 @@ export function _graph(this: Self) {
   return h ? h.planner : this.streetGraph();
 }
 
+// The run state and the held street graph, owned apart from the suggestion tool's pins and cards: main.js builds
+// one and hands it to the tool and to the route editor, which asks it for the graph. The five graph functions above
+// read only these fields, so they work on this object as `this`; the tool maps the same fields onto its own.
+export function createEngine(opts: { streets?: any; fogMap?: any }) {
+  const engine: Self = {
+    streets: opts.streets || null, // StreetIndex; candidates chase undefogged streets
+    fogMap: opts.fogMap,
+    _runId: 0,
+    _planner: null, // GraphPlanner over the walkable streets
+    _hold: null, // {runId, planner}: the graph the running suggestion plans on
+  };
+  engine.streetGraph = streetGraph;
+  engine._holdGraph = _holdGraph;
+  engine._releaseGraph = _releaseGraph;
+  engine._cancel = _cancel;
+  engine._graph = _graph;
+  return engine;
+}
+
 export async function suggest(this: Self, o: any) {
   o = o || {};
   const buffer = o.buffer || DEFAULT_BUFFER;
