@@ -5,13 +5,9 @@ import { IDBFactory } from "fake-indexeddb";
 import { unzlibSync } from "fflate";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivitySummary, TrackPoint } from "../../src/bridge/protocol.js";
+import type { CrossfogPageApi, RevealRules } from "../../web-adapter/crossfogPage.js";
 import { type FogCache, openFogCache } from "../../web-adapter/fogCache.js";
-import {
-  type CrossfogPageApi,
-  createHistorySync,
-  type RevealRules,
-  stampFor,
-} from "../../web-adapter/history.js";
+import { createHistorySync, stampFor } from "../../web-adapter/history.js";
 import { installFakeUpstream } from "./support/fakeUpstream.js";
 
 interface UpstreamFogMap {
