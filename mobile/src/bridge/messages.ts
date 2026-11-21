@@ -178,8 +178,8 @@ export const WEB_TO_NATIVE_MESSAGES = {
   devAddActivity: [z.object({ v: z.literal(1), type: z.literal("devAddActivity") })],
 };
 
-// The app-to-page messages the session answers itself: it loads the fog, reports progress and relays the back button
-// and the settings.
+// The app-to-page messages the session handles itself: it loads the fog the phone sends and shows its status, and
+// answers the back button and the settings.
 export const SESSION_MESSAGES = {
   reload: [
     z.object({
@@ -291,5 +291,5 @@ export const PAGE_MESSAGES = {
   ],
 };
 
-// Every app-to-page message, by type.
+// The whole app-to-page set, which is what `nativeToWebSchema` parses; the split above is for who handles a type.
 export const NATIVE_TO_WEB_MESSAGES = { ...SESSION_MESSAGES, ...PAGE_MESSAGES };
