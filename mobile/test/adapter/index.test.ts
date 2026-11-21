@@ -86,4 +86,19 @@ describe("web-adapter/index boot", () => {
     fromNative({ v: 1, type: "exportStatus", exportId: EXPORT, state: "saved" });
     expect(page.exportStatus).toHaveBeenCalledWith({ exportId: EXPORT, state: "saved" });
   });
+
+  it("forwards routeStatus to the page", () => {
+    fromNative({ v: 1, type: "routeStatus", routeId: ACTIVITY, state: "waiting" });
+    expect(page.routeStatus).toHaveBeenCalledWith({ routeId: ACTIVITY, state: "waiting" });
+  });
+
+  it("forwards linkStatus to the page", () => {
+    fromNative({ v: 1, type: "linkStatus", paired: true, reachable: false });
+    expect(page.linkStatus).toHaveBeenCalledWith({ paired: true, reachable: false });
+  });
+
+  it("forwards the unreadable count to the History panel", () => {
+    fromNative({ v: 1, type: "unreadableActivities", count: 3 });
+    expect(page.history.setUnreadable).toHaveBeenCalledWith(3);
+  });
 });
