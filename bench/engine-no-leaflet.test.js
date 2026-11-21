@@ -1,4 +1,4 @@
-// The planner runs with no Leaflet at all: the host has no L, the pins are plain {lat, lng}, nothing is drawn, and a
+// The planner runs with no Leaflet at all: the host has no L, the pins are stand-ins whose getLatLng gives a plain {lat, lng}, nothing is drawn, and a
 // suggestion still ends in its cards. Also pins what the engine object and main.js's wiring of it promise.
 // Synthetic streets, no network.
 //   node bench/engine-no-leaflet.test.js
@@ -35,7 +35,7 @@ const fogMap = { tileCount: 0, hasFog: () => false, version: 0 };
     await tool.suggest({ buffer: 0.15 });
     const last = emits[emits.length - 1];
     assert.ok(last && Array.isArray(last.list) && last.list.length >= 1, "the run ends in a card list");
-    assert.equal(draws, 1, "the screen half ran once, and it is the only part that would need Leaflet");
+    assert.equal(draws, 1, "the screen half (_draw) ran once, and nothing else in the run needed Leaflet");
   }
   { // a loop suggestion without a map
     const emits = [];
