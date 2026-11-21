@@ -42,6 +42,8 @@ try {
 
   const missing = put("missing", run([sc("a")]));
   assert.equal(ident(base, missing).status, 1, "a missing scenario is a difference");
+  assert.equal(ident(missing, base).status, 1, "and so is one only the candidate has");
+  assert.equal(ident(missing, base, "--subset").status, 0, "unless --subset");
   assert.equal(ident(base, missing, "--subset").status, 1, "also with --subset");
 
   assert.equal(ident(put("none", run([])), put("none2", run([]))).status, 1, "nothing compared is not identical");
@@ -51,11 +53,13 @@ try {
   const dup = put("dup", run([sc("a"), sc("a")]));
   assert.equal(ident(base, dup).status, 2, "two scenarios of one name are refused");
 
-  const broken = put("broken", `{"scenarios":[{"scenario":"a","coords":[[${SECRET},51.5x]]}]}`);
+  const broken = put("broken", `{"scenarios":[{"scenario":"a","coords":[[x${SECRET},51.5]]}]}`);
   const bad = ident(base, broken);
   assert.equal(bad.status, 2, "a file that is not JSON is refused");
+  assert.match(bad.stderr, /not readable JSON \(SyntaxError\)/, "saying only the error class");
   assert.ok(!out(bad).includes("13.71") && !out(bad).includes("51.5"), "without printing its text");
   assert.equal(ident(base, put("noscen", { x: 1 })).status, 2, "a file with no scenarios list is refused");
+  assert.equal(ident(base, put("objscen", { scenarios: {} })).status, 2, "so is one whose scenarios are not a list");
   console.log("identical.test.js ok");
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
