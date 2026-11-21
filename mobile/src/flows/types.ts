@@ -8,7 +8,7 @@ export interface Flows {
   sendRoute(route: RouteRecord): Promise<void>;
   needTrack(activityId: string): Promise<void>;
   deleteActivity(activityId: string): Promise<void>;
-  // The three below are absent where the platform has none (the controller ignores the message then).
+  // The five below are absent where the platform has no export, backup or settings (the controller ignores the message then).
   exportBinary?(chunk: ExportChunk): Promise<void>;
   backup?(): Promise<void>;
   /** Resolves true when the phone's data was replaced and the page must reload. */
