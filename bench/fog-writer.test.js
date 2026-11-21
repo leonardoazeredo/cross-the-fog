@@ -235,6 +235,21 @@ function cellsOf(files) {
     assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "a pako with no inflate");
   } finally { global.pako = parked; }
 }
+{ // the default read-back is window.pako's inflate, looked up when writeSync runs and handed the bytes about to go out: a pako that inflates to something else fails the export
+  const map = new FogMap();
+  map.addCells(pairs([cellOf(1, 1, 0, 0, 0, 0)]));
+  const id = String(idOf(1, 1));
+  const parked = global.pako;
+  try {
+    const seen = [];
+    global.pako = { deflate: pako.deflate, inflate: (b) => { seen.push(b); return pako.inflate(b); } }; // swapped after the engine loaded
+    const [f] = FogWriter.writeSync(map);
+    assert.equal(seen.length, 1, "the page's pako reads each file back once");
+    sameBytes(seen[0], f.bytes, "what it read back is what it hands out");
+    global.pako = { deflate: pako.deflate, inflate: () => new Uint8Array(HEADER) }; // a read-back that is not the tile written
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && e.message.includes(`tile ${id}`), "a read-back of something else");
+  } finally { global.pako = parked; }
+}
 { // the MD5 constants are written out, so an engine whose Math.sin rounds differently still names tiles right
   const { spawnSync } = require("node:child_process");
   const md5 = path.join(__dirname, "..", "app", "src", "md5.ts");
