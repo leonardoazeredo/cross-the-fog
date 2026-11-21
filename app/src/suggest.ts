@@ -9,10 +9,9 @@ import { createFogGain } from "./fogGain.ts";
 import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
 import { GraphPlanner } from "./planner.ts";
 import { LocalRouter } from "./router.ts";
+import { sortOutcome } from "./streetDownload.ts";
+import { HOLD_AS } from "./streetGrid.ts";
 import {
-  RETRACE_WEIGHT,
-  SAME_CORRIDOR,
-  SAME_ROUTE,
   bearingApart,
   bearingRadius,
   dmax,
@@ -24,16 +23,17 @@ import {
   overlapFrac,
   p2pCandidates,
   p2pWindow,
+  RETRACE_WEIGHT,
   rankKey,
   resampleMids,
+  SAME_CORRIDOR,
+  SAME_ROUTE,
   sharedFrac,
   snipOldSpurs,
   splitRuns,
   statsFromCoords,
   walk,
 } from "./suggestPure.ts";
-import { sortOutcome } from "./streetDownload.ts";
-import { HOLD_AS } from "./streetGrid.ts";
 
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
 // polylines, bounds) and `matchMedia`. pageGlobals.ts binds the page's own object.
