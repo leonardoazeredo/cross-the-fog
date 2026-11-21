@@ -1411,6 +1411,7 @@ SuggestTool._internals = {
   RETRACE_WEIGHT,
   statsFromCoords,
   joinPins,
+  resampleMids,
   p2pWindow,
   p2pCandidates,
   fitLoopSize,

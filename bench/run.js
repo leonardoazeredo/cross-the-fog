@@ -61,8 +61,10 @@ const filter = process.argv[3] || "";
     console.log(`  requests=${out.requests} (${out.cacheHits} cached)  ${out.ms}ms`);
     all.push({
       scenario: sc.name, note: sc.note, requests: out.requests, cacheHits: out.cacheHits, ms: out.ms,
+      emits: out.emits,
       results: out.results.map((r, i) => Object.assign({}, rows[i], {
-        coords: r.coords.map((p) => [+p[0].toFixed(5), +p[1].toFixed(5)])
+        coords: r.coords.map((p) => [+p[0].toFixed(5), +p[1].toFixed(5)]),
+        adoptWps: r.adoptWps.map((w) => [+w[0].toFixed(6), +w[1].toFixed(6)])
       }))
     });
   }
