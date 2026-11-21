@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reportDropped } from "../../../src/bridge/dropped.js";
 import {
+  ANSWERABLE_TYPES,
   encode,
   inspectWebToNative,
   type NativeToWeb,
@@ -241,5 +242,55 @@ describe("reportDropped", () => {
     reportDropped(dropOf("{not json"), send, abandon);
     expect(send).not.toHaveBeenCalled();
     expect(abandon).not.toHaveBeenCalled();
+  });
+
+  // Every page-to-app type name. messageTable.test.ts pins the schema's list, so a new type that is not
+  // answerable needs no entry here; one that becomes answerable must be added, or the case below fails.
+  const EVERY_TYPE = [
+    "ready",
+    "pickBackup",
+    "needBytes",
+    "loaded",
+    "clearSavedFog",
+    "retryReload",
+    "export",
+    "openExternal",
+    "openAbout",
+    "back:result",
+    "sendRoute",
+    "needTrack",
+    "deleteActivity",
+    "exportBinary",
+    "backup",
+    "restore",
+    "settings",
+    "settingsApplied",
+    "devAddActivity",
+  ];
+
+  it("answers a dropped message for exactly the types in ANSWERABLE_TYPES", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const answered: string[] = [];
+    for (const type of EVERY_TYPE) {
+      const raw = JSON.stringify({
+        v: 2,
+        type,
+        activityId,
+        exportId: "e-1",
+        route: { id: routeId },
+      });
+      let heard = false;
+      reportDropped(
+        dropOf(raw),
+        () => {
+          heard = true;
+        },
+        () => {
+          heard = true;
+        },
+      );
+      if (heard) answered.push(type);
+    }
+    expect(answered.sort()).toEqual([...ANSWERABLE_TYPES].sort());
   });
 });

@@ -271,6 +271,16 @@ interface DropPaths {
   readonly paths: readonly string[];
 }
 
+// The page-to-app types a dropped message is answered for, because the page waits on them. One list: the
+// DroppedMessage variants below, describeDrop's cases and reportDropped's cases are each checked against it.
+export const ANSWERABLE_TYPES = [
+  "sendRoute",
+  "exportBinary",
+  "needTrack",
+  "deleteActivity",
+] as const;
+export type AnswerableType = (typeof ANSWERABLE_TYPES)[number];
+
 // Each id is set only when that id is itself valid, so the page is never answered about an id nobody checked.
 export type DroppedMessage =
   // An unknown type is any text the page wrote, so it is not repeated: `reason` says what was unreadable.
@@ -280,10 +290,7 @@ export type DroppedMessage =
   | (DropPaths & { readonly type: "needTrack"; readonly activityId: string | null })
   | (DropPaths & { readonly type: "deleteActivity"; readonly activityId: string | null })
   | (DropPaths & {
-      readonly type: Exclude<
-        WebToNative["type"],
-        "sendRoute" | "exportBinary" | "needTrack" | "deleteActivity"
-      >;
+      readonly type: Exclude<WebToNative["type"], AnswerableType>;
     });
 
 export type WebToNativeParse = { ok: true; msg: WebToNative } | { ok: false; drop: DroppedMessage };
@@ -344,8 +351,11 @@ function describeDrop(data: unknown, error: z.ZodError): DroppedMessage {
       const id = uuid.safeParse(obj.activityId);
       return { type: obj.type, paths, activityId: id.success ? id.data : null };
     }
-    default:
-      return { type: obj.type, paths };
+    default: {
+      // Fails to compile when ANSWERABLE_TYPES names a type with no case above.
+      const unanswered: Exclude<WebToNative["type"], AnswerableType> = obj.type;
+      return { type: unanswered, paths };
+    }
   }
 }
 
