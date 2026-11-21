@@ -879,6 +879,34 @@ it("does nothing for the developer add-activity message in a debug app with no h
   expect(h.sent).toEqual([]);
 });
 
+// The switch has no default: a message type it has no case for is dropped with no effect and no error, so a
+// type added to the schema and not to the switch fails nowhere but test/unit/bridge/messageTable.test.ts.
+it("does nothing, and says nothing, for a type it has no case for", async () => {
+  const h = createHarness();
+  await h.c.start();
+  await expect(
+    h.c.onWebMessage({ v: 1, type: "mystery" } as unknown as WebToNative),
+  ).resolves.toBeUndefined();
+  expect(h.sent).toEqual([]);
+  expect(h.notified).toEqual([]);
+  expect(h.remounts.count).toBe(0);
+  expect(h.busy).toEqual([]);
+  expect(h.released).toEqual([]);
+  expect(h.exited.value).toBe(false);
+  for (const fn of [
+    h.pickFile,
+    h.confirmReplace,
+    h.confirmClear,
+    h.shareExport,
+    h.openExternal,
+    h.openAbout,
+    h.devAddActivity,
+  ]) {
+    expect(fn).not.toHaveBeenCalled();
+  }
+  for (const fn of Object.values(h.flows)) expect(fn).not.toHaveBeenCalled();
+});
+
 // A store read can fail while an import waits for the page's verdict; WebShell does not await onWebMessage,
 // so a rejection here would be unhandled and leave the import busy.
 const importingHarness = async (): Promise<Harness> => {

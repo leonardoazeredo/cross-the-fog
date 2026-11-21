@@ -13,6 +13,30 @@ const GLOBALS = [
   "Sha256.hex",
   "FogGain.create",
 ];
+// What the adapter reads off window.CrossfogPage (CrossfogPageApi in web-adapter/history.ts, index.ts, loader.ts).
+// A field main.js stops setting shows up only as a feature that does nothing: the history never reaches the panel,
+// the Send chip never changes, a damaged import goes unreported.
+const CROSSFOG_PAGE_FIELDS: Record<string, "function" | "object" | "number"> = {
+  "fogMap.addCells": "function",
+  "fogMap.clearOverlay": "function",
+  fogChanged: "function",
+  "reveal.reveal": "function",
+  "reveal.RULES": "object",
+  "reveal.RULES.version": "number",
+  "reveal.RULES.maxAccuracyM": "number",
+  "reveal.RULES.maxGapS": "number",
+  "reveal.RULES.maxGapM": "number",
+  "reveal.RULES.halfWidthM": "number",
+  "history.setActivities": "function",
+  "history.setTrack": "function",
+  "history.trackUnavailable": "function",
+  "history.setUnreadable": "function",
+  routeStatus: "function",
+  linkStatus: "function",
+  exportStatus: "function",
+  lastImport: "object",
+  "lastImport.corrupt": "number",
+};
 const CHUNK_SIZE = 64 * 1024;
 
 export async function runContractCheck(
@@ -75,6 +99,22 @@ export async function runContractCheck(
       }, path);
       if (!exists) failures.push(`missing global ${path}`);
     }
+
+    const pageProblems = await page.evaluate((fields: Array<[string, string]>) => {
+      const problems: string[] = [];
+      for (const [path, kind] of fields) {
+        let value: unknown = (window as unknown as Record<string, unknown>).CrossfogPage;
+        for (const part of path.split(".")) {
+          value = value == null ? undefined : (value as Record<string, unknown>)[part];
+        }
+        if (typeof value !== kind || value === null)
+          problems.push(
+            `CrossfogPage.${path} is not ${kind === "object" ? "an object" : `a ${kind}`}`,
+          );
+      }
+      return problems;
+    }, Object.entries(CROSSFOG_PAGE_FIELDS));
+    failures.push(...pageProblems);
 
     const waitForType = async (type: string, ms: number) => {
       try {
