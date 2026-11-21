@@ -37,6 +37,16 @@ const fogMap = { tileCount: 0, hasFog: () => false, version: 0 };
     assert.equal(tool.lines.length, 0, "nothing was drawn");
     assert.equal(global.L, undefined, "and nothing defined Leaflet");
   }
+  { // a loop suggestion without a map
+    const emits = [];
+    const tool = new SuggestTool({}, { fogMap, computeGain: () => ({ area: 1, newPct: 1 }), streets: streetsWith(street), onResults: (s) => emits.push(s) });
+    tool._draw = () => {};
+    tool.mode = "loop"; tool.a = pin(0, 0);
+    await tool.suggest({ buffer: 0.3, distM: 2500 });
+    const last = emits[emits.length - 1];
+    assert.ok(last && Array.isArray(last.list) && last.list.length >= 1, "the loop run ends in a card list");
+    assert.equal(global.L, undefined, "nothing defined Leaflet");
+  }
   { // an engine with no tool rebuilds its planner in place when the fog moves, like the tool's does
     const fog = { tileCount: 0, hasFog: () => false, version: 0 };
     const engine = SuggestEngine.create({ streets: streetsWith(street), fogMap: fog });
