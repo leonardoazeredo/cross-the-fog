@@ -66,10 +66,10 @@ const ENDPOINTS: Record<string, string> = {
 // NextGIS first: on the phone it answers in seconds where overpass-api.de queued for tens of seconds
 // (FIRST_BYTE_MS, #185). When the page holds no credential for it, it drops out and overpass-api.de is asked alone.
 const DEFAULT_ORDER: string[] = ["nextgis", "main"];
-// Requests in flight per endpoint, every caller's together. NextGIS's /api/status reports no
-// limit ("Rate limit: 0"), so its 4 is our own choice, not the server's. overpass-api.de's
-// /api/status reports "Rate limit: 2" per IP, where a third request would wait 15 s and get a 429. A post
-// falling back from NextGIS takes one of overpass-api.de's slots.
+// Requests in flight per endpoint, every caller's together. NextGIS's status page (its URL carries the key,
+// so no link here) reports no limit ("Rate limit: 0"), so its 4 is our own choice, not the server's.
+// overpass-api.de's https://overpass-api.de/api/status reports "Rate limit: 2" per IP, where a third request
+// would wait 15 s and get a 429. A post falling back from NextGIS takes one of overpass-api.de's slots.
 const CAPS: Record<string, number> = { nextgis: 4, main: 2 };
 const MIN_BACKOFF_MS = 30000;
 // overpass-api.de sends nothing until a query has waited out its queue and run. On the phone a
