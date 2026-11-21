@@ -19,6 +19,20 @@ interface Segment {
   lenM: number;
   frac: number | null;
 }
+// What eviction reads and writes, kept together: which pieces are protected and in what order the rest go, and which
+// ways each piece lists.
+interface Eviction {
+  // id -> {from: the tile keys whose answer lists the way, segs: its scoring segments} for every way held
+  wayFrom: Map<number, { from: Set<string>; segs: Segment[] }>;
+  // "x:y" -> the ids of the ways a read of that piece listed (it can still name ways dropped since)
+  pieceWays: Map<string, Set<number>>;
+  // "x:y" of every piece read or under a run's rects, least recently used first
+  used: Map<string, boolean>;
+  // the "x:y" under the rects of each ensureRects still running: never evicted
+  runs: Set<Set<string>>;
+  // _protect's holdAs -> the "x:y" under that caller's latest run: never evicted until its next one
+  holds: Map<string, Set<string>>;
+}
 export interface StoreOptions {
   newFrac: (lon: number, lat: number) => number;
   fogVersion?: () => number;
@@ -35,11 +49,7 @@ export interface StreetStoreSelf {
   ways: Way[];
   segCount: number;
   maxSegs: number;
-  wayFrom: Map<number, { from: Set<string>; segs: Segment[] }>;
-  pieceWays: Map<string, Set<number>>;
-  used: Map<string, boolean>;
-  runs: Set<Set<string>>;
-  holds: Map<string, Set<string>>;
+  evict: Eviction;
   version: number;
   kx: number | null;
   ky: number;
@@ -77,14 +87,13 @@ export function StreetStore(this: StreetStoreSelf, opts: StoreOptions) {
   // route planner its graph connectivity for free
   this.segCount = 0;
   this.maxSegs = opts.maxSegs || MAX_SEGS;
-  // what a piece's eviction needs: id -> {from: the tile keys whose answer lists the way, segs: its scoring
-  // segments} for every way held, and "x:y" -> the ids of the ways a read
-  // of that piece listed (it can still name ways dropped since)
-  this.wayFrom = new Map();
-  this.pieceWays = new Map();
-  this.used = new Map(); // "x:y" of every piece read or under a run's rects, least recently used first
-  this.runs = new Set(); // the "x:y" under the rects of each ensureRects still running: never evicted
-  this.holds = new Map(); // _protect's holdAs -> the "x:y" under that caller's latest run: never evicted until its next one
+  this.evict = {
+    wayFrom: new Map(),
+    pieceWays: new Map(),
+    used: new Map(),
+    runs: new Set(),
+    holds: new Map(),
+  };
   this.version = 0; // bumped by every tile read into the index, so graphs built from this notice list changes
   this.kx = null;
   this.ky = 110540; // metres per degree of latitude; kx, the other half of the metre frame, is anchored on the first fetch
@@ -105,7 +114,7 @@ StreetStore.prototype._addWay = function (this: StreetStoreSelf, w: Way) {
   if (!w.geometry || w.geometry.length < 2 || this.wayIds.has(w.id)) return;
   this.wayIds.add(w.id);
   const entry = { from: new Set<string>(), segs: [] as Segment[] };
-  this.wayFrom.set(w.id, entry);
+  this.evict.wayFrom.set(w.id, entry);
   if (w.nodes && w.nodes.length === w.geometry.length)
     this.ways.push({ id: w.id, nodes: w.nodes, geometry: w.geometry });
   for (let i = 1; i < w.geometry.length && this.segCount < this.maxSegs; i++) {
@@ -149,12 +158,12 @@ StreetStore.prototype._dropWays = function (this: StreetStoreSelf, ids: number[]
   const gone = new Set(ids),
     dead = new Map();
   for (const id of ids) {
-    for (const seg of (this.wayFrom.get(id) as { segs: Segment[] }).segs) {
+    for (const seg of (this.evict.wayFrom.get(id) as { segs: Segment[] }).segs) {
       const key = cellKey(seg.x, seg.y);
       if (!dead.has(key)) dead.set(key, new Set());
       dead.get(key).add(seg);
     }
-    this.wayFrom.delete(id);
+    this.evict.wayFrom.delete(id);
     this.wayIds.delete(id);
   }
   for (const [key, segs] of dead) {
@@ -167,35 +176,35 @@ StreetStore.prototype._dropWays = function (this: StreetStoreSelf, ids: number[]
 };
 
 StreetStore.prototype._use = function (this: StreetStoreSelf, pos: string) {
-  this.used.delete(pos);
-  this.used.set(pos, true);
+  this.evict.used.delete(pos);
+  this.evict.used.set(pos, true);
 };
 
 // Near the cap, drops the least recently used pieces that no running or held run covers: the piece
 // stops counting as held (a run asks for it again), and a way goes once no held piece lists it.
 StreetStore.prototype._makeRoom = function (this: StreetStoreSelf) {
   if (this.segCount <= this.maxSegs * EVICT_AT) return;
-  const kept = [...this.runs, ...this.holds.values()];
+  const kept = [...this.evict.runs, ...this.evict.holds.values()];
   const evicted = [],
     gone = [];
   let left = this.segCount;
-  for (const pos of this.used.keys()) {
+  for (const pos of this.evict.used.keys()) {
     if (left <= this.maxSegs * EVICT_TO) break;
     if (kept.some((under) => under.has(pos))) continue;
     evicted.push(pos);
     this.tiles.delete(pos);
-    for (const id of this.pieceWays.get(pos) || []) {
-      const entry = this.wayFrom.get(id);
+    for (const id of this.evict.pieceWays.get(pos) || []) {
+      const entry = this.evict.wayFrom.get(id);
       if (!entry || !entry.from.delete(pos)) continue;
       if (!entry.from.size) {
         gone.push(id);
         left -= entry.segs.length;
       }
     }
-    this.pieceWays.delete(pos);
+    this.evict.pieceWays.delete(pos);
   }
   if (!evicted.length) return;
-  for (const pos of evicted) this.used.delete(pos);
+  for (const pos of evicted) this.evict.used.delete(pos);
   this._dropWays(gone);
 };
 
@@ -231,9 +240,9 @@ StreetStore.prototype._read = function (this: StreetStoreSelf, answer: TileAnswe
       this._addWay(w);
       // every piece whose answer lists the way holds it, so an eviction keeps a way another piece still lists
       if (this.wayIds.has(w.id)) {
-        (this.wayFrom.get(w.id) as { from: Set<string> }).from.add(pos);
-        if (!this.pieceWays.has(pos)) this.pieceWays.set(pos, new Set());
-        (this.pieceWays.get(pos) as Set<number>).add(w.id);
+        (this.evict.wayFrom.get(w.id) as { from: Set<string> }).from.add(pos);
+        if (!this.evict.pieceWays.has(pos)) this.evict.pieceWays.set(pos, new Set());
+        (this.evict.pieceWays.get(pos) as Set<number>).add(w.id);
       }
     }
   } finally {
@@ -303,9 +312,9 @@ StreetStore.prototype._protect = function (
   holdAs?: HoldName,
 ) {
   for (const pos of under) this._use(pos);
-  if (holdAs) this.holds.set(holdAs, under);
-  this.runs.add(under);
+  if (holdAs) this.evict.holds.set(holdAs, under);
+  this.evict.runs.add(under);
   return () => {
-    this.runs.delete(under);
+    this.evict.runs.delete(under);
   };
 };
