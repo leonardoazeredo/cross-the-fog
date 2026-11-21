@@ -28,6 +28,59 @@ function longTrack(n: number): Activity["track"] {
   return Array.from({ length: n }, (_, i) => ({ t: 1e12 + i * 3000, lat: 48.1, lon: 11.5 }));
 }
 
+describe("history with walks that cannot be read", () => {
+  it("publishes the readable ones and reports how many were left out", async () => {
+    const activities = createMemoryActivityStore();
+    await activities.add(activity({ id: ID(1) }));
+    const sent: NativeToWeb[] = [];
+    const counts: number[] = [];
+    const flow = createHistoryFlow({
+      activities: {
+        ...activities,
+        listReadable: async () => ({ items: await activities.list(), unreadable: 2 }),
+      },
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+      onUnreadable: (n) => counts.push(n),
+    });
+    await flow.publish();
+    expect(counts).toEqual([2]);
+    expect(sent.map((m) => m.type)).toEqual(["activities"]);
+  });
+
+  it("does not report a count when the list failed", async () => {
+    const counts: number[] = [];
+    const flow = createHistoryFlow({
+      activities: {
+        listReadable: async () => {
+          throw new Error("x");
+        },
+        get: async () => null,
+        delete: async () => false,
+      },
+      routes: createMemoryRouteStore(),
+      send: () => undefined,
+      onUnreadable: (n) => counts.push(n),
+    });
+    await flow.publish();
+    expect(counts).toEqual([]);
+  });
+
+  it("publishes even when the report throws", async () => {
+    const sent: NativeToWeb[] = [];
+    const flow = createHistoryFlow({
+      activities: createMemoryActivityStore(),
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+      onUnreadable: () => {
+        throw new Error("x");
+      },
+    });
+    await expect(flow.publish()).resolves.toBeUndefined();
+    expect(sent.map((m) => m.type)).toEqual(["activities"]);
+  });
+});
+
 describe("history", () => {
   it("publishes the summaries newest first, without the track or the file", async () => {
     const { activities, sent, flow } = setup();
@@ -181,7 +234,7 @@ describe("history", () => {
         delete: async () => {
           throw new Error("database is locked");
         },
-        list: async () => {
+        listReadable: async () => {
           throw new Error("database is locked");
         },
         get: async () => {
@@ -208,7 +261,7 @@ describe("history", () => {
       routes: createMemoryRouteStore(),
       activities: {
         ...activities,
-        list: async () => {
+        listReadable: async () => {
           throw new Error("database is locked");
         },
       },
@@ -225,7 +278,7 @@ describe("history", () => {
       routes: createMemoryRouteStore(),
       activities: {
         ...activities,
-        list: async () => {
+        listReadable: async () => {
           throw new HistoryKeyLostError();
         },
       },

@@ -126,3 +126,75 @@ describe("activity store (sqlite) at rest", () => {
     expect((await createActivityStore(db).get(activity().id))?.track).toEqual(activity().track);
   });
 });
+
+describe("activity store order", () => {
+  async function make() {
+    const db = createNodeSqliteDriver(":memory:");
+    await migrate(db);
+    return createActivityStore(db);
+  }
+
+  it("breaks a tie on the start time by id, descending", async () => {
+    const s = await make();
+    const at = "2026-01-01T08:00:00Z";
+    await s.add(activity({ id: "a0000000-0000-4000-8000-000000000001", startedAt: at }));
+    await s.add(activity({ id: "a0000000-0000-4000-8000-000000000003", startedAt: at }));
+    await s.add(activity({ id: "a0000000-0000-4000-8000-000000000002", startedAt: at }));
+    expect((await s.list()).map((i) => i.id.slice(-1))).toEqual(["3", "2", "1"]);
+  });
+
+  it("orders by the instant, not the text, when a time carries an offset", async () => {
+    const s = await make();
+    // 09:00+02:00 is 07:00Z, earlier than 08:00Z although the text sorts later.
+    await s.add(
+      activity({
+        id: "a0000000-0000-4000-8000-000000000001",
+        startedAt: "2026-01-01T09:00:00+02:00",
+      }),
+    );
+    await s.add(
+      activity({ id: "a0000000-0000-4000-8000-000000000002", startedAt: "2026-01-01T08:00:00Z" }),
+    );
+    expect((await s.list()).map((i) => i.id.slice(-1))).toEqual(["2", "1"]);
+  });
+});
+
+describe("activity store with a row whose JSON does not parse", () => {
+  const GOOD = "a0000000-0000-4000-8000-000000000001";
+  const BAD = "a0000000-0000-4000-8000-000000000002";
+  async function make() {
+    const db = createNodeSqliteDriver(":memory:");
+    await migrate(db);
+    const s = createActivityStore(db);
+    await s.add(activity({ id: GOOD, startedAt: "2026-01-01T08:00:00Z" }));
+    await s.add(activity({ id: BAD, startedAt: "2026-02-01T08:00:00Z" }));
+    return { s, db };
+  }
+
+  it("lists the other rows and counts the one it could not read", async () => {
+    const { s, db } = await make();
+    await db.run("UPDATE activities SET stats_json = '{' WHERE id = ?", [BAD]);
+    const got = await s.listReadable();
+    expect(got.items.map((i) => i.id)).toEqual([GOOD]);
+    expect(got.unreadable).toBe(1);
+    expect((await s.list()).map((i) => i.id)).toEqual([GOOD]);
+  });
+
+  it("counts a row with a stats value that is not an object", async () => {
+    const { s, db } = await make();
+    await db.run("UPDATE activities SET stats_json = 'null' WHERE id = ?", [BAD]);
+    expect((await s.listReadable()).unreadable).toBe(1);
+  });
+
+  it("counts nothing when every row reads", async () => {
+    const { s } = await make();
+    expect((await s.listReadable()).unreadable).toBe(0);
+  });
+
+  it("still throws from get for the bad row, without its JSON in the message", async () => {
+    const { s, db } = await make();
+    await db.run("UPDATE activities SET track_json = '[secret' WHERE id = ?", [BAD]);
+    await expect(s.get(BAD)).rejects.toThrow(SyntaxError);
+    expect((await s.get(GOOD))?.id).toBe(GOOD);
+  });
+});

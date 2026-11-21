@@ -96,6 +96,16 @@ describe("expo sqlite driver", () => {
     expect(log[0]?.at(-1)).toBe("close");
   });
 
+  it("throws when the exclusive transaction returns without running its task", async () => {
+    const log: string[][] = [];
+    const db = await createExpoSqliteDriver({
+      name: "x.db",
+      keyHex: KEY,
+      open: async () => ({ ...fakeDb(log), withExclusiveTransactionAsync: async () => undefined }),
+    });
+    await expect(db.transaction(async () => 7)).rejects.toThrow("transaction did not run");
+  });
+
   it("returns the callback's value and passes its error on", async () => {
     const log: string[][] = [];
     const db = await createExpoSqliteDriver({

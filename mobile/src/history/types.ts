@@ -34,7 +34,10 @@ export class UnknownRouteError extends Error {
 export interface ActivityStore {
   /** Idempotent by id: a known id changes nothing and reports `stored: false`. */
   add(activity: Activity): Promise<{ stored: boolean }>;
+  /** The rows that read; a row whose JSON does not parse is left out (`listReadable` counts it). */
   list(): Promise<ActivitySummary[]>;
+  /** `list` plus how many rows could not be read, so the page can say so instead of hiding them. */
+  listReadable(): Promise<{ items: ActivitySummary[]; unreadable: number }>;
   /** Everything but the GPX, so a bad GPX blob cannot hide a track that is fine. */
   get(id: string): Promise<ActivityDetail | null>;
   /**
@@ -49,7 +52,9 @@ export interface RouteStore {
   /** Replaces a route saved under the same id, `sentAt` included: the edited route is not the one the watch has. */
   save(route: RouteRecord): Promise<void>;
   get(id: string): Promise<StoredRoute | null>;
+  /** The rows that read; a row whose JSON does not parse is left out (`listReadable` counts it). */
   list(): Promise<RouteSummary[]>;
+  listReadable(): Promise<{ items: RouteSummary[]; unreadable: number }>;
   /** Throws for an unknown id, so a lost route is not mistaken for a delivered one. */
   markSent(id: string): Promise<void>;
 }

@@ -21,6 +21,9 @@ export function createMemoryActivityStore(): ActivityStore {
       byId.set(a.id, copy(a));
       return { stored: true };
     },
+    async listReadable() {
+      return { items: await this.list(), unreadable: 0 };
+    },
     async list() {
       return [...byId.values()]
         .sort((a, b) => newestFirst({ at: a.startedAt, id: a.id }, { at: b.startedAt, id: b.id }))
@@ -61,6 +64,9 @@ export function createMemoryRouteStore(deps: { now?: () => Date } = {}): RouteSt
     async get(id) {
       const r = byId.get(id);
       return r ? copy(r) : null;
+    },
+    async listReadable() {
+      return { items: await this.list(), unreadable: 0 };
     },
     async list() {
       return [...byId.values()]

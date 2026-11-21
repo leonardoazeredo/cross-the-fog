@@ -37,18 +37,23 @@ const settle = async () => {
 };
 
 // A restore swaps the database file: the store from then on is a new one, without what the old held.
-function swappableActivities(): { store: ActivityStore; swap(): void } {
+function swappableActivities(): { store: ActivityStore; swap(): void; corrupt(n: number): void } {
   let current = createMemoryActivityStore();
+  let corruptRows = 0;
   return {
     store: {
       add: (a) => current.add(a),
       list: () => current.list(),
+      listReadable: async () => ({ items: await current.list(), unreadable: corruptRows }),
       get: (id) => current.get(id),
       gpx: (id) => current.gpx(id),
       delete: (id) => current.delete(id),
     },
     swap() {
       current = createMemoryActivityStore();
+    },
+    corrupt(n) {
+      corruptRows = n;
     },
   };
 }
@@ -66,7 +71,7 @@ function setupWithRestore(restore: (swap: () => void) => Promise<boolean>) {
     backup: { backup: async () => {}, restore: () => restore(activities.swap) },
     now: () => 0,
   });
-  return { link, activities: activities.store, sent, flows };
+  return { link, activities: activities.store, sent, flows, corrupt: activities.corrupt };
 }
 
 describe("composed flows", () => {
@@ -154,6 +159,30 @@ describe("composed flows", () => {
     await link.release(A);
     await flows.handOffNow();
     expect(sent.at(-1)).toEqual({ v: 1, type: "unreadableActivities", count: 0 });
+  });
+
+  it("adds the stored walks that cannot be read to the staged ones in one count", async () => {
+    const { link, sent, flows, corrupt } = setupWithRestore(async () => true);
+    link.stageUnreadable(A);
+    await flows.handOffNow();
+    expect(sent).toEqual([{ v: 1, type: "unreadableActivities", count: 1 }]);
+
+    corrupt(2);
+    await flows.ready();
+    expect(
+      sent
+        .filter((m) => m.type === "unreadableActivities")
+        .map((m) => (m as { count: number }).count),
+    ).toEqual([1, 3, 3]); // the change, then ready's repeat for a new page
+
+    corrupt(0);
+    sent.length = 0;
+    await flows.ready();
+    expect(sent.filter((m) => m.type === "unreadableActivities").at(-1)).toEqual({
+      v: 1,
+      type: "unreadableActivities",
+      count: 1,
+    });
   });
 
   it("repeats a count above zero when the page is ready, since a new page shows none", async () => {

@@ -24,6 +24,7 @@ export function createHistoryStores(): { activities: ActivityStore; routes: Rout
     activities: {
       add: (a) => withHistoryDb((db) => createActivityStore(db).add(a)),
       list: () => withHistoryDb((db) => createActivityStore(db).list()),
+      listReadable: () => withHistoryDb((db) => createActivityStore(db).listReadable()),
       get: (id) => withHistoryDb((db) => createActivityStore(db).get(id)),
       gpx: (id) => withHistoryDb((db) => createActivityStore(db).gpx(id)),
       delete: (id) => withHistoryDb((db) => createActivityStore(db).delete(id)),
@@ -32,6 +33,7 @@ export function createHistoryStores(): { activities: ActivityStore; routes: Rout
       save: (r) => withHistoryDb((db) => createRouteStore(db).save(r)),
       get: (id) => withHistoryDb((db) => createRouteStore(db).get(id)),
       list: () => withHistoryDb((db) => createRouteStore(db).list()),
+      listReadable: () => withHistoryDb((db) => createRouteStore(db).listReadable()),
       markSent: (id) => withHistoryDb((db) => createRouteStore(db).markSent(id)),
     },
   };

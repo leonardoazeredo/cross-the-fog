@@ -5,9 +5,11 @@ import type { ActivityStore, RouteStore } from "../history/types.js";
 import { warnClass } from "./warn.js";
 
 export interface HistoryDeps {
-  activities: Pick<ActivityStore, "list" | "get" | "delete">;
+  activities: Pick<ActivityStore, "listReadable" | "get" | "delete">;
   routes: Pick<RouteStore, "get">;
   send(msg: NativeToWeb): void;
+  /** How many stored walks the last list could not read; called after each list that got an answer. */
+  onUnreadable?(count: number): void;
 }
 
 export interface HistoryFlow {
@@ -28,9 +30,12 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
   const { activities, routes, send } = deps;
 
   async function publish(): Promise<void> {
-    let items: Awaited<ReturnType<typeof activities.list>>;
+    let items: Awaited<ReturnType<typeof activities.listReadable>>["items"];
+    let unreadable: number;
     try {
-      items = await activities.list();
+      const read = await activities.listReadable();
+      items = read.items;
+      unreadable = read.unreadable;
     } catch (e) {
       warn("could not list the activities", e);
       // The page keeps the last list it was sent, which after a delete still shows the deleted row.
@@ -41,6 +46,11 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
       return;
     }
     trySend({ v: 1, type: "activities", items });
+    try {
+      deps.onUnreadable?.(unreadable);
+    } catch (e) {
+      warn("could not report the unreadable walks", e);
+    }
   }
 
   function trySend(msg: NativeToWeb): void {

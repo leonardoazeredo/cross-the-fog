@@ -61,11 +61,24 @@ export function createRouteStore(db: SqlDriver, deps: { now?: () => Date } = {})
       };
     },
 
-    async list() {
+    async listReadable() {
       const rows = await db.all<Omit<Row, "waypoints_json" | "coords_json" | "gpx">>(
         "SELECT id, created_at, mode, target_distance_m, stats_json, sent_at FROM routes ORDER BY julianday(created_at) DESC, id DESC",
       );
-      return rows.map(toSummary);
+      const items: RouteSummary[] = [];
+      let unreadable = 0;
+      for (const r of rows) {
+        try {
+          items.push(toSummary(r));
+        } catch {
+          unreadable++;
+        }
+      }
+      return { items, unreadable };
+    },
+
+    async list() {
+      return (await this.listReadable()).items;
     },
 
     async markSent(id) {

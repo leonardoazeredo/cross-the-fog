@@ -86,3 +86,47 @@ describe.each(impls)("route store (%s)", (_name, make) => {
     expect((await s.get(route().id))?.sentAt).toBeUndefined();
   });
 });
+
+describe("route store order", () => {
+  async function make() {
+    const db = createNodeSqliteDriver(":memory:");
+    await migrate(db);
+    return createRouteStore(db);
+  }
+
+  it("breaks a tie on the creation time by id, descending", async () => {
+    const s = await make();
+    const createdAt = "2026-01-01T08:00:00.000Z";
+    for (const n of [1, 3, 2])
+      await s.save(route({ id: `1111111${n}-1111-4111-8111-111111111111`, createdAt }));
+    expect((await s.list()).map((i) => i.id[7])).toEqual(["3", "2", "1"]);
+  });
+
+  it("orders by the instant, not the text, when a time carries an offset", async () => {
+    const s = await make();
+    await s.save(
+      route({ id: "11111111-1111-4111-8111-111111111111", createdAt: "2026-01-01T09:00:00+02:00" }),
+    );
+    await s.save(
+      route({ id: "22222222-2222-4222-8222-222222222222", createdAt: "2026-01-01T08:00:00.000Z" }),
+    );
+    expect((await s.list()).map((i) => i.id[0])).toEqual(["2", "1"]);
+  });
+});
+
+describe("route store with a row whose JSON does not parse", () => {
+  it("lists the other routes and counts the one it could not read", async () => {
+    const db = createNodeSqliteDriver(":memory:");
+    await migrate(db);
+    const s = createRouteStore(db);
+    await s.save(route({ id: "11111111-1111-4111-8111-111111111111" }));
+    await s.save(route({ id: "22222222-2222-4222-8222-222222222222" }));
+    await db.run("UPDATE routes SET stats_json = '{' WHERE id = ?", [
+      "22222222-2222-4222-8222-222222222222",
+    ]);
+    const got = await s.listReadable();
+    expect(got.items.map((i) => i.id)).toEqual(["11111111-1111-4111-8111-111111111111"]);
+    expect(got.unreadable).toBe(1);
+    expect((await s.list()).map((i) => i.id)).toEqual(["11111111-1111-4111-8111-111111111111"]);
+  });
+});

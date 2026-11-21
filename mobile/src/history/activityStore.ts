@@ -16,6 +16,13 @@ interface Row {
 
 const SUMMARY_COLUMNS = "id, started_at, ended_at, route_id, stats_json";
 
+// JSON that parses to something that is not an object is as unreadable as JSON that does not parse.
+function parseStats(json: string): ActivitySummary["stats"] {
+  const stats: unknown = JSON.parse(json);
+  if (stats === null || typeof stats !== "object") throw new TypeError("stats is not an object");
+  return stats as ActivitySummary["stats"];
+}
+
 function toSummary(
   r: Pick<Row, "id" | "started_at" | "ended_at" | "route_id" | "stats_json">,
 ): ActivitySummary {
@@ -24,7 +31,7 @@ function toSummary(
     startedAt: r.started_at,
     endedAt: r.ended_at,
     ...(r.route_id === null ? {} : { routeId: r.route_id }),
-    stats: JSON.parse(r.stats_json),
+    stats: parseStats(r.stats_json),
   };
 }
 
@@ -51,12 +58,25 @@ export function createActivityStore(db: SqlDriver): ActivityStore {
       return { stored: changes > 0 };
     },
 
-    async list() {
+    async listReadable() {
       // julianday, not the text: ISO strings with and without fractional seconds do not sort as text.
       const rows = await db.all<Row>(
         `SELECT ${SUMMARY_COLUMNS} FROM activities ORDER BY julianday(started_at) DESC, id DESC`,
       );
-      return rows.map(toSummary);
+      const items: ActivitySummary[] = [];
+      let unreadable = 0;
+      for (const r of rows) {
+        try {
+          items.push(toSummary(r));
+        } catch {
+          unreadable++;
+        }
+      }
+      return { items, unreadable };
+    },
+
+    async list() {
+      return (await this.listReadable()).items;
     },
 
     async get(id) {

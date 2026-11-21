@@ -34,10 +34,19 @@ export interface ComposeDeps {
 }
 
 export function createFlows(deps: ComposeDeps): ComposedFlows {
+  // The page shows one "could not be read" count: walks still staged on the phone (`unreadable`) plus stored
+  // walks whose row does not read (`corrupt`).
+  let unreadable = 0;
+  let corrupt = 0;
   const history = createHistoryFlow({
     activities: deps.activities,
     routes: deps.routes,
     send: deps.send,
+    onUnreadable(count) {
+      if (count === corrupt) return;
+      corrupt = count;
+      sendUnreadable();
+    },
   });
   const sendFlow = createSendFlow({
     link: deps.link,
@@ -54,10 +63,9 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
   // Only a change is sent, since the page keeps the last count it was told; `ready` sends a count
   // above zero again because a reloaded page starts at zero. A pass with no count to give leaves
   // the last one standing.
-  let unreadable = 0;
   function sendUnreadable(): void {
     try {
-      deps.send({ v: 1, type: "unreadableActivities", count: unreadable });
+      deps.send({ v: 1, type: "unreadableActivities", count: unreadable + corrupt });
     } catch (e) {
       warnClass("hand-off", "could not send the unreadable count", e);
     }
@@ -93,7 +101,7 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
   return {
     async ready() {
       await history.publish();
-      if (unreadable > 0) sendUnreadable();
+      if (unreadable + corrupt > 0) sendUnreadable();
       await sendFlow.sendStatus();
     },
     handOffNow: handOffAndPublish,
