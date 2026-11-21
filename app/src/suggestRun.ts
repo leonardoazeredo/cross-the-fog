@@ -1,6 +1,8 @@
 // The run state of the suggestion tool: the held street graph and the wrapper around one run.
 // Each function is a SuggestTool method, called with the tool as `this`; none touches the map.
 import { GraphPlanner } from "./planner.ts";
+import { sortOutcome } from "./streetDownload.ts";
+import { HOLD_AS } from "./streetGrid.ts";
 
 // The tool and its candidates are plain objects built and read field by field; this file does not restructure them.
 // biome-ignore lint/suspicious/noExplicitAny: see above
@@ -65,5 +67,37 @@ export async function suggest(this: Self, o: any) {
     return await run;
   } finally {
     this._releaseGraph(runId);
+  }
+}
+
+// Make sure the streets for the rects are loaded. Resolves true when they are and the run is
+// still current; false when it is stale, or the error state was emitted because the download
+// failed. A stale run asks for no further tile, so a newer run is not queued behind it.
+export async function _loadStreets(this: Self, rects: any, emit: any, stale: any) {
+  // progress is heard only while some tile is missing from the index, so a rerun over covered
+  // ground stays silent; waitUntil is set while a busy server is waited out
+  const onProgress = (p: any) => emit(Object.assign({ loading: true, phase: "streets" }, p));
+  const out = await sortOutcome(
+    () => this.streets.ensureRects(rects, { onProgress, stale, holdAs: HOLD_AS.suggest }),
+    stale,
+  );
+  switch (out.kind) {
+    case "superseded":
+      return false;
+    case "bug":
+      // a bug is not a failed download: the class only, as a message can name tiles. Logged even
+      // when the run is stale, which only keeps it from being shown.
+      console.error(
+        "[suggest] reading streets threw",
+        (out.error as { name?: string } | null)?.name,
+      );
+      if (!out.stale) emit({ error: true, reason: "internal" });
+      return false;
+    case "failed":
+      console.warn("[suggest] streets unavailable", out.facts.reason);
+      emit({ error: true, reason: "streets-fetch", download: out.facts });
+      return false;
+    default:
+      return !out.stale;
   }
 }
