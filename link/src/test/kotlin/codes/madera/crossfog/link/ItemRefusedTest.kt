@@ -96,6 +96,7 @@ class ItemRefusedTest {
     assertTrue(solo.events.closed.isEmpty())
   }
 
+  // The fake queue returns its first entry, so the refused route is what the endpoint finds again: that is the case the guard is for.
   @Test
   fun aRefusedRouteIsNotOfferedAgainInTheSameSessionEvenIfTheAppLeftItQueued() {
     val solo = Solo()
@@ -121,17 +122,19 @@ class ItemRefusedTest {
 
   @Test
   fun aRefusalForARouteNeverOfferedAForAnotherIdOrOfTheWrongKindIsAProtocolViolation() {
-    for (m in listOf(
-      ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE),
-      ItemRefused(ItemKind.ROUTE, ROUTE_B, RefusalReason.UNREADABLE),
-      ItemRefused(ItemKind.ACTIVITY, ROUTE_A, RefusalReason.UNREADABLE),
-    )) {
+    val cases = listOf(
+      "nothing offered" to (emptyList<RouteOffer>() to ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE)),
+      "another id" to (listOf(a) to ItemRefused(ItemKind.ROUTE, ROUTE_B, RefusalReason.UNREADABLE)),
+      "the wrong kind" to (listOf(a) to ItemRefused(ItemKind.ACTIVITY, ROUTE_A, RefusalReason.UNREADABLE)),
+    )
+    for ((name, case) in cases) {
+      val (queued, message) = case
       val solo = Solo()
-      if (m.id == ROUTE_B || m.kind == ItemKind.ACTIVITY) solo.phoneRoutes.queue(a)
+      queued.forEach { solo.phoneRoutes.queue(it) }
       val phone = solo.ready(solo.phone())
-      phone.feed(m)
-      assertEquals("$m", listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
-      assertTrue("$m", solo.events.refusals.isEmpty())
+      phone.feed(message)
+      assertEquals(name, listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
+      assertTrue(name, solo.events.refusals.isEmpty())
     }
   }
 
@@ -235,5 +238,103 @@ class ItemRefusedTest {
     watch.open()
     watch.feed(Hello(listOf(1)), ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE))
     assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), ends.closed)
+  }
+
+  @Test
+  fun aRefusalThePhoneSendsLeavesItsOwnOfferedRouteWaitingForItsConfirmation() {
+    val solo = Solo()
+    solo.sink.refuseIds += ACT_1
+    solo.phoneRoutes.queue(a)
+    val phone = solo.ready(solo.phone())
+    phone.feed(activity(ACT_1))
+    assertEquals(listOf<Message>(ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE)), solo.stream.takeMessages())
+    assertTrue("the wait for the route's confirmation still runs", phone.nextDeadline() != null)
+    phone.feed(RouteSaved(ROUTE_A, a.revision))
+    assertEquals(listOf(ROUTE_A to a.revision), solo.phoneRoutes.delivered)
+    assertTrue(solo.events.closed.isEmpty())
+  }
+
+  @Test
+  fun aRefusalTheWatchSendsLeavesItsOwnOfferedActivityWaitingForItsConfirmation() {
+    val solo = Solo()
+    solo.watchRoutes.refuseIds += ROUTE_A
+    solo.outbox.queue(activity(ACT_1))
+    val watch = solo.ready(solo.watch())
+    watch.feed(a)
+    assertEquals(listOf<Message>(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE)), solo.stream.takeMessages())
+    assertTrue(watch.nextDeadline() != null)
+    watch.feed(ActivityStored(ACT_1))
+    assertEquals(listOf(ACT_1), solo.outbox.deleted)
+    assertTrue(solo.events.closed.isEmpty())
+  }
+
+  @Test
+  fun theWatchTakesARefusalOnlyForTheActivityOutstandingAndOnlyOnce() {
+    val cases = listOf(
+      "none offered" to emptyList<ActivityOffer>(),
+      "another id" to listOf(activity(ACT_2)),
+    )
+    for ((name, queued) in cases) {
+      val solo = Solo()
+      queued.forEach { solo.outbox.queue(it) }
+      val watch = solo.ready(solo.watch())
+      watch.feed(ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE))
+      assertEquals(name, listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
+      assertTrue(name, solo.events.refusals.isEmpty())
+    }
+    val twice = Solo()
+    twice.outbox.queue(activity(ACT_1))
+    val watch = twice.ready(twice.watch())
+    watch.feed(ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE), ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), twice.events.closed)
+    assertEquals(1, twice.events.refusals.size)
+  }
+
+  @Test
+  fun aRefusedActivityLeftQueuedIsNotOfferedAgainAndTheConfirmationWaitEnds() {
+    val solo = Solo()
+    solo.outbox.queue(activity(ACT_1))
+    val watch = solo.ready(solo.watch())
+    watch.feed(ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE))
+    watch.wake()
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertEquals(null, watch.nextDeadline())
+    solo.clock.now += solo.config.confirmTimeoutMs * 2
+    watch.tick()
+    assertTrue(solo.events.closed.isEmpty())
+  }
+
+  @Test
+  fun aConfirmationAfterARefusalOfTheSameRouteIsAProtocolViolation() {
+    val solo = Solo()
+    solo.phoneRoutes.queue(a)
+    val phone = solo.ready(solo.phone())
+    phone.feed(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE), RouteSaved(ROUTE_A, a.revision))
+    assertEquals(listOf(CloseReason.UNEXPECTED_MESSAGE), solo.events.closed)
+    assertTrue(solo.phoneRoutes.delivered.isEmpty())
+  }
+
+  @Test
+  fun anAppThatClosesTheSessionInsideTheRefusalCallbackSendsNothingMore() {
+    val solo = Solo()
+    solo.phoneRoutes.queue(a)
+    solo.phoneRoutes.queue(b)
+    val phone = solo.ready(solo.phone())
+    solo.events.onRefused = { phone.close() }
+    phone.feed(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.LOCAL), solo.events.closed)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+  }
+
+  @Test
+  fun aLedgerReopenedOverTheSameStoreHasNoCountsForARefusedItem() {
+    val store = MemoryLedgerStore()
+    val ref = ItemRef(ItemKind.ROUTE, ROUTE_A)
+    val first = ItemLedger(store, ItemKind.ROUTE)
+    first.onClosed(CloseInfo(CloseReason.TIMEOUT, null, ref))
+    first.onClosed(CloseInfo(CloseReason.TIMEOUT, null, ref))
+    first.onRefused(ref)
+    val second = ItemLedger(store, ItemKind.ROUTE)
+    assertEquals(emptyList<LedgerAction>(), second.onClosed(CloseInfo(CloseReason.TIMEOUT, null, ref)))
   }
 }

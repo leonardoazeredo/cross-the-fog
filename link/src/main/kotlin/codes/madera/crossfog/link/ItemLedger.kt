@@ -12,7 +12,7 @@ interface LedgerStore {
 
 /** What the app does about an item the ledger has given up on or pushed back. */
 sealed interface LedgerAction {
-  /** A definite local failure [ItemLedger]'s threshold times with no confirmation between: take the item out of the queue (never delete it) and tell the user. */
+  /** Take the item out of the queue (never delete it) and tell the user: after [ItemLedger]'s threshold of definite local failures with no confirmation between, or at once when the peer refused it ([ItemLedger.onRefused]). */
   data class SetAside(val item: ItemRef) : LedgerAction
 
   /** The item ended [ItemLedger]'s threshold times or more unconfirmed, with no confirmation between: [ItemLedger.prefer] now offers it after the others. */
@@ -26,6 +26,7 @@ sealed interface LedgerAction {
  *
  * - **Definite local failures** ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM] naming an item of
  *   this app's own queue): after [threshold] times with no confirmation between the ledger answers [LedgerAction.SetAside].
+ * - **A refusal** ([onRefused]: the peer will never take the item for what it holds): [LedgerAction.SetAside] at once, with no count.
  * - **Unconfirmed ends** (an end other than a local close or a finished pairing, with an own item in flight; a dropped link causes one just as well):
  *   after [threshold] times with no confirmation between the item is [LedgerAction.Demoted], and [prefer] offers every other
  *   item first. Each further unconfirmed end demotes it again, so two items that both fail take turns
