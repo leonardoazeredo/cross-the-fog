@@ -46,6 +46,7 @@ internal fun createWatchLink(
                 runBlocking { gpxRepository.saveGpxFileAtomic(name, ByteArrayInputStream(bytes), {}, bytes.size.toLong()) }
             },
             fileExists = { name -> File(runBlocking { gpxRepository.absolutePathForFileName(name) }).isFile },
+            isReadable = { bytes -> gpxIsReadable(bytes, context.cacheDir) },
         )
     return WatchLink(
         outbox = outbox,
