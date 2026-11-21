@@ -181,6 +181,22 @@ it.each(Object.entries(NATIVE_TO_WEB))(
   },
 );
 
+// `loaded` is two schemas of one type; a broken message is reported against the branch it came closest to, so the
+// order and the shape of the union show in the paths named.
+it("accepts both shapes of loaded and names the field that broke the one it was closest to", () => {
+  const ok = { fingerprint, ok: true, tiles: 3 };
+  const failed = { fingerprint, ok: false, reason: "checksum" };
+  expect(inspectWebToNative(msg("loaded", ok)).ok).toBe(true);
+  expect(inspectWebToNative(msg("loaded", failed)).ok).toBe(true);
+  const dropped = (fields: Record<string, unknown>) => {
+    const r = inspectWebToNative(msg("loaded", fields));
+    return r.ok ? null : r.drop;
+  };
+  expect(dropped({ ...ok, tiles: 0 })).toEqual({ type: "loaded", paths: ["tiles"] });
+  expect(dropped({ ...failed, reason: "nope" })).toEqual({ type: "loaded", paths: ["reason"] });
+  expect(dropped({ fingerprint, ok: "maybe" })?.type).toBe("loaded");
+});
+
 it("rejects each type in the other direction", () => {
   for (const [type, row] of Object.entries(WEB_TO_NATIVE)) {
     expect(parseNativeToWeb(msg(type, row.valid)), `${type} read as app to page`).toBeNull();
