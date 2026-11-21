@@ -1597,6 +1597,21 @@ function inOrder(list, how) {
     assert.deepEqual([srv.most.main, srv.most.nextgis, srv.asked.length], [2, undefined, 4]);
     assert.deepEqual(progress[progress.length - 1], { done: 16, total: 16 });
   });
+  await testCase(async () => { // no tiles: the default source resolves an empty Map and sends nothing
+    const asked = tileServer();
+    const got = await StreetIndex.overpassFetch([], () => assert.fail("no tile to hand over"));
+    assert.ok(got instanceof Map);
+    assert.equal(got.size, 0);
+    assert.equal(asked.length, 0);
+  });
+  await testCase(async () => { // a custom source that returns something that is not a Map gives a raw TypeError: a bug, not a download error
+    for (const bad of [[], {}, "x", 5]) {
+      const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => bad });
+      const err = await s.ensureRects(rect).then(() => null, (e) => e);
+      assert.ok(err instanceof TypeError, JSON.stringify(bad));
+      assert.ok(!StreetIndex.isDownloadError(err), JSON.stringify(bad));
+    }
+  });
   assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
   for (const body of inOrder(cases, process.env.CASE_ORDER)) await runCase(body);
   console.log("streets-fetch.test.js ok");
