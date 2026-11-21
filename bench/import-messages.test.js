@@ -4,6 +4,7 @@
 //   node bench/import-messages.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage } = require("./lib/page.js");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
@@ -223,7 +224,7 @@ const last = (r) => r.shown[r.shown.length - 1];
   }
   { // the page builds the helper in the engine script, before main.js, and the phone's hook reads the count in a task queued by unzip, so
     // nothing may yield to the event loop between the unzip and the count being published
-    const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+    const html = readPage();
     const at = (n) => html.indexOf(`src="src/${n}"`);
     assert.ok(at("engine.ts") > 0 && at("engine.ts") < at("main.js"), "the engine script loads before main.js");
     const zipFn = fnText("loadFromZip");

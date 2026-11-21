@@ -3,6 +3,7 @@
 //   node bench/street-messages.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage } = require("./lib/page.js");
 const fs = require("node:fs");
 const path = require("node:path");
 global.window = global;
@@ -110,7 +111,7 @@ const err = (reason, more) => Object.assign(new Error("overpass HTTP 502"), { re
   }
 }
 { // the engine script (which builds window.StreetMessages) loads before main.js, which calls it
-  const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+  const html = readPage();
   const at = (f) => html.indexOf('src="src/' + f + '"');
   assert.ok(at("engine.ts") > 0, "loaded");
   assert.ok(at("engine.ts") < at("main.js"), "before main.js");

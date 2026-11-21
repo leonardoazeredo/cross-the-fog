@@ -3,6 +3,7 @@
 //   node bench/fog-writer.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage, withoutComments } = require("./lib/page.js");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
@@ -245,10 +246,15 @@ function cellsOf(files) {
   assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
 }
 { // the page loads the one pako build (the engine reads window.pako when a call runs, so where the tag sits does not matter), and its scripts load in this order
-  const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
-  const at = (src) => html.indexOf(`<script src="${src}"></script>`);
+  const html = readPage();
+  const at = (src, page = html) => page.indexOf(`<script src="${src}"></script>`);
   assert.ok(at("vendor/pako.min.js") >= 0, "index.html loads vendor/pako.min.js");
-  const order = ["src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
+  const order = ["src/engine.ts", "src/fowExport.js", "src/main.js"].map((s) => at(s));
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
+  // a tag inside an HTML comment is no tag: the same lookup on the page with the pako tag commented out finds nothing
+  const tag = '<script src="vendor/pako.min.js"></script>';
+  const raw = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+  assert.ok(raw.includes(tag));
+  assert.equal(at("vendor/pako.min.js", withoutComments(raw.replace(tag, `<!-- ${tag} -->`))), -1, "a commented-out tag is not found");
 }
 console.log("fog-writer.test.js ok");

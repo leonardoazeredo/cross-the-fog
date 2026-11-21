@@ -8,6 +8,7 @@
 //   node bench/overpass-endpoints.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage } = require("./lib/page.js");
 require("./lib/host.js");
 require("../app/src/engine.ts");
 const { Overpass, StreetIndex, StreetMessages } = global;
@@ -1049,7 +1050,7 @@ const realFetch = global.fetch;
   finished = true;
   { // the page has what main.js looks up for the endpoint choice: a renamed id would make main.js throw on load
     const fs = require("fs"), path = require("path");
-    const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+    const html = readPage();
     const main = fs.readFileSync(path.join(__dirname, "..", "app", "src", "main.js"), "utf8");
     const used = [...new Set([...main.matchAll(/\$\("(overpass\w*)"\)/g)].map((m) => m[1]))];
     assert.ok(used.includes("overpass") && used.includes("overpassNextgis"));
