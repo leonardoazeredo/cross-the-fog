@@ -32,7 +32,6 @@ import {
   snipOldSpurs,
   splitRuns,
   statsFromCoords,
-  walk,
 } from "./suggestPure.ts";
 
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
