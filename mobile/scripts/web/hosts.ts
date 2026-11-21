@@ -13,7 +13,7 @@ export function scanHosts(sources: string[]): string[] {
   const found = new Set<string>();
   for (const src of sources) {
     for (const [, host] of src.matchAll(HOST_RE)) {
-      found.add(normalise(host!));
+      if (host !== undefined) found.add(normalise(host));
     }
   }
   return [...found].sort();
