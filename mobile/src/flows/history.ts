@@ -1,6 +1,6 @@
 import { type NativeToWeb, type RouteRecord, TRACK_CHUNK_POINTS } from "../bridge/protocol.js";
 import { COPY } from "../copy.js";
-import { HistoryKeyLostError } from "../db/openHistory.js";
+import { HistoryKeyLostError, HistoryOpenFailedError } from "../db/openHistory.js";
 import type { ActivityStore, RouteStore } from "../history/types.js";
 import { warnClass } from "./warn.js";
 
@@ -39,8 +39,9 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
     } catch (e) {
       warn("could not list the activities", e);
       // The page keeps the last list it was sent, which after a delete still shows the deleted row.
-      // A lost key was already announced by the startup alert, and every page load would repeat it.
-      if (!(e instanceof HistoryKeyLostError)) {
+      // A lost key and a database that did not open were already announced by the startup alert, and every page
+      // load would repeat the notice. A list that fails on an open database still gets it.
+      if (!(e instanceof HistoryKeyLostError || e instanceof HistoryOpenFailedError)) {
         trySend({ v: 1, type: "notice", text: COPY.historyListFailed });
       }
       return;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { encode, type NativeToWeb, parseNativeToWeb } from "../../../src/bridge/protocol.js";
 import { COPY } from "../../../src/copy.js";
-import { HistoryKeyLostError } from "../../../src/db/openHistory.js";
+import { HistoryKeyLostError, HistoryOpenFailedError } from "../../../src/db/openHistory.js";
 import { createHistoryFlow } from "../../../src/flows/history.js";
 import {
   createMemoryActivityStore,
@@ -270,6 +270,22 @@ describe("history", () => {
     await flow.deleteActivity(ID(1));
     expect(await activities.get(ID(1))).toBeNull();
     expect(sent).toEqual([{ v: 1, type: "notice", text: COPY.historyListFailed }]);
+  });
+
+  it("adds no notice when the history database did not open, which the app said at start", async () => {
+    const { activities, sent } = setup();
+    const flow = createHistoryFlow({
+      routes: createMemoryRouteStore(),
+      activities: {
+        ...activities,
+        listReadable: async () => {
+          throw new HistoryOpenFailedError(new Error("disk at /data/user/0 is full"));
+        },
+      },
+      send: (m) => sent.push(m),
+    });
+    await flow.publish();
+    expect(sent).toEqual([]);
   });
 
   it("adds no notice when the history key is lost, which the app said at start", async () => {

@@ -7,10 +7,22 @@ export type HistoryDatabase = { kind: "ready"; db: SqlDriver } | { kind: "keyLos
 
 /**
  * Thrown by `open()` in `src/platform/historyStores.ts` while the key is lost, so the history flow can skip
- * its list notice (the startup alert already says so); a failed open rejects with its own error instead.
+ * its list notice (the startup alert already says so); a failed open is a `HistoryOpenFailedError`.
  */
 export class HistoryKeyLostError extends Error {
   override name = "HistoryKeyLostError";
+}
+
+/**
+ * Thrown by `open()` in `src/platform/historyStores.ts` when the database did not open for any other reason, so
+ * the history flow can skip its list notice too (the startup alert `historyOpenFailed` already says so). The
+ * failure is the `cause`; the message names no path.
+ */
+export class HistoryOpenFailedError extends Error {
+  override name = "HistoryOpenFailedError";
+  constructor(cause: unknown) {
+    super("the history database did not open", { cause });
+  }
 }
 
 /**

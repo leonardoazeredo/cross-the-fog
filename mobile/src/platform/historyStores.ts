@@ -1,15 +1,20 @@
 import type { SqlDriver } from "../db/driver.js";
-import { HistoryKeyLostError } from "../db/openHistory.js";
+import { HistoryKeyLostError, HistoryOpenFailedError } from "../db/openHistory.js";
 import { createActivityStore } from "../history/activityStore.js";
 import { createRouteStore } from "../history/routeStore.js";
 import type { ActivityStore, RouteStore } from "../history/types.js";
 import { createDatabase, historyGate } from "./database.js";
 
 // The database opens asynchronously and may be unavailable (lost key, failed open). Every call waits
-// for it and rejects when there is none, so a flow leaves its work where it was and never writes
-// to a database it created empty.
+// for it and rejects when there is none (HistoryKeyLostError, HistoryOpenFailedError), so a flow leaves its
+// work where it was and never writes to a database it created empty.
 async function open(): Promise<SqlDriver> {
-  const history = await createDatabase();
+  let history: Awaited<ReturnType<typeof createDatabase>>;
+  try {
+    history = await createDatabase();
+  } catch (e) {
+    throw new HistoryOpenFailedError(e);
+  }
   if (history.kind === "keyLost") throw new HistoryKeyLostError();
   return history.db;
 }
