@@ -58,8 +58,14 @@ function onRoute(tool, pick, act, answer) {
   for (const mode of ["p2p", "loop"]) {
     { // a run replaced mid-await ends without a word: no later state, no result, no thrown error
       const { tool, emits } = build(mode, mode === "loop" ? ring : street);
-      let atReplace = -1;
-      onRoute(tool, () => true, () => { tool.clearResults(); atReplace = emits.length; });
+      let atReplace = -1, held = null;
+      onRoute(tool, () => true, () => {
+        held = tool._hold && tool._hold.planner;
+        tool.clearResults();
+        atReplace = emits.length;
+        // the route editor must not be handed a graph that is still marked held while the replaced run winds down
+        assert.ok(held && tool._hold === null && held.held === false, `${mode}: clearResults lets go of the graph at once`);
+      });
       await go(tool);
       assert.ok(atReplace > 0 && emits[atReplace - 1] === null, `${mode}: clearResults tells the page there are no results`);
       assert.equal(emits.length, atReplace, `${mode}: the replaced run emitted nothing after it was replaced`);
@@ -68,15 +74,19 @@ function onRoute(tool, pick, act, answer) {
     }
     { // a download that reports progress after the run was replaced is not heard either
       const { tool, emits } = build(mode, mode === "loop" ? ring : street);
-      let atReplace = -1;
+      let atReplace = -1, routes = 0, holds = 0;
       tool.streets.ensureRects = async (rects, o) => {
         tool.clearResults();
         atReplace = emits.length;
         o.onProgress({ done: 1, total: 2 });
         return { done: 2, total: 2 };
       };
+      const route = tool._route, hold = tool._holdGraph;
+      tool._route = function (...a) { routes++; return route.apply(this, a); };
+      tool._holdGraph = function (...a) { holds++; return hold.apply(this, a); };
       await go(tool);
       assert.ok(atReplace > 0 && emits.length === atReplace, `${mode}: no progress from the replaced run's download`);
+      assert.deepEqual([routes, holds, tool._hold], [0, 0, null], `${mode}: and it neither holds a graph nor routes once replaced`);
     }
     { // a pin dragged mid-run cancels it the same way
       const { tool, emits } = build(mode, mode === "loop" ? ring : street);
@@ -87,6 +97,16 @@ function onRoute(tool, pick, act, answer) {
       assert.equal(emits.length, atDrag, `${mode}: nothing is shown for the pin's old place`);
       assert.deepEqual([tool.results.length, tool.lines.length], [0, 0]);
     }
+  }
+
+  { // a pin removed mid-run in loop mode ends the run without a word too
+    const { tool, emits } = build("loop", ring);
+    let atRemove = -1;
+    onRoute(tool, () => true, () => { tool._removePin(tool.a); atRemove = emits.length; });
+    await go(tool);
+    assert.ok(atRemove > 0 && emits[atRemove - 1] === null);
+    assert.equal(emits.length, atRemove, "nothing is emitted after the pin was removed");
+    assert.deepEqual([tool.results.length, tool.lines.length, tool._hold], [0, 0, null]);
   }
 
   { // the fog changing under a run: the held graph stays the run's and is let go when the run ends, and the editor's
