@@ -857,6 +857,8 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       let ll = v.latlng,
         d = v.d;
       let r = await this._route([A, ll, B]);
+      // a removed pin cancels the run, and _viaPoint reads the pin live
+      if (stale()) return null;
       let best = r,
         bestLl = ll;
       for (let k = 0; k < VIA_RETRIES; k++) {
@@ -867,6 +869,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
         const ll2 = d2 >= 120 ? this._viaPoint(v.t, v.side, d2) : null;
         if (!ll2) break;
         const r2 = await this._route([A, ll2, B]);
+        if (stale()) return null;
         if (!r2 || !r2.lenM) break;
         // pulling the via in usually shortens the route but not always, so keep
         // the shortest seen rather than the last: the loop stops at the first

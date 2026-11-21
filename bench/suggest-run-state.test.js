@@ -136,17 +136,17 @@ function onRoute(tool, pick, act, answer) {
     assert.equal(tool.streetGraph(), editor, "the slot keeps the planner the editor was given");
   }
 
-  { // a pin removed mid-run, where the run reads it live after an await (_viaPoint, pulling an overshooting via back):
-    // the run rejects with a TypeError, which the page does not catch: the page's console only, no card, no state.
-    // A known defect, #574: its fix turns this case into "ends without a word"
-
+  { // a pin removed mid-run, where the run would read it live after an await (_viaPoint, pulling an overshooting via
+    // back): the run ends without a word, with nothing shown after the page was told there are no results
     const { tool, emits } = build("p2p", street);
-    onRoute(tool, (p) => p.length === 3, () => tool._removePin(tool.a), overshoot);
-    await assert.rejects(go(tool), (e) => e instanceof TypeError, "the live read of the removed pin throws");
-    assert.equal(emits[emits.length - 1], null, "the page was told there are no results, and nothing after that");
-    assert.equal(tool._hold, null, "the graph is released all the same");
+    let atRemove = -1;
+    onRoute(tool, (p) => p.length === 3, () => { tool._removePin(tool.a); atRemove = emits.length; }, overshoot);
+    await go(tool);
+    assert.ok(atRemove > 0 && emits[atRemove - 1] === null);
+    assert.equal(emits.length, atRemove, "nothing is emitted after the pin was removed");
+    assert.equal(tool._hold, null, "the graph is released");
   }
-  { // the same moment when the pin was dragged: the run's answer is dropped
+  { // the same moment when the pin was dragged: the run is over, so no via is built from the new place
     const { tool, emits } = build("p2p", street);
     let atDrag = -1;
     onRoute(tool, (p) => p.length === 3, () => { dragPin(tool, 0, 200); atDrag = emits.length; }, overshoot);
