@@ -8,8 +8,6 @@
 import { createFogGain } from "./fogGain.ts";
 import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
 import { LocalRouter } from "./router.ts";
-import { sortOutcome } from "./streetDownload.ts";
-import { HOLD_AS } from "./streetGrid.ts";
 import {
   bearingApart,
   bearingRadius,
@@ -35,6 +33,7 @@ import {
 import {
   _graph,
   _holdGraph,
+  _loadStreets,
   _releaseGraph,
   type Self,
   streetGraph,
@@ -133,6 +132,7 @@ SuggestTool.prototype._holdGraph = _holdGraph;
 SuggestTool.prototype._releaseGraph = _releaseGraph;
 SuggestTool.prototype._graph = _graph;
 SuggestTool.prototype.suggest = suggest;
+SuggestTool.prototype._loadStreets = _loadStreets;
 
 SuggestTool.prototype.setActive = function (this: Self, on: any) {
   this.active = on;
@@ -274,43 +274,6 @@ SuggestTool.prototype._newness = function (this: Self, latlng: any) {
     }).newness;
   }
   return this.newness(latlng);
-};
-
-// Make sure the streets for the rects are loaded. Resolves true when they are and the run is
-// still current; false when it is stale, or the error state was emitted because the download
-// failed. A stale run asks for no further tile, so a newer run is not queued behind it.
-SuggestTool.prototype._loadStreets = async function (
-  this: Self,
-  rects: any,
-  emit: any,
-  stale: any,
-) {
-  // progress is heard only while some tile is missing from the index, so a rerun over covered
-  // ground stays silent; waitUntil is set while a busy server is waited out
-  const onProgress = (p: any) => emit(Object.assign({ loading: true, phase: "streets" }, p));
-  const out = await sortOutcome(
-    () => this.streets.ensureRects(rects, { onProgress, stale, holdAs: HOLD_AS.suggest }),
-    stale,
-  );
-  switch (out.kind) {
-    case "superseded":
-      return false;
-    case "bug":
-      // a bug is not a failed download: the class only, as a message can name tiles. Logged even
-      // when the run is stale, which only keeps it from being shown.
-      console.error(
-        "[suggest] reading streets threw",
-        (out.error as { name?: string } | null)?.name,
-      );
-      if (!out.stale) emit({ error: true, reason: "internal" });
-      return false;
-    case "failed":
-      console.warn("[suggest] streets unavailable", out.facts.reason);
-      emit({ error: true, reason: "streets-fetch", download: out.facts });
-      return false;
-    default:
-      return !out.stale;
-  }
 };
 
 // Defoggable area (m²) reachable via the ways within rM of the point, or
