@@ -515,13 +515,13 @@ SuggestTool.prototype._diversify = function (
   extra: any,
   kx: any,
   ky: any,
+  S: any,
 ) {
   if (ranked.length <= 2) return ranked;
   const loop = extra.targetKm != null;
-  if (loop && !this.a) return ranked;
+  if (loop && !S) return ranked;
   let differs: any;
   if (loop) {
-    const S = this.a.getLatLng();
     for (const c of ranked) c._brg = loopBearingOf(S, c.r.coords);
     differs = (c: any, taken: any) => taken.every((o: any) => bearingApart(o._brg, c._brg) > 60);
   } else {
@@ -535,7 +535,7 @@ SuggestTool.prototype._diversify = function (
 };
 
 // Score, dedupe, rank and present the top 3 of a run.
-SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, extra: any) {
+SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, extra: any, S?: any) {
   if (runId !== this._runId) return;
   const emit = (s: any) => {
     if (this.onResults) this.onResults(s);
@@ -581,7 +581,7 @@ SuggestTool.prototype._finish = function (this: Self, runId: any, cands: any, ex
     c.cells = footprint(c.r.coords, kx, ky);
     unique.push(c);
   }
-  this.results = this._diversify(unique, extra, kx, ky).slice(0, 3);
+  this.results = this._diversify(unique, extra, kx, ky, S).slice(0, 3);
 
   this.lines = this.results.map((c: any, i: any) => {
     const runs = splitRuns(c.r.coords, this.isNew);
@@ -663,9 +663,7 @@ function dmax(t: any, L: any, budget: any) {
 }
 
 // Point at fraction t along A→B, offset d metres perpendicular on the given side.
-SuggestTool.prototype._viaPoint = function (this: Self, t: any, side: any, d: any) {
-  const A = this.a.getLatLng(),
-    B = this.b.getLatLng();
+SuggestTool.prototype._viaPoint = function (this: Self, A: any, B: any, t: any, side: any, d: any) {
   const { kx, ky } = metresPerDeg((A.lat + B.lat) / 2);
   const ax = A.lng * kx,
     ay = A.lat * ky,
@@ -681,9 +679,7 @@ SuggestTool.prototype._viaPoint = function (this: Self, t: any, side: any, d: an
   };
 };
 
-SuggestTool.prototype._viaCandidates = function (this: Self, budgetM: any) {
-  const A = this.a.getLatLng(),
-    B = this.b.getLatLng();
+SuggestTool.prototype._viaCandidates = function (this: Self, A: any, B: any, budgetM: any) {
   const { kx, ky } = metresPerDeg((A.lat + B.lat) / 2);
   const L2 = Math.hypot((B.lng - A.lng) * kx, (B.lat - A.lat) * ky);
   if (L2 < 100) return [];
@@ -696,7 +692,7 @@ SuggestTool.prototype._viaCandidates = function (this: Self, budgetM: any) {
         // full and medium detours at every station
         const d = dm * scale;
         if (d < 150) continue; // not a meaningful detour
-        const ll = this._viaPoint(t, side, d);
+        const ll = this._viaPoint(A, B, t, side, d);
         cands.push({ latlng: ll, scale, t, side, d });
       }
     }
@@ -809,7 +805,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
   }
   const win = p2pWindow(base.lenM, targetM, buffer);
   const { want, clamped, budget, floor, aim } = win;
-  const rawVias = this._viaCandidates(budget);
+  const rawVias = this._viaCandidates(A, B, budget);
 
   // The graph planner proposes whole A-to-B walks through rewarding streets.
   // Skipped in mostly-virgin areas, where simple detours already defog near
@@ -857,7 +853,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       let ll = v.latlng,
         d = v.d;
       let r = await this._route([A, ll, B]);
-      // a removed pin cancels the run, and _viaPoint reads the pin live
+      // a replaced run builds no further via
       if (stale()) return null;
       let best = r,
         bestLl = ll;
@@ -866,7 +862,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
         if (!r || !r.lenM || r.lenM <= budget || r.lenM <= base.lenM || r.lenM > budget * 3) break;
         const shrink = Math.max(0.2, Math.min(0.9, (aim - base.lenM) / (r.lenM - base.lenM)));
         const d2 = d * shrink;
-        const ll2 = d2 >= 120 ? this._viaPoint(v.t, v.side, d2) : null;
+        const ll2 = d2 >= 120 ? this._viaPoint(A, B, v.t, v.side, d2) : null;
         if (!ll2) break;
         const r2 = await this._route([A, ll2, B]);
         if (stale()) return null;
@@ -887,7 +883,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
       // a wanted distance also has a floor: one regrow pass when the via fell short of it
       if (want && r && r.lenM && r.lenM < floor && r.lenM > base.lenM) {
         const grow = Math.max(1.1, Math.min(3, (aim - base.lenM) / (r.lenM - base.lenM)));
-        const ll2 = this._viaPoint(v.t, v.side, d * grow);
+        const ll2 = this._viaPoint(A, B, v.t, v.side, d * grow);
         const r2 = ll2 ? await this._route([A, ll2, B]) : null;
         if (r2 && r2.lenM && r2.lenM > r.lenM && r2.lenM <= budget * 1.02) {
           r = r2;
@@ -1402,7 +1398,7 @@ SuggestTool.prototype._suggestLoop = async function (this: Self, distM: any, buf
   // the retrace pays (e.g. a bridge is the only way over and back, and a
   // "lollipop" out to rich streets beats a forced giant detour).
   const clean = found.filter((c: any) => c.planned || c.overlap <= 0.3);
-  this._finish(runId, clean.length ? clean : found, { targetKm: distM / 1000, bufferPct });
+  this._finish(runId, clean.length ? clean : found, { targetKm: distM / 1000, bufferPct }, S);
 };
 
 SuggestTool._internals = {

@@ -136,8 +136,8 @@ function onRoute(tool, pick, act, answer) {
     assert.equal(tool.streetGraph(), editor, "the slot keeps the planner the editor was given");
   }
 
-  { // a pin removed mid-run, where the run would read it live after an await (_viaPoint, pulling an overshooting via
-    // back): the run ends without a word, with nothing shown after the page was told there are no results
+  { // a pin removed mid-run, while a via job pulls an overshooting via back: the run ends without a word, with
+    // nothing shown after the page was told there are no results
     const { tool, emits } = build("p2p", street);
     let atRemove = -1;
     onRoute(tool, (p) => p.length === 3, () => { tool._removePin(tool.a); atRemove = emits.length; }, overshoot);
@@ -153,8 +153,7 @@ function onRoute(tool, pick, act, answer) {
     await go(tool);
     assert.equal(emits.length, atDrag, "nothing is shown for the old pin");
   }
-  { // _viaCandidates and _diversify read the pins live too, but only after a stale() check: a pin removed during
-    // the base route ends the run quietly
+  { // a pin removed during the base route ends the run quietly
     const { tool, emits } = build("p2p", street);
     onRoute(tool, (p) => p.length === 2, () => tool._removePin(tool.a));
     await go(tool);

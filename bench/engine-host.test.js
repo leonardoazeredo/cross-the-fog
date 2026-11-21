@@ -183,7 +183,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
           const t4 = new g.SuggestTool({ addLayer() {}, removeLayer() {}, fitBounds() {} }, { fogMap: new g.FogParser.FogMap(), computeGain: () => ({ area: 1, newPct: 1 }), streets: streets2 });
           t4.a = { getLatLng: () => S2 };
           t4.b = { getLatLng: () => ({ lat: 51, lng: 13.7 + 1000 / KX2 }) };
-          assert.deepEqual(Object.keys(t4._viaPoint(0.5, 1, 100)).sort(), ["lat", "lng"], "_viaPoint");
+          assert.deepEqual(Object.keys(t4._viaPoint(S2, { lat: 51, lng: 13.7 + 1000 / KX2 }, 0.5, 1, 100)).sort(), ["lat", "lng"], "_viaPoint");
           assert.deepEqual(Object.keys(t4._loopViasTri(S2, 0, 300)[0]).sort(), ["lat", "lng"], "_loopViasTri");
           assert.ok(t4._loopBearings(S2, 5000).length > 0, "_loopBearings runs while the global L throws on a read");
           const snapped = t4._snapToNewStreets(S2, 600);
@@ -196,7 +196,7 @@ const KEY = "made-up-key/9"; // a made-up key, as in every other test
           t4.onResults = (s) => { drawn = s; };
           t4.mode = "loop";
           t4._runId = 1;
-          t4._finish(1, [{ r: { coords: [[13.7, 51], [13.71, 51]], lenM: 700 }, adoptWps: [] }], { targetKm: 1 });
+          t4._finish(1, [{ r: { coords: [[13.7, 51], [13.71, 51]], lenM: 700 }, adoptWps: [] }], { targetKm: 1 }, S2);
           assert.ok(drawn && t4.lines.length > 0 && t4.lines.every((l) => l.solid.from === "window" && l.dashed.from === "window"), "_finish draws with the window's L");
           // clicking a pin removes it, and stops the click with the window's DomEvent
           const t5 = new g.SuggestTool({ addLayer() {}, removeLayer() {} }, { fogMap: new g.FogParser.FogMap(), computeGain: () => null });
