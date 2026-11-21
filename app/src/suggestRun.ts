@@ -71,8 +71,9 @@ export async function suggest(this: Self, o: any) {
 }
 
 // Make sure the streets for the rects are loaded. Resolves true when they are and the run is
-// still current; false when it is stale, or the error state was emitted because the download
-// failed. A stale run asks for no further tile, so a newer run is not queued behind it.
+// still current; false when it is stale, or an error state was emitted: the download failed
+// (`streets-fetch`) or reading the streets threw (`internal`). A stale run asks for no further
+// tile, so a newer run is not queued behind it.
 export async function _loadStreets(this: Self, rects: any, emit: any, stale: any) {
   // progress is heard only while some tile is missing from the index, so a rerun over covered
   // ground stays silent; waitUntil is set while a busy server is waited out
