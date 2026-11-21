@@ -16,7 +16,7 @@ const GLOBALS = [
 ];
 type FieldKind = "function" | "object" | "number";
 type Fn = (...args: never[]) => unknown;
-// Every path of the interface that ends in a function or a plain value (the adapter reads these), and every path at all.
+// Every path of the interface that ends in a function or a plain value, which is what the adapter reads.
 type LeafPaths<T, P extends string = ""> = {
   [K in keyof T & string]-?: NonNullable<T[K]> extends Fn
     ? `${P}${K}`
@@ -24,6 +24,7 @@ type LeafPaths<T, P extends string = ""> = {
       ? LeafPaths<NonNullable<T[K]>, `${P}${K}.`>
       : `${P}${K}`;
 }[keyof T & string];
+// Those paths and the objects on the way to them (not the members of a function), which the list may name too.
 type AllPaths<T, P extends string = ""> = {
   [K in keyof T & string]-?:
     | `${P}${K}`
