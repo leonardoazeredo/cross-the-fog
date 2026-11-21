@@ -183,7 +183,7 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
 
 // the antimeridian gap holds on its own, not only through the distance limit
 {
-  const loose = { ...Reveal.RULES, maxGapM: 1e9 };
+  const loose = { ...Reveal.RULES, maxGapM: 1000 }; // far above the 22 m between the two points
   assert.ok(toSet(Reveal.reveal(track([[179.9999, 0], [-179.9999, 0]]), loose)).size < 2000);
   // 2 degrees apart across the seam but 358 apart in longitude: two discs, not a band round the world
   assert.ok(toSet(Reveal.reveal(track([[179, 10], [-179, 10]], 1000))).size < 2000);
@@ -191,7 +191,7 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
 
 // the poles: latitudes clamp, nothing throws, cells stay inside the grid
 {
-  for (const lat of [89, -89, 90, -90, 85.0511, 1000]) {
+  for (const lat of [89, -89, 90, -90, 85.0511]) {
     const out = Reveal.reveal(track([[10, lat], [10.0001, lat]]));
     assert.ok(out.length > 0, String(lat));
     for (let i = 0; i < out.length; i += 2) {
@@ -200,6 +200,65 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
   }
   // 89 reveals the same cells as 85.0511, the clamp
   assert.deepEqual(Reveal.reveal(track([[10, 89]])), Reveal.reveal(track([[10, 85.0511]])));
+}
+
+// a point that cannot be real is an error, not a clamp, a wrap or a perfect fix
+{
+  const fixed = /^[^\d]*$/; // the message names no number from the track
+  const throwsFixed = (fn, label) => assert.throws(fn, (e) => (e instanceof RangeError || e instanceof TypeError) && fixed.test(e.message), label);
+  for (const lat of [90.0001, -90.0001, 91, 1000, -1000]) throwsFixed(() => Reveal.reveal(track([[10, lat]])), "lat " + lat);
+  for (const lon of [180.0001, -180.0001, 200, 360, -1000]) throwsFixed(() => Reveal.reveal(track([[lon, 10]])), "lon " + lon);
+  // a bad point throws wherever it sits in the track
+  throwsFixed(() => Reveal.reveal(track([[10, 48], [10.0001, 48], [10.0002, 148]])), "last point");
+  // accuracy: negative, NaN and anything that is not a number
+  for (const accuracy of [-1, -0.001, NaN, "5", "", {}, true]) throwsFixed(() => Reveal.reveal(track([[10, 48]], 5000, accuracy)), "accuracy " + String(accuracy));
+  // the edges are real: 90 and 180 still read, 0 is a perfect fix, a missing accuracy keeps the point
+  for (const [lon, lat] of [[10, 90], [10, -90], [180, 0], [-180, 0]]) assert.ok(Reveal.reveal(track([[lon, lat]])).length > 0, lon + "," + lat);
+  for (const accuracy of [0, 50, undefined, null]) assert.ok(Reveal.reveal(track([[10, 48]], 5000, accuracy)).length > 0, "accuracy " + accuracy);
+  // a non-finite coordinate is still dropped, not an error
+  assert.equal(Reveal.reveal([{ t: 0, lat: NaN, lon: 10 }]).length, 0);
+  // a track that is not iterable, or holds something that is not a point
+  throwsFixed(() => Reveal.reveal(5), "a number for a track");
+  throwsFixed(() => Reveal.reveal([null]), "a null point");
+  throwsFixed(() => Reveal.reveal([42]), "a number for a point");
+}
+
+// onDrop hears how many points were left out, once per call, so a track that was all filtered out is not an empty one
+{
+  const calls = [];
+  const onDrop = (counts) => calls.push(counts);
+  const t = track([[10, 48], [10.0001, 48], [10.0002, 48], [10.0003, 48]]);
+  t[1].accuracy = 80;
+  t[2].accuracy = 90;
+  t.push({ t: t[3].t + 1000, lat: NaN, lon: 10 });
+  Reveal.reveal(t, Reveal.RULES, { onDrop });
+  assert.deepEqual(calls, [{ accuracy: 2, nonFinite: 1 }]);
+  calls.length = 0;
+  Reveal.reveal(track([[10, 48]]), Reveal.RULES, { onDrop });
+  assert.deepEqual(calls, [{ accuracy: 0, nonFinite: 0 }]);
+  calls.length = 0;
+  assert.equal(Reveal.reveal(track([[10, 48]], 5000, 99), Reveal.RULES, { onDrop }).length, 0);
+  assert.deepEqual(calls, [{ accuracy: 1, nonFinite: 0 }], "every point dropped");
+}
+
+// the rules have bounds: a swath a cell cannot hold, or one so wide it walks a huge box per segment, is refused
+{
+  const rules = (over) => ({ ...Reveal.RULES, ...over });
+  const refused = (over) => assert.throws(() => Reveal.reveal(track([[10, 48]]), rules(over)), (e) => e instanceof Error && /reveal rule/.test(e.message), JSON.stringify(over));
+  refused({ halfWidthM: 0 });
+  refused({ halfWidthM: 6.5 });
+  refused({ halfWidthM: 1000.5 });
+  refused({ maxGapM: 1000.5 });
+  for (const ok of [{ halfWidthM: 7 }, { halfWidthM: 1000 }, { maxGapM: 1000 }, { maxGapM: 0 }]) assert.ok(Reveal.reveal(track([[10, 48]]), rules(ok)).length > 0, JSON.stringify(ok));
+  // a point's own cell is revealed at the smallest swath
+  assert.ok(toSet(Reveal.reveal(track([[10, 48]]), rules({ halfWidthM: 7 }))).has(key(cellOf(10, 48))));
+}
+
+// the output says which rule set made it
+{
+  assert.equal(Reveal.reveal(track([[10, 48]])).rulesVersion, Reveal.RULES.version);
+  assert.equal(Reveal.reveal(track([[10, 48]]), { ...Reveal.RULES, version: 7 }).rulesVersion, 7);
+  assert.equal(Reveal.reveal([]).rulesVersion, Reveal.RULES.version, "an empty track too");
 }
 
 // deterministic, sorted, unique, Int32Array
@@ -244,7 +303,7 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
 {
   const lat = 48, lon0 = 11;
   const a = [lon0, lat], b = [lon0 + lonShift(lat, 100), lat];
-  for (const h of [5, 20]) {
+  for (const h of [7, 20]) {
     const got = toSet(Reveal.reveal(track([a, b]), { ...Reveal.RULES, halfWidthM: h }));
     assert.deepEqual([...got].sort(), [...oracle(a, b, lat, h, 8)].sort(), "halfWidthM " + h);
   }
@@ -297,9 +356,6 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
   assert.ok(seam.has(WORLD_CELLS - 1 + "," + row), "10.3 m west across the seam");
   assert.ok(!seam.has(WORLD_CELLS - 2 + "," + row), "19.9 m away");
   for (const k of seam) { const [x, y] = k.split(",").map(Number); assert.ok(x >= 0 && x < WORLD_CELLS && y >= 0 && y < WORLD_CELLS); }
-  // 90 degrees apart is under the 180 limit, so only the distance limit applies
-  const wide = toSet(Reveal.reveal(track([[0, 0], [90, 0]]), { ...Reveal.RULES, maxGapM: 1e9 }));
-  assert.ok(wide.has(key(cellOf(45, 0))));
 }
 
 // a long track pushes more keys than the 2^20 that reveal() buffers before it compacts, so the compaction runs; the answer

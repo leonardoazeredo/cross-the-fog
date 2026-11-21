@@ -152,6 +152,27 @@ async function setup(
   return { fogMap, cache, fogChanged, needTrack, sync, lists, rules, history };
 }
 
+describe("a track that cannot be real", () => {
+  it("fails only that walk's reveal, logging the class and no position, and the other walks still reveal", async () => {
+    const { lists, sync, fogMap, fogChanged } = await setup();
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    lists(WALKER, RIDER);
+    sendTrack(sync, WALKER, [
+      { t: 0, lat: 5100, lon: 13.7, accuracy: 5 },
+      { t: 1000, lat: 5100, lon: 13.7001, accuracy: 5 },
+    ]);
+    sendTrack(sync, RIDER, walk(200, 500));
+    await sync.settled();
+    expect(visitedAt(fogMap, 300)).toBe(true);
+    expect(fogChanged).toHaveBeenCalled();
+    expect(error).toHaveBeenCalledTimes(1);
+    const line = String(error.mock.calls[0]?.[0]);
+    expect(line).toContain("RangeError");
+    expect(line).not.toMatch(/5100|13\.7/);
+    error.mockRestore();
+  });
+});
+
 describe("asking for tracks", () => {
   it("asks for the track of an activity it has no reveal for", async () => {
     const { lists, needTrack, sync } = await setup();

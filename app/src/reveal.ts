@@ -41,11 +41,22 @@ const cellKey = (cx: number, cy: number) => cx * WORLD_CELLS + cy;
 const keyCx = (key: number) => Math.floor(key / WORLD_CELLS);
 const keyCy = (key: number) => key % WORLD_CELLS;
 
+// A swath narrower than this can miss the cell that holds a point (half a cell's diagonal at the equator, about 6.75 m),
+// and one wider than the cap walks a huge box per segment in a flat frame that is wrong for long segments.
+const MIN_HALF_WIDTH_M = 7;
+const MAX_RULE_M = 1000;
+
 function checkRules(rules: RevealRules): void {
   for (const k of RULE_NAMES) {
     if (!(rules[k] >= 0) || !Number.isFinite(rules[k]))
       throw new Error("reveal rule " + k + " must be a finite number >= 0");
   }
+  if (rules.maxGapM > MAX_RULE_M)
+    throw new Error("reveal rule maxGapM must be at most " + MAX_RULE_M);
+  if (rules.halfWidthM < MIN_HALF_WIDTH_M || rules.halfWidthM > MAX_RULE_M)
+    throw new Error(
+      "reveal rule halfWidthM must be from " + MIN_HALF_WIDTH_M + " to " + MAX_RULE_M,
+    );
 }
 
 // sorts and dedupes the cell keys so the buffer stays bounded on a long track
@@ -95,34 +106,60 @@ function addSegment(keys: number[], a: Point, b: Point, halfWidthM: number): voi
   }
 }
 
-// A recorded point; a numeric string accuracy compares as its number and a missing one keeps the point.
+// A recorded point; a missing accuracy (undefined or null) keeps the point, any other value must be a number >= 0.
 export interface TrackPoint {
   t: number;
   lat: number;
   lon: number;
-  accuracy?: number | string | undefined;
+  accuracy?: number | null | undefined;
 }
 
-// Test hooks: flushAt replaces FLUSH_AT, onCompact hears each compaction of the key buffer.
+// Test hooks and the drop report: flushAt replaces FLUSH_AT, onCompact hears each compaction of the key
+// buffer, and onDrop hears, once per call, how many points were left out (a worse accuracy, a non-finite value).
 export interface RevealOptions {
   flushAt?: number;
   onCompact?: () => void;
+  onDrop?: (counts: { accuracy: number; nonFinite: number }) => void;
 }
+
+// The cells, and the rule set's version that made them.
+export type Revealed = Int32Array & { readonly rulesVersion: number };
 
 // track: [{t (ms), lat, lon, accuracy?}] in recorded order -> Int32Array of [cx, cy] pairs, sorted by cx then cy, unique
 export function reveal(
   track: Iterable<TrackPoint>,
   rules?: RevealRules | null,
   opts?: RevealOptions,
-): Int32Array {
+): Revealed {
   rules = rules || RULES;
   checkRules(rules);
+  if (track == null || typeof track[Symbol.iterator] !== "function")
+    throw new TypeError("reveal takes an iterable of track points");
   const pts: Point[] = [];
+  let droppedAccuracy = 0,
+    droppedNonFinite = 0;
   for (const p of track) {
-    if (!Number.isFinite(p.t) || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
-    if ((p.accuracy as number) > rules.maxAccuracyM) continue; // a missing accuracy keeps the point
+    if (p === null || typeof p !== "object") throw new TypeError("a track point is not an object");
+    if (!Number.isFinite(p.t) || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) {
+      droppedNonFinite++;
+      continue;
+    }
+    // finite but impossible is a recorder bug (swapped fields, micro-degrees), not a point to clamp or wrap
+    if (Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180)
+      throw new RangeError("a track point lies outside the world");
+    const accuracy = p.accuracy;
+    if (accuracy != null) {
+      if (typeof accuracy !== "number")
+        throw new TypeError("a track point has an accuracy that is not a number");
+      if (!(accuracy >= 0)) throw new RangeError("a track point has an impossible accuracy");
+      if (accuracy > rules.maxAccuracyM) {
+        droppedAccuracy++;
+        continue;
+      }
+    }
     pts.push({ t: p.t, lat: clampLat(p.lat), lon: p.lon });
   }
+  opts?.onDrop?.({ accuracy: droppedAccuracy, nonFinite: droppedNonFinite });
 
   let keys: number[] = [];
   const floor = opts?.flushAt ?? FLUSH_AT;
@@ -148,7 +185,7 @@ export function reveal(
     out[2 * i] = keyCx(keys[i]!);
     out[2 * i + 1] = keyCy(keys[i]!);
   }
-  return out;
+  return Object.assign(out, { rulesVersion: rules.version });
 }
 
 // The time must run forward, within maxGapS; the distance within maxGapM; a longitude jump over 180 degrees is
