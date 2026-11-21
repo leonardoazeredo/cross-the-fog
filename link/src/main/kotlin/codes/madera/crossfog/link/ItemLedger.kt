@@ -76,6 +76,16 @@ class ItemLedger(
     return if (demoted) listOf(LedgerAction.Demoted(flying)) else emptyList()
   }
 
+  /**
+   * The peer refused one of this app's own items for what it holds (`itemRefused`): [LedgerAction.SetAside] at once, with no
+   * count to wait for, and the item's counts are gone. A refusal of the other kind's item is not this ledger's.
+   */
+  fun onRefused(item: ItemRef): List<LedgerAction> {
+    if (item.kind != own) return emptyList()
+    forget(item.id)
+    return listOf(LedgerAction.SetAside(item))
+  }
+
   /** The item was confirmed by the peer: its counts and any demotion are gone. */
   fun confirmed(id: String) = forget(id)
 

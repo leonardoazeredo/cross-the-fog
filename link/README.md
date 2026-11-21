@@ -63,6 +63,9 @@ Version 1, in `codes.madera.crossfog.link`:
 | Idle, Offered | `routeSaved` for another id or revision, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | the store is not touched |
 | Idle, Offered | `activityOffer` | same | `ActivitySink.store`; on `SAVED` or `ALREADY_HELD` write `activityStored` |
 | Idle, Offered | `activityOffer`, and the sink throws | Closed `STORE_FAILED` | no confirmation; the watch keeps it |
+| Offered | `itemRefused` with kind `route` and the offered id | Idle | `LinkEvents.itemRefused` (the app sets the route aside, never deletes it); the same id and revision is not offered again in this session; send the next route |
+| Idle, Offered | `itemRefused` of any other kind or id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | none |
+| Idle, Offered | `activityOffer`, and the sink throws `ItemRefusedException` | same | write `itemRefused` (kind `activity`); the session stays open |
 | Idle, Offered | `routeOffer` or `activityStored` | Closed `UNEXPECTED_MESSAGE` | none |
 
 ### Watch, in Ready (Idle: no activity offered; Offered: one activity's id outstanding)
@@ -76,6 +79,9 @@ Version 1, in `codes.madera.crossfog.link`:
 | Idle, Offered | `activityStored` for another id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | the outbox is not touched |
 | Idle, Offered | `routeOffer` | same | `WatchRouteStore.save`; on `SAVED` or `ALREADY_HELD` write `routeSaved` with the revision received |
 | Idle, Offered | `routeOffer`, and the store throws | Closed `STORE_FAILED` | no confirmation; the phone keeps it |
+| Offered | `itemRefused` with kind `activity` and the offered id | Idle | `LinkEvents.itemRefused` (the app sets the activity aside, never deletes it); that id is not offered again in this session; send the next activity |
+| Idle, Offered | `itemRefused` of any other kind or id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | none |
+| Idle, Offered | `routeOffer`, and the store throws `ItemRefusedException` | same | write `itemRefused` (kind `route`); the session stays open |
 | Idle, Offered | `routeSaved` or `activityOffer` | Closed `UNEXPECTED_MESSAGE` | none |
 
 ### Memory
@@ -122,7 +128,14 @@ On Android (phone emulator, API 36) `KeystoreIdentityTest` and `KeystoreSessionT
 
 The apps' queues call `prefer` with the queued ids in order and offer the id it returns.
 
-What this does not cover: an item the receiver can never store ends every session when it arrives (`STORE_FAILED`), and an answer behind it in the same stream is lost with the session. So with one such item in one direction and a healthy item queued the other way, the healthy item's confirmation never lands, and demotion cannot help while the bad item is the only one queued. Fixing that needs the receiver to refuse an item without ending the session, which is a protocol change.
+### A receiver that will never take an item
+
+`itemRefused {kind, id, reason}` is the receiver's answer to an item it will never take because of what the item holds (today: the watch cannot read a route's GPX). It is in version 1 without a version step because nothing is in the field yet; adding a `reason` later is a version step, since an older peer refuses a reason it does not know.
+
+- A store or sink signals it by throwing `ItemRefusedException(reason)`. Any other throw is a failure of the store (disk, key, I/O): nothing is sent, the session closes with `STORE_FAILED` and the item is kept and retried, as before. A receiver that is merely broken must never make the sender give an item up.
+- The receiver writes `itemRefused` instead of `routeSaved` / `activityStored` and the session stays open, so the other direction's item in flight is not cut.
+- The sender takes it only in a ready session, for its own kind and the id outstanding; anything else is `UNEXPECTED_MESSAGE`. It ends the wait for a confirmation, calls `LinkEvents.itemRefused(Refusal)` (the item, the reason and, for a route, the revision that was offered) and sends the next item. The app answers with `ItemLedger.onRefused(item)`, which is `SetAside` at once with no count, and takes the item out of its queue without deleting it; a route only if the queued copy still has `Refusal.revision`. The endpoint does not offer the same id and revision again in the same session whatever the app did.
+- What still ends in `STORE_FAILED` every session: an item the receiver cannot store for a reason it cannot call content. That stays keep-and-retry (the owner's decision on #430: the watch keeps the walk), and demotion helps only when something else is queued behind it in the same direction.
 
 ## JSON
 
