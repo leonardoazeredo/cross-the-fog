@@ -162,6 +162,27 @@ function onRoute(tool, pick, act, answer) {
     assert.deepEqual([tool.results.length, tool.lines.length], [0, 0]);
   }
 
+  for (const mode of ["p2p", "loop"]) { // a run that replaces another keeps its graph held while the older one winds down
+    const { tool } = build(mode, mode === "loop" ? ring : street);
+    let newer = null, checks = 0, lost = 0;
+    const route = tool._route;
+    tool._route = async function (pts, o) {
+      if (!newer) {
+        newer = go(tool); // replaces the run that is routing now
+        await new Promise((r) => setTimeout(r));
+      } else {
+        checks++;
+        if (!(this._hold && this._hold.runId === this._runId && this._hold.planner.held)) lost++;
+      }
+      return route.call(this, pts, o);
+    };
+    await go(tool);
+    await newer;
+    assert.ok(checks > 0, `${mode}: the newer run routed`);
+    assert.equal(lost, 0, `${mode}: the older run's end never lets go of the newer run's graph`);
+    assert.equal(tool._hold, null, `${mode}: released when the newer run ends`);
+  }
+
   { // resampleMids: n points spread by length along a line, each the first vertex at or past its share
     const { resampleMids } = SuggestTool._internals;
     const coords = [[13.70, 51], [13.701, 51], [13.703, 51], [13.706, 51]];
