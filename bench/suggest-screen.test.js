@@ -1,5 +1,5 @@
-// What a finished suggestion run does on the screen side, pinned as it is today so that splitting _finish into
-// ranking and drawing cannot change it: the order of the emits, what exists when the card list is emitted
+// What a finished suggestion run does on the screen side, pinned because the page and its cards depend on the
+// order: the order of the emits, what exists when the card list is emitted
 // (lines drawn, the best one selected, the map fitted once), the polyline styles, the card payload and what
 // adopt() lets go of; synthetic streets, a recording Leaflet, no network.
 //   node bench/suggest-screen.test.js
@@ -133,7 +133,7 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
     }
   }
 
-  { // a replaced run draws and says nothing
+  { // a replaced run returns at once: nothing is drawn, fitted or emitted
     const rec = recorder();
     const { tool, emits } = build("p2p", street, rec);
     const old = tool._runId;

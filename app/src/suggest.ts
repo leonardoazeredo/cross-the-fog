@@ -199,7 +199,8 @@ SuggestTool.prototype.clearResults = function (this: Self) {
   this._clearScreen();
 };
 
-// What is drawn and shown: the preview lines and the results, and the page's cards.
+// Kept apart from _cancel so the run state can be cancelled without a map: a run only needs its id
+// bumped and its graph released, while the layers and the page's cards exist only on the screen.
 SuggestTool.prototype._clearScreen = function (this: Self) {
   this.lines.forEach((l: any) => {
     this.map.removeLayer(l.solid);
@@ -419,7 +420,8 @@ SuggestTool.prototype._rank = function (this: Self, cands: any, extra: any, S?: 
   return { results: this._diversify(unique, extra, kx, ky, S).slice(0, 3) };
 };
 
-// The screen half: draw the results as preview lines, fit the map to them, select the best and emit the cards.
+// The screen half, apart from _rank so ranking needs no map. The best option is selected before the
+// cards are emitted because the page reads `selected` when it renders them.
 SuggestTool.prototype._show = function (this: Self, extra: any) {
   const emit = (s: any) => {
     if (this.onResults) this.onResults(s);
