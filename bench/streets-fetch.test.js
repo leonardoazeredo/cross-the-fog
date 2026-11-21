@@ -358,8 +358,12 @@ function inOrder(list, how) {
       w(4, at(mid, A.e - 2e-9), at(mid, A.e - 1e-9)),      // a hair west of it: tile A only
       w(5, at(A.n, A.w + 0.001), at(A.n, A.w + 0.002)),    // along the north edge: A and C
       w(6, at(A.n, A.e), at(A.n, A.e)),                    // the corner A, B and C meet at (no tile D requested)
+      w(7, at(mid, A.e + 0.01), at(mid, A.e)),             // from inside B, ending exactly on the shared edge: touches A
+      w(8, at(mid, A.e), at(mid, A.e + 0.01)),             // starting exactly on it, going into B: touches A
       count] }, tiles);
     const where = (id) => [...out.entries()].filter(([, a]) => a.ways.some((x) => x.id === id)).map(([k]) => k).sort();
+    assert.deepEqual(where(7), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(8), ["549:2040", "550:2040"]);
     assert.deepEqual(where(1), ["549:2040", "550:2040"]);
     assert.deepEqual(where(2), ["549:2040", "550:2040"]);
     assert.deepEqual(where(3), ["550:2040"]);
