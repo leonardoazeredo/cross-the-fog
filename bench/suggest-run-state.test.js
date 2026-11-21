@@ -78,7 +78,7 @@ function onRoute(tool, pick, act, answer) {
       await go(tool);
       assert.ok(atReplace > 0 && emits.length === atReplace, `${mode}: no progress from the replaced run's download`);
     }
-    { // a pin dragged mid-run cancels it the same way, the live pin read after the await included
+    { // a pin dragged mid-run cancels it the same way
       const { tool, emits } = build(mode, mode === "loop" ? ring : street);
       let atDrag = -1;
       onRoute(tool, () => true, () => { dragPin(tool, 0, 200); atDrag = emits.length; });
@@ -89,8 +89,8 @@ function onRoute(tool, pick, act, answer) {
     }
   }
 
-  { // the fog changing under a run: the held graph stays the run's, the editor's call gets a newer one, and both
-    // are current again once the run ends
+  { // the fog changing under a run: the held graph stays the run's and is let go when the run ends, and the editor's
+    // call gets a newer one
     const fog = { tileCount: 0, hasFog: () => false, version: 0 };
     const { tool } = build("p2p", street, fog);
     const held = [];
