@@ -1,6 +1,9 @@
 package codes.madera.crossfog.watch.link
 
+import codes.madera.crossfog.watch.presentation.features.gpx.ParsedGpxData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
@@ -27,5 +30,24 @@ class RouteReadabilityTest {
     fun aDirectoryThatCannotBeWrittenIsAnIoErrorNotAVerdict() {
         val missing = File(tmp.root, "no/such/dir")
         assertThrows(IOException::class.java) { gpxIsReadable("<gpx/>".toByteArray(), missing) }
+    }
+
+    private fun nothing() = ParsedGpxData(title = null, points = emptyList(), totalDistance = 0.0)
+
+    @Test
+    fun aFileThatVanishedBeforeItWasReadIsAnIoErrorNotAVerdict() {
+        val e = assertThrows(IOException::class.java) {
+            gpxIsReadable("<gpx/>".toByteArray(), tmp.root) { file ->
+                file.delete()
+                nothing()
+            }
+        }
+        assertTrue(e.message!!.isNotEmpty())
+        assertEquals(emptyList<String>(), tmp.root.list()!!.toList())
+    }
+
+    @Test
+    fun aParserThatFindsNothingInAnIntactFileIsAVerdict() {
+        assertFalse(gpxIsReadable("<gpx/>".toByteArray(), tmp.root) { nothing() })
     }
 }

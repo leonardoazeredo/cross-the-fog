@@ -89,7 +89,7 @@ class WatchLinkEventsTest {
         val box = box()
         val events = WatchLinkEvents(ledger, box)
         box.add("<gpx>a</gpx>".toByteArray(), "v", newId = { ID_A })
-        events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, ID_B), RefusalReason.UNREADABLE, null))
+        events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, ID_A), RefusalReason.UNREADABLE, null))
         assertEquals(0, box.asideCount())
         assertEquals(ID_A, box.next()!!.activityId)
     }
