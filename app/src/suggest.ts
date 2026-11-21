@@ -351,8 +351,9 @@ SuggestTool.prototype._loadStreets = async function (
   // progress is heard only while some tile is missing from the index, so a rerun over covered
   // ground stays silent; waitUntil is set while a busy server is waited out
   const onProgress = (p: any) => emit(Object.assign({ loading: true, phase: "streets" }, p));
-  const out = await sortOutcome(() =>
-    this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" }),
+  const out = await sortOutcome(
+    () => this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" }),
+    stale,
   );
   switch (out.kind) {
     case "superseded":
@@ -364,15 +365,14 @@ SuggestTool.prototype._loadStreets = async function (
         "[suggest] reading streets threw",
         (out.error as { name?: string } | null)?.name,
       );
-      if (!stale()) emit({ error: true, reason: "internal" });
+      if (!out.stale) emit({ error: true, reason: "internal" });
       return false;
     case "failed":
-      if (stale()) return false;
       console.warn("[suggest] streets unavailable", out.facts.reason);
       emit({ error: true, reason: "streets-fetch", download: out.facts });
       return false;
     default:
-      return !stale();
+      return !out.stale;
   }
 };
 

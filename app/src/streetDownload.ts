@@ -389,26 +389,43 @@ export const downloadFacts = (e: any) => ({
 
 // What a street download came to, sorted once for every caller: `failed` carries downloadFacts of a
 // download that fell short, `superseded` a run a newer one replaced, `bug` what a run rethrew as
-// itself (a caller logs its class only).
+// itself (a caller logs its class only). `stale` is the caller's own stale() asked once, when the
+// outcome was sorted: a run can turn stale after ensureRects made its last check.
 export type Outcome =
-  | { kind: "done"; done: number; total: number }
+  | { kind: "done"; done: number; total: number; stale: boolean }
   | { kind: "failed"; facts: ReturnType<typeof downloadFacts> }
   | { kind: "superseded" }
-  | { kind: "bug"; error: unknown };
+  | { kind: "bug"; error: unknown; stale: boolean };
 
 // Runs `start` (an ensureRects call) and sorts how it ended; never rejects. `start` is a function so
 // that a throw before a promise exists is sorted as a bug too, and a run that resolves with nothing
-// (a stand-in in a test) is `done` all the same.
-export const sortOutcome = async (start: () => Promise<unknown>): Promise<Outcome> => {
+// (a stand-in in a test) is `done` all the same. A download failure while `stale()` is true is
+// `superseded`: nobody is left to be told; a bug keeps its kind and carries the flag, as a caller still
+// logs its class. A stale() that throws is a bug, with `stale: false` so it is shown.
+export const sortOutcome = async (
+  start: () => Promise<unknown>,
+  stale?: () => boolean,
+): Promise<Outcome> => {
   let ran: { done?: number; total?: number } | undefined;
+  let failure: Outcome | undefined;
   try {
     ran = (await start()) as typeof ran;
   } catch (e) {
     if (isSuperseded(e)) return { kind: "superseded" };
-    if (!isDownloadError(e)) return { kind: "bug", error: e };
-    return { kind: "failed", facts: downloadFacts(e) };
+    failure = isDownloadError(e)
+      ? { kind: "failed", facts: downloadFacts(e) }
+      : { kind: "bug", error: e, stale: false };
   }
-  return { kind: "done", done: ran?.done as number, total: ran?.total as number };
+  let isStale: boolean;
+  try {
+    isStale = stale ? Boolean(stale()) : false;
+  } catch (e) {
+    return { kind: "bug", error: e, stale: false };
+  }
+  if (!failure)
+    return { kind: "done", done: ran?.done as number, total: ran?.total as number, stale: isStale };
+  if (failure.kind === "bug") return { ...failure, stale: isStale };
+  return isStale ? { kind: "superseded" } : failure;
 };
 
 // Whether the segment a-b touches the box (Liang-Barsky; the edges count).
