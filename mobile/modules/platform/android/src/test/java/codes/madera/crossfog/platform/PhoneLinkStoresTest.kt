@@ -7,6 +7,8 @@ import codes.madera.crossfog.link.ItemKind
 import codes.madera.crossfog.link.ItemLedger
 import codes.madera.crossfog.link.ItemRef
 import codes.madera.crossfog.link.LedgerStore
+import codes.madera.crossfog.link.Refusal
+import codes.madera.crossfog.link.RefusalReason
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 import java.io.File
@@ -428,6 +430,60 @@ class PhoneLinkStoresTest {
     val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
     r.queue(a, routeJson(a))
     repeat(3) { events.closedWith(unconfirmed(a)) }
+    assertTrue(asides.isEmpty())
+    assertEquals(a, r.nextQueued()!!.routeId)
+  }
+
+  // ---- a refusal from the watch
+
+  @Test
+  fun aRouteTheWatchRefusedIsSetAsideAtOnceAndAnnouncedWithItsRevision() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+    r.queue(a, routeJson(a))
+    r.queue(b, routeJson(b))
+    val revision = r.nextQueued()!!.revision
+    events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, revision))
+    assertEquals(listOf(a to revision), asides)
+    assertEquals(b, r.nextQueued()!!.routeId)
+    assertTrue("kept, not deleted", File(outboxDir, "aside/$a.bin").isFile)
+  }
+
+  @Test
+  fun aRefusalOfARevisionThatWasEditedMeanwhileLeavesTheNewCopyQueued() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+    r.queue(a, routeJson(a))
+    val offered = r.nextQueued()!!.revision
+    r.queue(a, routeJson(a, gpx = "<gpx>edited</gpx>"))
+    events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, offered))
+    assertTrue(asides.isEmpty())
+    assertEquals(a, r.nextQueued()!!.routeId)
+    assertFalse(File(outboxDir, "aside/$a.bin").exists())
+  }
+
+  @Test
+  fun aRefusalOfARouteThatIsGoneAnnouncesNothing() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+    events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
+    assertTrue(asides.isEmpty())
+  }
+
+  @Test
+  fun aRefusalOfAnActivityIsNotThePhonesToAct() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val asides = mutableListOf<Pair<String, String?>>()
+    val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+    r.queue(a, routeJson(a))
+    events.itemRefused(Refusal(ItemRef(ItemKind.ACTIVITY, a), RefusalReason.UNREADABLE, null))
     assertTrue(asides.isEmpty())
     assertEquals(a, r.nextQueued()!!.routeId)
   }
