@@ -24,6 +24,7 @@ import {
   splitAnswer,
 } from "./streetDownload.ts";
 import {
+  type HoldName,
   type Rect,
   TILE_DEG,
   type Tile,
@@ -72,7 +73,7 @@ function StreetIndex(this: Self, opts: StreetIndexOptions) {
     anchor: (lat: number) => this._anchor(lat),
     read: (answer: TileAnswer, from: Tile) => this._read(answer, from),
     cover: (tiles: Tile[]) => this._cover(tiles),
-    protect: (under: Set<string>, holdAs?: string) => this._protect(under, holdAs),
+    protect: (under: Set<string>, holdAs?: HoldName) => this._protect(under, holdAs),
   });
 }
 Object.setPrototypeOf(StreetIndex.prototype, StreetStore.prototype);

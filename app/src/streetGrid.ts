@@ -79,3 +79,8 @@ export const nearestFirst = (tiles: Tile[], rects: Rect[]) => {
     Math.hypot(((t.x + 0.5) * TILE_DEG - lng) * kx, (t.y + 0.5) * TILE_DEG - lat);
   tiles.sort((a, b) => d(a) - d(b));
 };
+
+// The callers that keep their pieces between runs (ensureRects' holdAs): one name each, so a typo is a type error
+// rather than a hold nobody releases.
+export const HOLD_AS = { suggest: "suggest", route: "route" } as const;
+export type HoldName = (typeof HOLD_AS)[keyof typeof HOLD_AS];

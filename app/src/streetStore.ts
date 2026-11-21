@@ -1,7 +1,15 @@
 // What the street index keeps: the tiles it holds, the ways and their scoring segments, the fog
 // scores, and the eviction near the cap. How tiles arrive is streetDownload.ts, which reaches this
 // only through the StreetSeam interface there.
-import { type Tile, type TileAnswer, tileId, tileOf, type Vertex, type Way } from "./streetGrid.ts";
+import {
+  type HoldName,
+  type Tile,
+  type TileAnswer,
+  tileId,
+  tileOf,
+  type Vertex,
+  type Way,
+} from "./streetGrid.ts";
 
 interface Segment {
   x: number;
@@ -44,7 +52,7 @@ export interface StreetStoreSelf {
   _anchor(lat: number): void;
   _syncFog(): void;
   _holds(t: Tile): boolean;
-  _protect(under: Set<string>, holdAs?: string): () => void;
+  _protect(under: Set<string>, holdAs?: HoldName): () => void;
 }
 
 const SEG_M = 50; // ways are chopped into ~50 m scoring segments
@@ -292,7 +300,7 @@ StreetStore.prototype._holds = function (this: StreetStoreSelf, t: Tile) {
 StreetStore.prototype._protect = function (
   this: StreetStoreSelf,
   under: Set<string>,
-  holdAs?: string,
+  holdAs?: HoldName,
 ) {
   for (const pos of under) this._use(pos);
   if (holdAs) this.holds.set(holdAs, under);

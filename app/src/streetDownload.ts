@@ -3,6 +3,7 @@
 // download carries. What is kept is streetStore.ts: this reaches it only through StreetSeam.
 import { Overpass } from "./overpass.ts";
 import {
+  type HoldName,
   nearestFirst,
   type Rect,
   TILE_DEG,
@@ -35,7 +36,7 @@ export interface EnsureOptions {
   onProgress?: (p: { done: number; total: number; waitUntil?: number }) => void;
   deadlineMs?: number | null;
   stale?: () => boolean;
-  holdAs?: string;
+  holdAs?: HoldName;
   now?: () => number;
 }
 interface Claim {
@@ -55,7 +56,7 @@ export interface StreetSeam {
   cover(tiles: Tile[]): void;
   // the pieces under a run's rects are in use and not evicted until the returned release is called,
   // or, for a named caller, until that caller's next run
-  protect(under: Set<string>, holdAs?: string): () => void;
+  protect(under: Set<string>, holdAs?: HoldName): () => void;
 }
 // What a run reads off the index that owns it, each time it runs: the street source, the clock, the
 // sleep and the timer a waiting run checks stale() on.
