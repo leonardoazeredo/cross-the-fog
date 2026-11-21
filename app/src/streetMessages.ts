@@ -70,9 +70,13 @@ export function describe(err: unknown, now?: number): string {
   return GENERIC;
 }
 
-// waitUntil: when the download asks again after a busy answer, a time on the same clock as `now`;
-// set only while the download waits that out.
-export function progress(done?: number, total?: number, waitUntil?: number, now?: number): string {
+// A download's progress report as the street index gives it ({done, total, waitUntil?}). waitUntil: when the
+// download asks again after a busy answer, a time on the same clock as `now`; set only while it waits that out.
+export function progress(
+  p?: { done?: number; total?: number; waitUntil?: number },
+  now?: number,
+): string {
+  const { done, total, waitUntil } = p || {};
   const counted = Number.isInteger(done) && Number.isInteger(total);
   const again = waitUntil ? wait(waitUntil, now) : null;
   if (again)

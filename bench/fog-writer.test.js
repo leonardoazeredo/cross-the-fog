@@ -3,6 +3,7 @@
 //   node bench/fog-writer.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage, withoutComments } = require("./lib/page.js");
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
@@ -234,6 +235,21 @@ function cellsOf(files) {
     assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && NEEDS_INFLATE.test(e.message), "a pako with no inflate");
   } finally { global.pako = parked; }
 }
+{ // the default read-back is window.pako's inflate, looked up when writeSync runs and handed the bytes about to go out: a pako that inflates to something else fails the export
+  const map = new FogMap();
+  map.addCells(pairs([cellOf(1, 1, 0, 0, 0, 0)]));
+  const id = String(idOf(1, 1));
+  const parked = global.pako;
+  try {
+    const seen = [];
+    global.pako = { deflate: pako.deflate, inflate: (b) => { seen.push(b); return pako.inflate(b); } }; // swapped after the engine loaded
+    const [f] = FogWriter.writeSync(map);
+    assert.equal(seen.length, 1, "the page's pako reads each file back once");
+    sameBytes(seen[0], f.bytes, "what it read back is what it hands out");
+    global.pako = { deflate: pako.deflate, inflate: () => new Uint8Array(HEADER) }; // a read-back that is not the tile written
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && e.message.includes(`tile ${id}`), "a read-back of something else");
+  } finally { global.pako = parked; }
+}
 { // the MD5 constants are written out, so an engine whose Math.sin rounds differently still names tiles right
   const { spawnSync } = require("node:child_process");
   const md5 = path.join(__dirname, "..", "app", "src", "md5.ts");
@@ -245,10 +261,17 @@ function cellsOf(files) {
   assert.equal(run.stdout, crypto.createHash("md5").update("117660").digest("hex"));
 }
 { // the page loads the one pako build (the engine reads window.pako when a call runs, so where the tag sits does not matter), and its scripts load in this order
-  const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
-  const at = (src) => html.indexOf(`<script src="${src}"></script>`);
+  const html = readPage();
+  const at = (src, page = html) => page.indexOf(`<script src="${src}"></script>`);
   assert.ok(at("vendor/pako.min.js") >= 0, "index.html loads vendor/pako.min.js");
-  const order = ["src/engine.ts", "src/fowExport.js", "src/main.js"].map(at);
+  const order = ["src/engine.ts", "src/fowExport.js", "src/main.js"].map((s) => at(s));
   assert.ok(order.every((n) => n >= 0) && order.every((n, i) => i === 0 || n > order[i - 1]), "script order in index.html");
+  // a tag inside an HTML comment is no tag: the same lookup on the page with the pako tag commented out finds nothing
+  const tag = '<script src="vendor/pako.min.js"></script>';
+  const raw = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+  assert.ok(raw.includes(tag));
+  assert.equal(at("vendor/pako.min.js", withoutComments(raw.replace(tag, `<!-- ${tag} -->`))), -1, "a commented-out tag is not found");
+  assert.equal(html, withoutComments(raw), "readPage is the page with its comments removed");
+  assert.ok(!html.includes("<!--"), "no comment is left in what the tests read");
 }
 console.log("fog-writer.test.js ok");

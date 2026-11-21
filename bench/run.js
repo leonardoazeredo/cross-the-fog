@@ -21,7 +21,11 @@ const filter = process.argv[3] || "";
   const gain = gainOver(fogMap);
   console.log(`fog tiles: ${fogMap.tileCount}`);
   const all = [];
-  let live = 0; // requests the disk cache did not have
+  let live = 0; // requests the disk cache did not have, over the scenarios that returned
+  // scenarios that threw (their requests are not counted) or whose run ended in reason "internal" (SuggestTool turns a
+  // throw it cannot class, such as tileFetch's refusal of a second set of rects, into that state instead of rejecting;
+  // its requests are counted like any other returned run)
+  let failed = 0;
 
   for (const sc of scenarios) {
     if (filter && !sc.name.includes(filter)) continue;
@@ -32,10 +36,12 @@ const filter = process.argv[3] || "";
     } catch (e) {
       console.log(`  FAILED: ${e.message}`);
       all.push({ scenario: sc.name, error: e.message });
+      failed++;
       continue;
     }
     live += out.requests - out.cacheHits;
     const s = out.state;
+    if (s.error && s.reason === "internal") failed++;
     if (s.empty || s.error) {
       console.log(`  no results (${s.error ? "error" : s.reason || "empty"})  requests=${out.requests} (${out.cacheHits} cached) ${out.ms}ms`);
       all.push({ scenario: sc.name, empty: true, reason: s.reason || (s.error ? "error" : "empty"), requests: out.requests, ms: out.ms });
@@ -55,8 +61,10 @@ const filter = process.argv[3] || "";
     console.log(`  requests=${out.requests} (${out.cacheHits} cached)  ${out.ms}ms`);
     all.push({
       scenario: sc.name, note: sc.note, requests: out.requests, cacheHits: out.cacheHits, ms: out.ms,
+      emits: out.emits,
       results: out.results.map((r, i) => Object.assign({}, rows[i], {
-        coords: r.coords.map((p) => [+p[0].toFixed(5), +p[1].toFixed(5)])
+        coords: r.coords.map((p) => [+p[0].toFixed(5), +p[1].toFixed(5)]),
+        adoptWps: r.adoptWps.map((w) => [+w[0].toFixed(6), +w[1].toFixed(6)])
       }))
     });
   }
@@ -67,5 +75,9 @@ const filter = process.argv[3] || "";
   fs.writeFileSync(file, JSON.stringify({ date: new Date().toISOString(), scenarios: all }, null, 1));
   console.log(`\nwrote ${file}`);
   console.log(`live Overpass requests: ${live}`);
-  if (live) process.exitCode = 1; // a miss is a new or cleared cache, or a changed query text: check StreetIndex.rectQuery before refetching
+  console.log(`scenarios that threw: ${failed}`);
+  // a miss is a new or cleared cache, or a changed query text: check StreetIndex.rectQuery before refetching;
+  // BENCH_ALLOW_LIVE=1 is for the run that fills a cleared cache on purpose
+  if (live && !process.env.BENCH_ALLOW_LIVE) process.exitCode = 1;
+  if (failed) process.exitCode = 1;
 })();

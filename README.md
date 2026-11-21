@@ -54,35 +54,35 @@ together count once, and the app gives up when the server is still busy after th
 no answer between. As the main instance's usage policy asks, the phone app's web view identifies the
 app to the server by its User-Agent and Referer. That server also caps each app's and each network
 address's daily use, and answers 406 once the share is used up: the app then leaves that server
-alone for an hour, longer if the server says so. They only see bounding boxes, the same class of information the basemap tile servers already
-get, and the streets are compared against your fog entirely on your device. The street map it fetches is kept as a street cache in your
-browser's storage (IndexedDB, as plain data, never uploaded and left out of backups), so planning in
-an area you have planned in before needs no connection. After 90 days a copy is out of date: a
-suggestion in that area fetches it fresh, using the old copy only while there is no connection. **Route elevation** (ascent, descent, the profile) comes
-from the [AWS Open Data terrain tiles](https://registry.opendata.aws/terrain-tiles/), public elevation
-data such as SRTM, fetched from the bucket's own host (`elevation-tiles-prod.s3.amazonaws.com`) one
-zoom-12 map tile at a time (about 50 KB each); the server sees only the tile numbers and your
-connection's address, the same class of information the basemap tile servers get, and the heights are
-read on your device. Those tiles are kept in your browser's storage too (IndexedDB, plain data, never
-uploaded, left out of backups). As with any web map, basemap tiles are fetched from their providers
-(OpenStreetMap / CyclOSM), which reveals the map area you're viewing to them.
-In the phone app, **Back up…** writes one file to a place you choose and makes no network call. The backup
-holds your activities (every track with its times), your routes, the Fog of World import you last loaded and
-the page's saved settings, and nothing from the caches (street map, elevation tiles, derived fog). It is
-encrypted with a passphrase you type into the app, never into the page (SQLCipher), unless you tick
-"No encryption" after a warning: an unencrypted backup shows where you were and when. If you lose the
-passphrase nobody can open that backup, and if you lose the phone without a backup your history is gone.
-**Restore…** replaces everything on the phone with a backup, after you confirm.
-Exports are plain files and happen only when you tap them, each after a warning you can cancel (Cancel
-sends nothing). **Export for Fog of World** (phone app) writes the cells you have explored, imported and
-from activities, in Fog of World's own format, which has no encryption and no times; the phone app zips
-the tiles under `Sync/` and asks where to save the zip. **GPX** writes the route you planned,
-point by point. The crash log and the
-page's log lines carry no positions: a decimal number with three or more places is replaced by `[n]`
-before the crash log is written.
-The site also counts visits with [GoatCounter](https://www.goatcounter.com/), a
-privacy-friendly, cookie-less counter (page views only; no personal data, no tracking
-across sites).
+alone for an hour, longer if the server says so. They only see bounding boxes, the same class of
+information the basemap tile servers already get, and the streets are compared against your fog
+entirely on your device. The street map it fetches is kept as a street cache in your browser's
+storage (IndexedDB, as plain data, never uploaded and left out of backups), so planning in an area
+you have planned in before needs no connection. After 90 days a copy is out of date: a suggestion in
+that area fetches it fresh, using the old copy only while there is no connection. **Route
+elevation** (ascent, descent, the profile) comes from the [AWS Open Data terrain
+tiles](https://registry.opendata.aws/terrain-tiles/), public elevation data such as SRTM, fetched
+from the bucket's own host (`elevation-tiles-prod.s3.amazonaws.com`) one zoom-12 map tile at a time
+(about 50 KB each); the server sees only the tile numbers and your connection's address, the same
+class of information the basemap tile servers get, and the heights are read on your device. Those
+tiles are kept in your browser's storage too (IndexedDB, plain data, never uploaded, left out of
+backups). As with any web map, basemap tiles are fetched from their providers (OpenStreetMap /
+CyclOSM), which reveals the map area you're viewing to them. In the phone app, **Back up…** writes
+one file to a place you choose and makes no network call. The backup holds your activities (every
+track with its times), your routes, the Fog of World import you last loaded and the page's saved
+settings, and nothing from the caches (street map, elevation tiles, derived fog). It is encrypted
+with a passphrase you type into the app, never into the page (SQLCipher), unless you tick "No
+encryption" after a warning: an unencrypted backup shows where you were and when. If you lose the
+passphrase nobody can open that backup, and if you lose the phone without a backup your history is
+gone. **Restore…** replaces everything on the phone with a backup, after you confirm. Exports are
+plain files and happen only when you tap them, each after a warning you can cancel (Cancel sends
+nothing). **Export for Fog of World** (phone app) writes the cells you have explored, imported and
+from activities, in Fog of World's own format, which has no encryption and no times; the phone app
+zips the tiles under `Sync/` and asks where to save the zip. **GPX** writes the route you planned,
+point by point. The crash log and the page's log lines carry no positions: a decimal number with
+three or more places is replaced by `[n]` before the crash log is written. The site also counts
+visits with [GoatCounter](https://www.goatcounter.com/), a privacy-friendly, cookie-less counter
+(page views only; no personal data, no tracking across sites).
 
 ## Use it
 

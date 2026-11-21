@@ -2,6 +2,7 @@
 // Run: node bench/sha256.test.js
 "use strict";
 const assert = require("assert");
+const { readPage } = require("./lib/page.js");
 const fs = require("fs");
 const path = require("path");
 // Node strips the types itself: no build step and no package at the repo root.
@@ -30,7 +31,7 @@ for (const c of vectors.cases) {
 assert.ok(checked >= 2, "the vectors hold route offers to check against");
 
 // The page needs the script: without its tag every Send tap fails, and nothing else checks this tag.
-const html = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
+const html = readPage();
 const engine = `<script src="src/engine.ts"></script>`;
 const engineAt = html.indexOf(engine);
 assert.ok(engineAt > 0, "index.html loads engine.ts, which hands the page window.Sha256");

@@ -8,6 +8,7 @@ history, never commit it).
 node bench/characterize.js          # defog density maps; pick scenario centres
 node bench/run.js [out] [filter]    # run the app's SuggestTool on bench/scenarios.js
 node bench/overpass.js [filter]     # street-network context (total vs undefogged km)
+node bench/identical.js ref.json cand.json [--exclude=ms] [--subset]   # exact diff of two run.js outputs
 ```
 
 - A bench test requires `lib/host.js` (the Node global as `window`, a Leaflet stub as `L`) and then `app/src/engine.ts`,
@@ -20,7 +21,12 @@ node bench/overpass.js [filter]     # street-network context (total vs undefogge
   Suggestions never call BRouter; see CLAUDE.md for `bench/cache/brouter/`.
 - Results land in `bench/out/<name>.json` (gitignored) with per-card metrics:
   defogged area, m² per metre, % new ground, overlap %, elongation
-  (1 = round blob, 3+ = a proper thin "line" of a loop).
+  (1 = round blob, 3+ = a proper thin "line" of a loop), the editor pins of each card (`adoptWps`) and every state the
+  run handed the page (`emits`).
+- A change that must not alter a suggestion is checked with `identical.js`, not `compare.js`: record `run.js` before
+  and after and diff them; `ms` is the one field that differs between two runs of the same code (`requests` and
+  `cacheHits` as well when one of the recordings fetched live). `identical.js` prints
+  field names and counts only, so its output is safe to paste; the recorded files derive from `Sync/`.
 
 ## Local routing
 

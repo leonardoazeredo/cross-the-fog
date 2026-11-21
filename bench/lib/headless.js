@@ -17,6 +17,7 @@ function runSuggest(fogMap, gain, scenario) {
   if (streets) installTileFetch(streets);
   return new Promise((resolve, reject) => {
     const t0 = Date.now();
+    const emits = []; // every state the run handed the page, in order: the progress phases and the final card list
     cache.resetCounters();
     const tool = new SuggestTool(global.fakeMap(), {
       fogMap,
@@ -25,12 +26,15 @@ function runSuggest(fogMap, gain, scenario) {
       isNew: gain.cellIsNew,
       streets,
       onResults: (s) => {
+        emits.push(s ? JSON.parse(JSON.stringify(s)) : s);
         if (!s || s.loading) return;
         const c = cache.counters();
         resolve({
           state: s,
+          emits,
           results: tool.results.map((r) => ({
             coords: r.r.coords, lenM: r.r.lenM, gain: r.gain, isBase: !!r.isBase,
+            adoptWps: r.adoptWps.map((w) => [w.lat, w.lng]),
             retracePct: Math.round(100 * overlapFrac(r.r.coords, false)),
             areaPerKm: r.gain.area / (r.r.lenM / 1000)
           })),

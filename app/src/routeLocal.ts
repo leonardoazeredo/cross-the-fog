@@ -3,6 +3,7 @@
 // tile fetches the injected sources make.
 import { LocalRouter } from "./router.ts";
 import { sortOutcome } from "./streetDownload.ts";
+import { HOLD_AS } from "./streetGrid.ts";
 
 const PAD_M = 1000; // streets are fetched this far around each leg, so a detour past a pin has data
 const KY = 110540; // metres per degree of latitude, as the planner uses
@@ -50,7 +51,7 @@ export function create({ streets, streetGraph, elevation, estimates }: Deps) {
     }
     // a failed download logs its reason, a bug its class, never a message: messages name tiles
     const out = await sortOutcome(
-      () => streets.ensureRects(rects, { onProgress, stale, holdAs: "route" }),
+      () => streets.ensureRects(rects, { onProgress, stale, holdAs: HOLD_AS.route }),
       stale,
     );
     switch (out.kind) {

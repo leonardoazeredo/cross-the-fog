@@ -11,6 +11,7 @@ import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
 import { GraphPlanner } from "./planner.ts";
 import { LocalRouter } from "./router.ts";
 import { sortOutcome } from "./streetDownload.ts";
+import { HOLD_AS } from "./streetGrid.ts";
 
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
 // polylines, bounds) and `matchMedia`. pageGlobals.ts binds the page's own object.
@@ -352,7 +353,7 @@ SuggestTool.prototype._loadStreets = async function (
   // ground stays silent; waitUntil is set while a busy server is waited out
   const onProgress = (p: any) => emit(Object.assign({ loading: true, phase: "streets" }, p));
   const out = await sortOutcome(
-    () => this.streets.ensureRects(rects, { onProgress, stale, holdAs: "suggest" }),
+    () => this.streets.ensureRects(rects, { onProgress, stale, holdAs: HOLD_AS.suggest }),
     stale,
   );
   switch (out.kind) {
@@ -1410,6 +1411,7 @@ SuggestTool._internals = {
   RETRACE_WEIGHT,
   statsFromCoords,
   joinPins,
+  resampleMids,
   p2pWindow,
   p2pCandidates,
   fitLoopSize,

@@ -101,7 +101,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
   expect(
     vm.runInContext("window.Estimates.estimate([[0, 0], [0, 0.001]]).distanceM", context),
   ).toBe(111);
-  expect(vm.runInContext("window.StreetMessages.progress(1, 4)", context)).toBe(
+  expect(vm.runInContext("window.StreetMessages.progress({ done: 1, total: 4 })", context)).toBe(
     "Getting the street map, 1 of 4…",
   );
   // no pako on the page: the deflate default says so with its own message (the inflate default's is checked after it, so it is not reached here)

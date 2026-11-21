@@ -3,6 +3,7 @@
 //   node bench/export-warnings.test.js
 "use strict";
 const assert = require("node:assert/strict");
+const { readPage } = require("./lib/page.js");
 const fs = require("node:fs");
 const path = require("node:path");
 global.window = global;
@@ -147,7 +148,7 @@ const settle = () => new Promise((r) => setImmediate(r));
   }
 
   // the page's own script order puts the helpers before main.js
-  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const html = readPage();
   const at = (f) => html.indexOf('src="src/' + f + '"');
   for (const f of ["exportWarning.js", "fowExport.js"]) assert.ok(at(f) > 0 && at(f) < at("main.js"), f + " loads before main.js");
   assert.ok(at("engine.ts") > 0 && at("fowExport.js") > at("engine.ts"), "fowExport.js loads after engine.ts, which holds the writer");

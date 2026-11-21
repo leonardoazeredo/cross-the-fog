@@ -66,6 +66,8 @@ function heldServer(answerAt) {
   srv.reply = async (i, status) => { srv.pending.splice(i, 1)[0].answer(status); await settle(); };
   return srv;
 }
+// the error a promise rejects with, or null when it resolves
+const failure = (p) => p.then(() => null, (e) => e);
 // a run that must settle: fails the test, rather than hanging it, when it does not
 const within = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("the run never settled")), 1000))]);
 // lets the chains the last answer set off run: five turns cover the store's writes and the next
@@ -119,12 +121,28 @@ function ticker() {
 // Runs one test case with its own fake fetch, a clean Overpass (holds, slots, clock, order) and no NextGIS
 // key. Until the body installs a fetch, fetch refuses, so a case that forgets its fake fails instead of
 // reaching the network. All of it is put back afterwards, also when the case throws.
-async function testCase(body) {
+async function runCase(body) {
   const real = global.fetch;
   const clean = () => { global.Overpass._reset(); delete global.crossfogNextgisKey; };
   clean();
   global.fetch = async () => { throw new Error("this test case installed no fake fetch"); };
   try { await body(); } finally { global.fetch = real; clean(); }
+}
+// The cases are collected and run after the last is registered, in the order CASE_ORDER names: unset is as
+// written, "reverse", or "shuffle:<seed>" (a fixed permutation), so a case that leans on an earlier one fails
+// when that one runs later.
+const cases = [];
+const testCase = async (body) => { cases.push(body); };
+function inOrder(list, how) {
+  if (!how) return list;
+  if (how === "reverse") return list.slice().reverse();
+  const m = /^shuffle:(\d+)$/.exec(how);
+  if (!m) throw new Error("CASE_ORDER is unset, reverse or shuffle:<seed>, not " + how);
+  let x = Number(m[1]) >>> 0 || 1;
+  const rand = () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
 }
 
 // Every run's reports stay within total and never go back down (concurrent runs included): checked here for
@@ -177,7 +195,7 @@ async function testCase(body) {
   await testCase(async () => { // an Overpass answer that ran out of time or memory is a failed fetch, not an empty area
     replyWith({ elements: [way(1)], remark: "runtime error: Query timed out in \"query\" at line 3 after 61 seconds." });
     const s = new StreetIndex({ newFrac: () => 1 });
-    const err = await s.ensureRects(rect).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect));
     assert.ok(!/timed out|runtime error/.test(err.message), "no server text in the message");
     assert.equal(err.reason, "server", "a remark is the server's failure, so the page can word it");
     assert.deepEqual(heldAround(s, rect), [], "the area is not recorded as fetched");
@@ -242,7 +260,7 @@ async function testCase(body) {
     const full = { ways: [{ id: 1, nodes: [1, 2], geometry: [{ lat: 51.01, lon: 13.74 }, { lat: 51.011, lon: 13.74 }] }], groups: {} };
     const asked = [];
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles) => { asked.push(tiles.map((t) => t.x + ":" + t.y)); return new Map([["549:2040", full]]); } });
-    const err = await s.ensureRects([{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects([{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]));
     assert.match(err.message, /no answer for tile 550:2040$/);
     assert.deepEqual([err.done, err.total, err.reason], [1, 2, "streets-partial"]);
     assert.deepEqual([s.ways.length, heldAround(s, [{ s: 51.01, w: 13.74, n: 51.02, e: 13.76 }]).length, s.version], [1, 1, 1]);
@@ -266,7 +284,7 @@ async function testCase(body) {
     for (const body of [null, {}, { elements: [way(1)] }]) {
       global.fetch = async () => ({ ok: true, status: 200, json: async () => body });
       const s = new StreetIndex({ newFrac: () => 1 });
-      const err = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.01, e: 13.71 }]).then(() => null, (e) => e);
+      const err = await failure(s.ensureRects([{ s: 51.0, w: 13.7, n: 51.01, e: 13.71 }]));
       assert.ok(StreetIndex.isDownloadError(err), "a download failure, not a bug: " + err);
       assert.equal(err.reason, "server");
       assert.deepEqual(heldAround(s, [{ s: 51.0, w: 13.7, n: 51.01, e: 13.71 }]), []);
@@ -327,9 +345,37 @@ async function testCase(body) {
     const row = StreetIndex.splitAnswer({ elements: [flat, count] }, [T(548, 2040), T(549, 2040), T(550, 2040), T(549, 2041)]);
     assert.deepEqual([...row.entries()].filter(([, a]) => a.ways.length).map(([k]) => k), ["548:2040", "549:2040", "550:2040"]);
   });
+  await testCase(async () => { // a vertex or a segment exactly on the edge two tiles share is in both (the edges count); a hair off it is in one
+    const A = StreetIndex.tileBounds(T(549, 2040)), B = StreetIndex.tileBounds(T(550, 2040)), C = StreetIndex.tileBounds(T(549, 2041));
+    assert.equal(A.e, B.w, "the tiles share the edge exactly");
+    assert.equal(A.n, C.s);
+    const tiles = [T(549, 2040), T(550, 2040), T(549, 2041)];
+    const mid = (A.s + A.n) / 2;
+    const w = (id, ...g) => ({ type: "way", id, nodes: [id * 10, id * 10 + 1], geometry: g });
+    const at = (lat, lon) => ({ lat, lon });
+    const out = StreetIndex.splitAnswer({ elements: [
+      w(1, at(mid, A.e), at(mid, A.e)),                    // one point on the shared edge
+      w(2, at(A.s + 0.001, A.e), at(A.n - 0.001, A.e)),    // a segment lying along it
+      w(3, at(mid, A.e + 1e-9), at(mid, A.e + 2e-9)),      // a hair east of it: tile B only
+      w(4, at(mid, A.e - 2e-9), at(mid, A.e - 1e-9)),      // a hair west of it: tile A only
+      w(5, at(A.n, A.w + 0.001), at(A.n, A.w + 0.002)),    // along the north edge: A and C
+      w(6, at(A.n, A.e), at(A.n, A.e)),                    // the corner A, B and C meet at (no tile D requested)
+      w(7, at(mid, A.e + 0.01), at(mid, A.e)),             // from inside B, ending exactly on the shared edge: touches A
+      w(8, at(mid, A.e), at(mid, A.e + 0.01)),             // starting exactly on it, going into B: touches A
+      count] }, tiles);
+    const where = (id) => [...out.entries()].filter(([, a]) => a.ways.some((x) => x.id === id)).map(([k]) => k).sort();
+    assert.deepEqual(where(7), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(8), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(1), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(2), ["549:2040", "550:2040"]);
+    assert.deepEqual(where(3), ["550:2040"]);
+    assert.deepEqual(where(4), ["549:2040"]);
+    assert.deepEqual(where(5), ["549:2040", "549:2041"]);
+    assert.deepEqual(where(6), ["549:2040", "549:2041", "550:2040"]);
+  });
   await testCase(async () => { // a source that leaves a requested tile out is an error, and nothing is recorded as fetched
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => new Map() });
-    const err = await s.ensureRects(rect).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect));
     assert.match(err.message, /no answer/);
     assert.equal(err.reason, "server", "a tile left out is the source's failure, so the page can word it");
     assert.deepEqual(heldAround(s, rect), []);
@@ -398,7 +444,7 @@ async function testCase(body) {
     const asked = tileServer((n) => failing && n === 2 && 500);
     const s = new StreetIndex({ newFrac: () => 1 });
     const r = [{ s: 51.0, w: 13.7, n: 51.05, e: 13.79 }];
-    const err = await s.ensureRects(r).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(r));
     assert.ok(err, "a run with a tile missing rejects");
     assert.deepEqual([err.done, err.total, err.reason], [4, 8, "streets-partial"]);
     assert.equal(err.cause.reason, "server", "the Overpass error is the cause");
@@ -414,7 +460,7 @@ async function testCase(body) {
     // the error carries the cause's reason
     const asked = tileServer(() => 500);
     const tiles = [T(548, 2040), T(549, 2040), T(548, 2041), T(549, 2041), T(550, 2040), T(552, 2040)];
-    const err = await StreetIndex.overpassFetch(tiles).then(() => null, (e) => e);
+    const err = await failure(StreetIndex.overpassFetch(tiles));
     assert.equal(asked.length, 2, "the two overpass-api.de takes at once without a key, none for the third block");
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [0, 6, "server", "server"]);
   });
@@ -423,7 +469,7 @@ async function testCase(body) {
     const asked = tileServer((n) => n >= 2 && 502);
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
     const progress = [];
-    const err = await s.ensureRects(fiveTiles, { onProgress: (p) => progress.push(p) }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(fiveTiles, { onProgress: (p) => progress.push(p) }));
     assert.deepEqual(asked, [span(548, 2040, 549, 2041), box(550, 2040), box(550, 2040), box(550, 2040), box(550, 2040)]);
     assert.deepEqual(clock.sleeps, [15000, 30000, 60000]);
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [4, 5, "streets-partial", "busy"]);
@@ -445,7 +491,7 @@ async function testCase(body) {
     const clock = fakeClock();
     const srv = heldServer();
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
-    const run = s.ensureRects(fiveTiles).then(() => null, (e) => e);
+    const run = failure(s.ensureRects(fiveTiles));
     await settle();
     assert.deepEqual(srv.asked, [span(548, 2040, 549, 2041), box(550, 2040)]);
     await srv.reply(1, 502);
@@ -506,8 +552,7 @@ async function testCase(body) {
     const first = new StreetIndex({ newFrac: () => 1 }).ensureRects(fiveTiles);
     await settle();
     let stale = false;
-    const replaced = new StreetIndex({ newFrac: () => 1 }).ensureRects([{ s: 51.1, w: 13.7, n: 51.15, e: 13.8 }], { stale: () => stale })
-      .then(() => null, (e) => e);
+    const replaced = failure(new StreetIndex({ newFrac: () => 1 }).ensureRects([{ s: 51.1, w: 13.7, n: 51.15, e: 13.8 }], { stale: () => stale }));
     await settle();
     assert.equal(srv.asked.length, 2, "the first run holds both of overpass-api.de's slots; the second's two posts wait");
     stale = true;
@@ -541,7 +586,7 @@ async function testCase(body) {
     const clock = fakeClock();
     const asked = tileServer(() => 502);
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
-    const err = await s.ensureRects(rect, { deadlineMs: 40000 }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect, { deadlineMs: 40000 }));
     assert.deepEqual([asked.length, clock.sleeps], [2, [15000]], "15 s fits in 40 s, 15 + 30 s does not");
     assert.deepEqual([err.done, err.total, err.reason], [0, 1, "busy"]);
   });
@@ -550,7 +595,7 @@ async function testCase(body) {
     const asked = tileServer((n) => n >= 2 && 502);
     let stale = false;
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: async (ms) => { await clock.sleep(ms); stale = true; } });
-    const err = await s.ensureRects(fiveTiles, { stale: () => stale }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(fiveTiles, { stale: () => stale }));
     assert.equal(asked.length, 2, "no request after the wait");
     assert.ok(StreetIndex.isDownloadError(err));
     assert.equal(err.cause.reason, "superseded");
@@ -560,7 +605,7 @@ async function testCase(body) {
     let stale = false, asked = 0;
     global.fetch = async () => { asked++; stale = true; return { ok: false, status: 502, json: async () => ({}) }; };
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
-    const err = await s.ensureRects(rect, { stale: () => stale }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect, { stale: () => stale }));
     assert.deepEqual([asked, clock.sleeps], [1, []], "no sleep, no second request");
     assert.deepEqual([err.cause.reason, err.reason], ["superseded", "superseded"]);
   });
@@ -612,11 +657,11 @@ async function testCase(body) {
     const asked = tileServer();
     let stale = false;
     const s = new StreetIndex({ newFrac: () => 1 });
-    const err = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.05, e: 13.84 }], { stale: () => stale, onProgress: (p) => { if (p.done === 4) stale = true; } }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects([{ s: 51.0, w: 13.7, n: 51.05, e: 13.84 }], { stale: () => stale, onProgress: (p) => { if (p.done === 4) stale = true; } }));
     assert.equal(asked.length, 2, "the two sent together, none for the third block");
     assert.deepEqual([err.done, err.total, err.cause.reason], [8, 12, "superseded"]);
     asked.length = 0;
-    const err2 = await new StreetIndex({ newFrac: () => 1 }).ensureRects(rect, { stale: () => true }).then(() => null, (e) => e);
+    const err2 = await failure(new StreetIndex({ newFrac: () => 1 }).ensureRects(rect, { stale: () => true }));
     assert.deepEqual([asked.length, err2.cause.reason], [0, "superseded"]);
   });
   await testCase(async () => { // 16 missing tiles in 4 blocks: four requests open on NextGIS together, never more; a block's tiles
@@ -681,7 +726,7 @@ async function testCase(body) {
     const srv = heldServer({ main: 500 });
     const store = global.TileStore.memory({ maxEntries: 100 });
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: global.StreetCache.create({ store, network: StreetIndex.overpassFetch, now: () => 0 }).fetchStreets });
-    const run = s.ensureRects(twentyFour).then(() => null, (e) => e);
+    const run = failure(s.ensureRects(twentyFour));
     await settle();
     assert.equal(srv.pending.length, 4);
     await srv.reply(1, 500);
@@ -714,7 +759,7 @@ async function testCase(body) {
     const srv = heldServer();
     let stale = false;
     const s = new StreetIndex({ newFrac: () => 1 });
-    const run = s.ensureRects(twentyFour, { stale: () => stale }).then(() => null, (e) => e);
+    const run = failure(s.ensureRects(twentyFour, { stale: () => stale }));
     await settle();
     stale = true;
     while (srv.pending.length) await srv.reply(0);
@@ -749,14 +794,14 @@ async function testCase(body) {
   await testCase(async () => { // a throw from onTile that is not the caller's stop (a bug) comes out of the default source unchanged
     tileServer();
     const bug = new TypeError("bug");
-    const err = await StreetIndex.overpassFetch([{ x: 548, y: 2040 }, { x: 549, y: 2040 }], () => { throw bug; }).then(() => null, (e) => e);
+    const err = await failure(StreetIndex.overpassFetch([{ x: 548, y: 2040 }, { x: 549, y: 2040 }], () => { throw bug; }));
     assert.equal(err, bug);
   });
   await testCase(async () => { // a bug thrown while reading a tile comes out of ensureRects as itself, not as a download error
     tileServer();
     const s = new StreetIndex({ newFrac: () => 1 });
     s._read = () => { throw new TypeError("bug"); };
-    const err = await s.ensureRects(rect).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect));
     assert.ok(err instanceof TypeError);
     assert.equal(err.total, undefined);
   });
@@ -771,7 +816,7 @@ async function testCase(body) {
         let calls = 0;
         StreetIndex.rectQuery = (...a) => { if (++calls === failAt) throw bug; return real(...a); };
         const heard = [];
-        const err = await within(StreetIndex.overpassFetch(StreetIndex.tilesCovering(twelve[0]), (t) => heard.push(t.x + ":" + t.y)).then(() => null, (e) => e));
+        const err = await within(failure(StreetIndex.overpassFetch(StreetIndex.tilesCovering(twelve[0]), (t) => heard.push(t.x + ":" + t.y))));
         assert.equal(err, bug, `rectQuery throwing on call ${failAt}`);
         assert.ok(failAt === 1 ? heard.length === 0 : heard.length >= 4, "the requests already open hand their tiles over");
       }
@@ -784,7 +829,7 @@ async function testCase(body) {
       const bug = new TypeError("bug");
       let calls = 0;
       StreetIndex.rectQuery = (...a) => { if (++calls === 3) throw bug; return real(...a); };
-      const err = await within(new StreetIndex({ newFrac: () => 1 }).ensureRects(twelve).then(() => null, (e) => e));
+      const err = await within(failure(new StreetIndex({ newFrac: () => 1 }).ensureRects(twelve)));
       assert.equal(err, bug);
     } finally { StreetIndex.rectQuery = real; }
   });
@@ -795,18 +840,18 @@ async function testCase(body) {
       const bug = new TypeError("bug in " + where);
       const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: where === "sleep" ? async () => { throw bug; } : clock.sleep });
       const opts = where === "onProgress" ? { onProgress: (p) => { if ("waitUntil" in p) throw bug; } } : {};
-      const err = await within(s.ensureRects(fiveTiles, opts).then(() => null, (e) => e));
+      const err = await within(failure(s.ensureRects(fiveTiles, opts)));
       assert.equal(err, bug, where);
       assert.equal(StreetIndex.isDownloadError(err), false);
     }
   });
   await testCase(async () => { // only a failure carrying a street reason is a download failure: a source's other throw rejects as itself
     const bug = new TypeError("bug");
-    const bad = await new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw bug; } }).ensureRects(rect).then(() => null, (e) => e);
+    const bad = await failure(new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw bug; } }).ensureRects(rect));
     assert.equal(bad, bug);
     for (const reason of ["busy", "blocked", "stalled", "offline", "server"]) {
       const cause = Object.assign(new Error("x"), { reason });
-      const err = await new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw cause; } }).ensureRects(rect).then(() => null, (e) => e);
+      const err = await failure(new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw cause; } }).ensureRects(rect));
       assert.ok(StreetIndex.isDownloadError(err), reason);
       assert.equal(err.cause, cause);
     }
@@ -815,7 +860,7 @@ async function testCase(body) {
     const real = StreetIndex.splitAnswer;
     StreetIndex.splitAnswer = () => { throw bug; };
     try {
-      const err = await StreetIndex.overpassFetch([T(548, 2040)]).then(() => null, (e) => e);
+      const err = await failure(StreetIndex.overpassFetch([T(548, 2040)]));
       assert.equal(err, bug);
     } finally { StreetIndex.splitAnswer = real; }
   });
@@ -827,11 +872,11 @@ async function testCase(body) {
     const bug = new TypeError("bug");
     try {
       global.Overpass.post = () => { throw bug; };
-      assert.equal(await within(StreetIndex.overpassFetch([T(548, 2040)]).then(() => null, (e) => e)), bug);
+      assert.equal(await within(failure(StreetIndex.overpassFetch([T(548, 2040)]))), bug);
       global.Overpass.post = realPost;
       tileServer();
       StreetIndex.splitAnswer = () => undefined;
-      const err = await within(StreetIndex.overpassFetch([T(548, 2040)]).then(() => null, (e) => e));
+      const err = await within(failure(StreetIndex.overpassFetch([T(548, 2040)])));
       assert.ok(err instanceof TypeError, "reading the answer's tiles threw");
       global.Overpass.post = () => Promise.reject(undefined);
       assert.equal(await within(StreetIndex.overpassFetch([T(548, 2040)]).then(() => "resolved", (e) => e)), undefined);
@@ -844,7 +889,7 @@ async function testCase(body) {
       return new Map();
     } });
     s._read = () => { throw bug; };
-    assert.equal(await s.ensureRects(rect).then(() => null, (e) => e), bug);
+    assert.equal(await failure(s.ensureRects(rect)), bug);
   });
   await testCase(async () => { // a bug building a request, then a bug reading a tile an open request brought: the first is the rejection
     const real = StreetIndex.rectQuery;
@@ -855,7 +900,7 @@ async function testCase(body) {
       StreetIndex.rectQuery = (...a) => { if (++calls === 2) throw first; return real(...a); };
       const s = new StreetIndex({ newFrac: () => 1 });
       s._read = () => { throw new RangeError("second"); };
-      assert.equal(await within(s.ensureRects(twelve).then(() => null, (e) => e)), first);
+      assert.equal(await within(failure(s.ensureRects(twelve))), first);
     } finally { StreetIndex.rectQuery = real; }
   });
   await testCase(async () => { // several bugs in one run: the first is the rejection, so the class a caller logs is the first's
@@ -864,13 +909,13 @@ async function testCase(body) {
     let n = 0;
     const s = new StreetIndex({ newFrac: () => 1 });
     s._read = () => { throw ++n === 1 ? first : second; };
-    const err = await s.ensureRects(sixteen).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(sixteen));
     assert.equal(err, first);
   });
   await testCase(async () => { // the cause's retryAt is copied onto the error, and its reason when no tile arrived
     const cause = Object.assign(new Error("overpass HTTP 429"), { reason: "busy", retryAt: 12345 });
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => { throw cause; } });
-    const err = await s.ensureRects(rect).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(rect));
     assert.deepEqual([err.done, err.total, err.reason, err.retryAt, err.cause], [0, 1, "busy", 12345, cause]);
   });
   await testCase(async () => { // a run past its deadline stops before the next request, with its progress
@@ -879,12 +924,12 @@ async function testCase(body) {
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets: src.fetchStreets, now: () => clock.t });
     const progress = [];
     const r = [{ s: 51.0, w: 13.7, n: 51.025, e: 13.825 }];
-    const err = await s.ensureRects(r, { onProgress: (p) => progress.push(p) }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(r, { onProgress: (p) => progress.push(p) }));
     assert.equal(src.asked.length, 3, "past 20 min at the third tile (25 min): no fourth request");
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [3, 5, "streets-partial", "stalled"]);
     assert.deepEqual(progress, [0, 1, 2, 3].map((done) => ({ done, total: 5 })));
     const t = new StreetIndex({ newFrac: () => 1, fetchStreets: slowSource(clock, 30000).fetchStreets, now: () => clock.t });
-    const err2 = await t.ensureRects(r, { deadlineMs: 20000 }).then(() => null, (e) => e);
+    const err2 = await failure(t.ensureRects(r, { deadlineMs: 20000 }));
     assert.deepEqual([err2.done, err2.total], [1, 5], "opts.deadlineMs sets the deadline");
   });
   await testCase(async () => { // requests answered past the deadline keep every tile they brought, then nothing further is asked
@@ -893,7 +938,7 @@ async function testCase(body) {
     const serve = global.fetch;
     global.fetch = async (url, opts) => { clock.t += 1300000; return serve(url, opts); }; // past 20 min
     const s = new StreetIndex({ newFrac: () => 1, now: () => clock.t });
-    const err = await s.ensureRects([{ s: 51.0, w: 13.7, n: 51.05, e: 13.84 }]).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects([{ s: 51.0, w: 13.7, n: 51.05, e: 13.84 }]));
     assert.equal(asked.length, 2, "the two sent together, none for the third block");
     assert.deepEqual([err.done, err.total, err.reason, err.cause.reason], [8, 12, "streets-partial", "stalled"]);
   });
@@ -940,7 +985,7 @@ async function testCase(body) {
       replaced = true;
       throw Object.assign(new Error("x"), { reason: "server" });
     } });
-    const err = await s.ensureRects(fiveTiles, { stale: () => replaced }).then(() => null, (e) => e);
+    const err = await failure(s.ensureRects(fiveTiles, { stale: () => replaced }));
     assert.ok(StreetIndex.isSuperseded(err), "got " + (err && err.cause && err.cause.reason));
     assert.deepEqual([err.done, err.total], [1, 5], "what arrived is counted");
   });
@@ -967,10 +1012,10 @@ async function testCase(body) {
     const realPost = global.Overpass.post, bug = new TypeError("bug");
     try {
       global.Overpass.post = async () => { await null; throw bug; };
-      assert.equal(await within(StreetIndex.overpassFetch([T(548, 2040)]).then(() => null, (e) => e)), bug);
+      assert.equal(await within(failure(StreetIndex.overpassFetch([T(548, 2040)]))), bug);
       global.Overpass.post = realPost;
       global.fetch = async () => ({ ok: false, status: 429, headers: { get: () => null }, json: async () => ({}) });
-      const stopped = await within(StreetIndex.overpassFetch([T(548, 2040)], null, { wait: async () => { throw bug; } }).then(() => null, (e) => e));
+      const stopped = await within(failure(StreetIndex.overpassFetch([T(548, 2040)], null, { wait: async () => { throw bug; } })));
       assert.equal(stopped, bug);
     } finally { global.Overpass.post = realPost; global.Overpass._reset(); }
   });
@@ -980,7 +1025,7 @@ async function testCase(body) {
     const srv = heldServer();
     let stale = false;
     const s = new StreetIndex({ newFrac: () => 1 });
-    const run = s.ensureRects(sixteen, { stale: () => stale }).then(() => null, (e) => e);
+    const run = failure(s.ensureRects(sixteen, { stale: () => stale }));
     await settle();
     await srv.reply(0);
     stale = true;
@@ -1008,19 +1053,19 @@ async function testCase(body) {
     };
     const s = new StreetIndex({ newFrac: () => 1, fetchStreets });
     const reports = [];
-    const first = await s.ensureRects(r, { onProgress: (p) => reports.push(p) }).then(() => null, (e) => e);
+    const first = await failure(s.ensureRects(r, { onProgress: (p) => reports.push(p) }));
     assert.deepEqual([first.done, first.total, first.reason], [3, 6, "streets-partial"]);
     assert.deepEqual(reports[0], { done: 0, total: 6 });
     // nothing read in the retry, 3 tiles held: the cause's own reason, as when nothing was held
     plan = { give: 0, stop: "offline" };
     reports.length = 0;
-    const second = await s.ensureRects(r, { onProgress: (p) => reports.push(p) }).then(() => null, (e) => e);
+    const second = await failure(s.ensureRects(r, { onProgress: (p) => reports.push(p) }));
     assert.deepEqual([second.done, second.total, second.reason, second.cause.reason], [3, 6, "offline", "offline"]);
     assert.deepEqual(reports, [{ done: 3, total: 6 }], "the first report already counts the held tiles");
     // one tile read in the retry: streets-partial, with the held tiles in the count
     plan = { give: 1, stop: "stalled" };
     reports.length = 0;
-    const third = await s.ensureRects(r, { onProgress: (p) => reports.push(p) }).then(() => null, (e) => e);
+    const third = await failure(s.ensureRects(r, { onProgress: (p) => reports.push(p) }));
     assert.deepEqual([third.done, third.total, third.reason], [4, 6, "streets-partial"]);
     assert.deepEqual(reports.map((p) => p.done), [3, 4]);
     assert.deepEqual(asked, [6, 3, 3], "each retry asks only for what is missing");
@@ -1304,7 +1349,7 @@ async function testCase(body) {
       const clock = { t: 0 };
       const src = slowSource(clock, 25000);
       const s = new StreetIndex({ newFrac: () => 1, fetchStreets: src.fetchStreets, now: () => clock.t });
-      const err = await s.ensureRects(r, { deadlineMs }).then(() => null, (e) => e);
+      const err = await failure(s.ensureRects(r, { deadlineMs }));
       assert.deepEqual([src.asked.length, err.cause.reason], [askedTiles, "stalled"], "deadline " + deadlineMs);
     }
   });
@@ -1460,7 +1505,7 @@ async function testCase(body) {
     tileServer((n) => n >= 2 && 502);
     const bug = Object.assign(new TypeError("bug"), { reason: "busy" });
     const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
-    const err = await within(s.ensureRects(fiveTiles, { onProgress: (p) => { if ("waitUntil" in p) throw bug; } }).then(() => null, (e) => e));
+    const err = await within(failure(s.ensureRects(fiveTiles, { onProgress: (p) => { if ("waitUntil" in p) throw bug; } })));
     assert.equal(err, bug);
     assert.equal(StreetIndex.isDownloadError(err), false);
   });
@@ -1472,7 +1517,7 @@ async function testCase(body) {
     global.fetch = async (url, opts) => { stale = true; return serve(url, opts); };
     const s = new StreetIndex({ newFrac: () => 1 });
     s._read = () => { throw bug; };
-    const err = await within(s.ensureRects(rect, { stale: () => stale }).then(() => null, (e) => e));
+    const err = await within(failure(s.ensureRects(rect, { stale: () => stale })));
     assert.equal(err, bug);
     assert.equal(asked.length, 1);
   });
@@ -1490,9 +1535,100 @@ async function testCase(body) {
       global.fetch = async (url, opts) => { sentCount++; return behave(url, opts); };
       const clock = fakeClock();
       const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
-      const err = await within(s.ensureRects(rect).then(() => null, (e) => e));
+      const err = await within(failure(s.ensureRects(rect)));
       assert.deepEqual([sentCount, clock.sleeps, err.cause.reason], [1, [], reason], reason);
     }
   });
+  await testCase(async () => { // a throw from onTile on the first tile of an answer: the second tile of that answer still reaches onTile before the run rejects
+    tileServer();
+    const bug = new TypeError("bug");
+    const heard = [];
+    const err = await failure(StreetIndex.overpassFetch([{ x: 548, y: 2040 }, { x: 549, y: 2040 }], (t) => { heard.push(t.x); if (heard.length === 1) throw bug; }));
+    assert.equal(err, bug);
+    assert.deepEqual(heard, [548, 549]);
+  });
+  await testCase(async () => { // a 406, a stall and a rejected fetch over three street blocks: no request after the first failure, no sleep, reason set
+    const silent = (url, opts) => new Promise((_, reject) => opts.signal.addEventListener("abort", () => reject(opts.signal.reason)));
+    const behaviours = {
+      blocked: () => ({ ok: false, status: 406, json: async () => ({}) }),
+      stalled: silent,
+      offline: () => { throw new TypeError("Failed to fetch"); }
+    };
+    for (const [reason, behave] of Object.entries(behaviours)) {
+      global.Overpass._reset();
+      global.Overpass._firstByteMs = 5;
+      const asked = [];
+      global.fetch = async (url, opts) => { asked.push(boxesOf(opts.body).join(" ")); return behave(url, opts); };
+      const clock = fakeClock();
+      const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+      const err = await within(failure(s.ensureRects(twelve)));
+      assert.deepEqual([clock.sleeps, err.cause.reason, err.done], [[], reason, 0], reason);
+      assert.ok(asked.length <= 2, reason + ": at most the two requests that were open together, not the third block (" + asked.length + ")");
+    }
+  });
+  await testCase(async () => { // the deadline with four requests open (a key: NextGIS takes four): they finish and keep their tiles, the other two blocks are never asked
+    withKey();
+    const clock = fakeClock();
+    const srv = heldServer();
+    const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+    const run = within(s.ensureRects(twentyFour, { deadlineMs: 1000 }).then((r) => r, (e) => e));
+    await settle();
+    assert.equal(srv.pending.length, 4);
+    clock.t = 5000;
+    while (srv.pending.length) await srv.reply(0);
+    const err = await run;
+    assert.equal(srv.asked.length, 4, "the fifth and sixth block are never asked");
+    assert.deepEqual([err.reason, err.cause.reason, err.done, err.total], ["streets-partial", "stalled", 16, 24]);
+  });
+  await testCase(async () => { // NextGIS held (a 429) with a key: a 16-tile run goes to overpass-api.de, two requests open at most, none sent to NextGIS meanwhile
+    withKey();
+    const clock = fakeClock();
+    global.Overpass._now = clock.now;
+    global.fetch = async (url) => (url.includes("nextgis") ? { ok: false, status: 429, json: async () => ({}), headers: { get: () => null } } : { ok: true, status: 200, json: async () => ({ elements: EMPTY }) });
+    await global.Overpass.post("data=x").catch(() => {});
+    assert.equal(global.Overpass.cap(), 2, "NextGIS is held: the cap is overpass-api.de's");
+    const srv = heldServer();
+    const s = new StreetIndex({ newFrac: () => 1, now: clock.now, sleep: clock.sleep });
+    const progress = [];
+    const run = s.ensureRects(sixteen, { onProgress: (p) => progress.push(p) });
+    await settle();
+    assert.equal(srv.pending.length, 2, "two open, not four queued behind overpass-api.de's two slots");
+    while (srv.pending.length) await srv.reply(0);
+    assert.deepEqual(await run, { done: 16, total: 16 });
+    assert.deepEqual([srv.most.main, srv.most.nextgis, srv.asked.length], [2, undefined, 4]);
+    assert.deepEqual(progress[progress.length - 1], { done: 16, total: 16 });
+  });
+  await testCase(async () => { // no tiles: the default source resolves an empty Map and sends nothing
+    const asked = tileServer();
+    const got = await StreetIndex.overpassFetch([], () => assert.fail("no tile to hand over"));
+    assert.ok(got instanceof Map);
+    assert.equal(got.size, 0);
+    assert.equal(asked.length, 0);
+  });
+  await testCase(async () => { // a custom source that returns something that is not a Map is a server failure with a fixed message, not a raw TypeError
+    for (const bad of [[], {}, "x", 5]) {
+      const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async () => bad });
+      const err = await failure(s.ensureRects(rect));
+      assert.ok(StreetIndex.isDownloadError(err), JSON.stringify(bad));
+      assert.deepEqual([err.reason, err.done, err.total], ["server", 0, 1], JSON.stringify(bad));
+      assert.equal(err.message, "streets: got 0 of 1 tiles: street source: the answer is not a Map");
+      assert.deepEqual(heldAround(s, rect), [], "nothing is recorded as fetched");
+    }
+  });
+  await testCase(async () => { // a wait that throws an error with a street reason (the run's own superseded) comes out of the default source as that object, not wrapped in a download error
+    tileServer((n) => (n === 1 ? 429 : 0));
+    const stop = Object.assign(new Error("replaced"), { reason: "superseded" });
+    const err = await failure(StreetIndex.overpassFetch([{ x: 548, y: 2040 }], () => {}, { wait: async () => { throw stop; }, now: () => 0 }));
+    assert.equal(err, stop);
+  });
+  await testCase(async () => { // a source that hands every tile through onTile and returns nothing, or null, is whole: only a value that is neither nothing nor a Map fails
+    for (const nothing of [undefined, null]) {
+      const s = new StreetIndex({ newFrac: () => 1, fetchStreets: async (tiles, onTile) => { for (const t of tiles) onTile(t, { ways: [way(1)], groups: {} }); return nothing; } });
+      assert.deepEqual(await s.ensureRects(rect), { done: 1, total: 1 }, String(nothing));
+      assert.equal(heldAround(s, rect).length, 1, String(nothing));
+    }
+  });
+  assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
+  for (const body of inOrder(cases, process.env.CASE_ORDER)) await runCase(body);
   console.log("streets-fetch.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });
