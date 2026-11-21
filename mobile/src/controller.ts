@@ -1,3 +1,4 @@
+import { type Handlers, handlerFor } from "./bridge/handlers.js";
 import { openLink } from "./bridge/openLink.js";
 import type { NativeToWeb, WebToNative } from "./bridge/protocol.js";
 import { COPY } from "./copy.js";
@@ -199,6 +200,88 @@ export function createController(deps: ControllerDeps): Controller {
     await importFlow.loaded(msg);
   }
 
+  const handlers = {
+    ready: async () => {
+      pageReady = true;
+      await handleReady();
+    },
+    needBytes: (msg) => handleNeedBytes(msg.fingerprint),
+    loaded: (msg) => handleLoaded(msg),
+    pickBackup: async () => {
+      if (restoring) {
+        deps.notify(COPY.restoreRunning);
+        return;
+      }
+      await importFlow.pick();
+    },
+    clearSavedFog: async () => {
+      if (importFlow.active()) return;
+      if (restoring) {
+        deps.notify(COPY.restoreRunning);
+        return;
+      }
+      if (await deps.confirmClear()) {
+        await store.clear();
+        await guard.reset();
+        await doRemount();
+      }
+    },
+    retryReload: async () => {
+      await guard.reset();
+      await doRemount();
+    },
+    export: async (msg) => {
+      try {
+        await deps.shareExport({ filename: msg.filename, mime: msg.mime, text: msg.text });
+      } catch {
+        deps.notify(COPY.exportFailed);
+      }
+    },
+    openExternal: (msg) => openLink(msg.url, deps.openExternal, deps.notify),
+    openAbout: () => {
+      deps.openAbout();
+    },
+    sendRoute: (msg) => deps.flows.sendRoute(msg.route),
+    needTrack: (msg) => deps.flows.needTrack(msg.activityId),
+    deleteActivity: (msg) => deps.flows.deleteActivity(msg.activityId),
+    exportBinary: async (msg) => {
+      const { v: _v, type: _type, ...exportChunk } = msg;
+      await deps.flows.exportBinary(exportChunk);
+    },
+    backup: () => deps.flows.backup(),
+    restore: async () => {
+      if (importFlow.active()) {
+        deps.notify(COPY.restoreBusy);
+        return;
+      }
+      restoring = true;
+      try {
+        if (await deps.flows.restore()) {
+          await guard.reset();
+          await doRemount();
+        }
+      } finally {
+        restoring = false;
+      }
+    },
+    settings: (msg) => deps.flows.settings(msg.json),
+    settingsApplied: () => deps.flows.settingsApplied(),
+    devAddActivity: async () => {
+      if (__DEV__) await deps.devAddActivity?.();
+    },
+    "back:result": (msg) => {
+      if (msg.handled) return;
+      const now = deps.now();
+      if (lastBackAt !== null && now - lastBackAt < 2000) {
+        lastBackAt = null;
+        deps.exitApp();
+      } else {
+        lastBackAt = now;
+        deps.notify(COPY.pressBackAgain);
+      }
+    },
+  } satisfies Handlers<WebToNative>;
+
   return {
     async start() {
       if (!started) {
@@ -214,107 +297,9 @@ export function createController(deps: ControllerDeps): Controller {
 
     async onWebMessage(msg: WebToNative) {
       await started;
-      switch (msg.type) {
-        case "ready":
-          pageReady = true;
-          await handleReady();
-          break;
-        case "needBytes":
-          await handleNeedBytes(msg.fingerprint);
-          break;
-        case "loaded":
-          await handleLoaded(msg);
-          break;
-        case "pickBackup":
-          if (restoring) {
-            deps.notify(COPY.restoreRunning);
-            return;
-          }
-          await importFlow.pick();
-          break;
-        case "clearSavedFog":
-          if (importFlow.active()) return;
-          if (restoring) {
-            deps.notify(COPY.restoreRunning);
-            return;
-          }
-          if (await deps.confirmClear()) {
-            await store.clear();
-            await guard.reset();
-            await doRemount();
-          }
-          break;
-        case "retryReload":
-          await guard.reset();
-          await doRemount();
-          break;
-        case "export":
-          try {
-            await deps.shareExport({ filename: msg.filename, mime: msg.mime, text: msg.text });
-          } catch {
-            deps.notify(COPY.exportFailed);
-          }
-          break;
-        case "openExternal":
-          await openLink(msg.url, deps.openExternal, deps.notify);
-          break;
-        case "openAbout":
-          deps.openAbout();
-          break;
-        case "sendRoute":
-          await deps.flows.sendRoute(msg.route);
-          break;
-        case "needTrack":
-          await deps.flows.needTrack(msg.activityId);
-          break;
-        case "deleteActivity":
-          await deps.flows.deleteActivity(msg.activityId);
-          break;
-        case "exportBinary": {
-          const { v: _v, type: _type, ...exportChunk } = msg;
-          await deps.flows.exportBinary(exportChunk);
-          break;
-        }
-        case "backup":
-          await deps.flows.backup();
-          break;
-        case "restore":
-          if (importFlow.active()) {
-            deps.notify(COPY.restoreBusy);
-            return;
-          }
-          restoring = true;
-          try {
-            if (await deps.flows.restore()) {
-              await guard.reset();
-              await doRemount();
-            }
-          } finally {
-            restoring = false;
-          }
-          break;
-        case "settings":
-          await deps.flows.settings(msg.json);
-          break;
-        case "settingsApplied":
-          await deps.flows.settingsApplied();
-          break;
-        case "devAddActivity":
-          if (__DEV__) await deps.devAddActivity?.();
-          break;
-        case "back:result":
-          if (!msg.handled) {
-            const now = deps.now();
-            if (lastBackAt !== null && now - lastBackAt < 2000) {
-              lastBackAt = null;
-              deps.exitApp();
-            } else {
-              lastBackAt = now;
-              deps.notify(COPY.pressBackAgain);
-            }
-          }
-          break;
-      }
+      // A parsed message always has a handler (the map is checked against the union); the lookup tolerates one
+      // that was not parsed, which is ignored.
+      await handlerFor(handlers, msg)?.();
     },
 
     async onIncoming(file: SourceFile) {

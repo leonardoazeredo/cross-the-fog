@@ -178,8 +178,9 @@ export const WEB_TO_NATIVE_MESSAGES = {
   devAddActivity: [z.object({ v: z.literal(1), type: z.literal("devAddActivity") })],
 };
 
-// Every app-to-page message, by type.
-export const NATIVE_TO_WEB_MESSAGES = {
+// The app-to-page messages the session handles itself: it loads the fog the phone sends and shows its status, and
+// answers the back button and the settings.
+export const SESSION_MESSAGES = {
   reload: [
     z.object({
       v: z.literal(1),
@@ -215,6 +216,15 @@ export const NATIVE_TO_WEB_MESSAGES = {
     }),
   ],
   back: [z.object({ v: z.literal(1), type: z.literal("back") })],
+  needSettings: [z.object({ v: z.literal(1), type: z.literal("needSettings") })],
+  applySettings: [
+    z.object({ v: z.literal(1), type: z.literal("applySettings"), json: settingsJson }),
+  ],
+};
+
+// The app-to-page messages the page API hands to `window.crossfog.on` listeners (PAGE_EVENTS in
+// web-adapter/pageApi.ts is these keys). A type is in one of the two tables, so the session cannot also answer it.
+export const PAGE_MESSAGES = {
   routeStatus: [
     z.object({
       v: z.literal(1),
@@ -236,38 +246,8 @@ export const NATIVE_TO_WEB_MESSAGES = {
       unsentRoutes: z.number().int().positive().optional(),
     }),
   ],
-  needSettings: [z.object({ v: z.literal(1), type: z.literal("needSettings") })],
-  applySettings: [
-    z.object({ v: z.literal(1), type: z.literal("applySettings"), json: settingsJson }),
-  ],
-  // The answer to a needTrack for an activity that is gone or cannot be read, so the detail stops waiting.
-  trackUnavailable: [
-    z.object({
-      v: z.literal(1),
-      type: z.literal("trackUnavailable"),
-      activityId: uuid,
-      reason: z.enum(["notFound", "readFailed"]),
-    }),
-  ],
   activities: [
     z.object({ v: z.literal(1), type: z.literal("activities"), items: z.array(activitySummary) }),
-  ],
-  // How a Fog of World export went: `saving` just before the picker opens, then one of the other three.
-  exportStatus: [
-    z.object({
-      v: z.literal(1),
-      type: z.literal("exportStatus"),
-      exportId,
-      state: z.enum(["saving", "saved", "cancelled", "failed"]),
-    }),
-  ],
-  // Activities the watch handed over that stay staged because the phone cannot read them.
-  unreadableActivities: [
-    z.object({
-      v: z.literal(1),
-      type: z.literal("unreadableActivities"),
-      count: z.number().int().min(0),
-    }),
   ],
   track: [
     z
@@ -283,4 +263,33 @@ export const NATIVE_TO_WEB_MESSAGES = {
       })
       .refine(indexBelowTotal, INDEX_BELOW_TOTAL),
   ],
+  // The answer to a needTrack for an activity that is gone or cannot be read, so the detail stops waiting.
+  trackUnavailable: [
+    z.object({
+      v: z.literal(1),
+      type: z.literal("trackUnavailable"),
+      activityId: uuid,
+      reason: z.enum(["notFound", "readFailed"]),
+    }),
+  ],
+  // Activities the watch handed over that stay staged because the phone cannot read them.
+  unreadableActivities: [
+    z.object({
+      v: z.literal(1),
+      type: z.literal("unreadableActivities"),
+      count: z.number().int().min(0),
+    }),
+  ],
+  // How a Fog of World export went: `saving` just before the picker opens, then one of the other three.
+  exportStatus: [
+    z.object({
+      v: z.literal(1),
+      type: z.literal("exportStatus"),
+      exportId,
+      state: z.enum(["saving", "saved", "cancelled", "failed"]),
+    }),
+  ],
 };
+
+// The whole app-to-page set, which is what `nativeToWebSchema` parses; the split above is for who handles a type.
+export const NATIVE_TO_WEB_MESSAGES = { ...SESSION_MESSAGES, ...PAGE_MESSAGES };

@@ -155,6 +155,37 @@ it("sends exactly one retry needBytes on the first mismatch", async () => {
   expect(sent.filter((m) => m.type === "loaded")).toHaveLength(0);
 });
 
+it("loads a copy whose chunks arrive intact after a bad first attempt", async () => {
+  const sess = makeSession();
+  await sess.onMessage({
+    v: 1,
+    type: "reload",
+    fingerprint: fp,
+    name,
+    savedAt,
+    size,
+    role: "current",
+  });
+  await sess.onMessage({
+    v: 1,
+    type: "chunk",
+    fingerprint: fp,
+    index: 0,
+    total: 1,
+    data: encodeBase64(new Uint8Array([9])),
+  });
+  for (const chunk of chunkMessages(bytes, fp)) await sess.onMessage(chunk);
+  expect(sent).toContainEqual({ v: 1, type: "loaded", fingerprint: fp, ok: true, tiles: 2 });
+  expect(sent.filter((m) => m.type === "loaded")).toHaveLength(1);
+});
+
+it("ignores a chunk that arrives with no copy being received", async () => {
+  const sess = makeSession();
+  for (const chunk of chunkMessages(bytes, fp)) await sess.onMessage(chunk);
+  expect(sent).toEqual([]);
+  expect(status.calls).toEqual([]);
+});
+
 it("first run: none empties the cache and hides the line", async () => {
   const c = makeCache(new Map([[fp, bytes]]));
   const sess = createSession({
