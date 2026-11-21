@@ -199,7 +199,8 @@ it("keeps the reload going when the flows' ready throws", async () => {
   await saveToStore(h.store, aSrc, "a.zip");
   h.flows.ready.mockRejectedValue(new Error("flow bug"));
   await h.c.start();
-  await h.c.onWebMessage(ready).catch(() => undefined);
+  // The flow's failure reaches the caller; the reload the controller already sent is not undone by it.
+  await expect(h.c.onWebMessage(ready)).rejects.toThrow("flow bug");
   h.sent.length = 0;
 
   await h.c.onWebMessage({ v: 1, type: "needBytes", fingerprint: sha(A) });

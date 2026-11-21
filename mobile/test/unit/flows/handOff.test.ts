@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { createHandOffFlow } from "../../../src/flows/handOff.js";
 import { parseGpx } from "../../../src/history/gpx.js";
@@ -67,6 +68,24 @@ describe("hand-off", () => {
     expect(await flow.run()).toEqual({ stored: 1, released: 1, unreadable: 0 });
     expect((await activities.get(A))?.stats.skippedPoints).toBe(1);
     expect((await activities.get(A))?.track).toHaveLength(2);
+  });
+
+  it("stores a walk the watch's own encoder wrote", async () => {
+    const { link, activities, flow } = setup();
+    const gpxText = readFileSync(
+      new URL("../../fixtures/watch-encoded-walk.gpx", import.meta.url),
+      "utf8",
+    );
+    link.stage(offer(A, "2026-03-01T10:00:00Z", { gpx: gpxText }));
+
+    expect(await flow.run()).toEqual({ stored: 1, released: 1, unreadable: 0 });
+    expect(await activities.get(A)).toMatchObject({
+      startedAt: "2026-03-01T10:00:00.000Z",
+      endedAt: "2026-03-01T10:01:00.000Z",
+      stats: { durationS: 33, distanceM: 71.5, steps: 47, heartRateAvg: 98, heartRateMax: 104 },
+    });
+    expect((await activities.get(A))?.track).toHaveLength(4);
+    expect(await activities.gpx(A)).toBe(gpxText);
   });
 
   // The native sink stages an activity again when the watch resends it after the page released it
