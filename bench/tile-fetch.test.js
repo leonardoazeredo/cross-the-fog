@@ -27,5 +27,23 @@ const B = [{ s: 52.0, w: 14.7, n: 52.01, e: 14.71 }];
     assert.ok(err instanceof Error && /one set of rects per index/.test(err.message), "other rects that need a fetch are refused: " + (err && err.message));
     assert.equal(bodies.length, 1, "and nothing was posted for them");
   } finally { Overpass.post = realPost; Overpass._reset(); }
+  { // the same rects again after a failed first fetch go out with the identical query: the guard refuses other rects, not a retry
+    const posts = [];
+    let fail = true;
+    Overpass.post = async (body) => {
+      posts.push(body);
+      if (fail) throw Object.assign(new Error("x"), { reason: "busy" });
+      return { elements: [{ type: "count" }] };
+    };
+    try {
+      const s = new StreetIndex({ newFrac: () => 1 });
+      installTileFetch(s);
+      assert.ok(await s.ensureRects(A).then(() => null, (e) => e), "the first fetch fails");
+      fail = false;
+      assert.deepEqual(await s.ensureRects(A), { done: 1, total: 1 });
+      assert.equal(posts.length, 2);
+      assert.equal(posts[1], posts[0], "the retry asks the same query");
+    } finally { Overpass.post = realPost; Overpass._reset(); }
+  }
   console.log("tile-fetch.test.js ok");
 })().catch((e) => { console.error(e); process.exit(1); });

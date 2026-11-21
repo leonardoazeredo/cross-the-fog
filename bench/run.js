@@ -22,7 +22,9 @@ const filter = process.argv[3] || "";
   console.log(`fog tiles: ${fogMap.tileCount}`);
   const all = [];
   let live = 0; // requests the disk cache did not have, over the scenarios that returned
-  let failed = 0; // scenarios that threw: their requests are not counted
+  // scenarios that threw, or whose run ended in reason "internal" (SuggestTool turns a throw it cannot class, such as
+  // tileFetch's refusal of a second set of rects, into that state instead of rejecting): their requests are not counted
+  let failed = 0;
 
   for (const sc of scenarios) {
     if (filter && !sc.name.includes(filter)) continue;
@@ -38,6 +40,7 @@ const filter = process.argv[3] || "";
     }
     live += out.requests - out.cacheHits;
     const s = out.state;
+    if (s.error && s.reason === "internal") failed++;
     if (s.empty || s.error) {
       console.log(`  no results (${s.error ? "error" : s.reason || "empty"})  requests=${out.requests} (${out.cacheHits} cached) ${out.ms}ms`);
       all.push({ scenario: sc.name, empty: true, reason: s.reason || (s.error ? "error" : "empty"), requests: out.requests, ms: out.ms });

@@ -6,7 +6,7 @@
 // bench/cache/ holds overpass-api.de answers; asking that instance first keeps the bench on the same data
 // as the saved baseline; the street source installed here is how a bench run posts to Overpass.
 // Serves the rects of one ensureRects call per index: a later call that has to fetch for other rects would build a
-// query whose text differs from the saved one (a cache miss), so it throws instead. A later call over rects that are
+// query whose text differs from the saved one (a cache miss), so it throws instead (SuggestTool reports that as an "internal" error, which bench/run.js counts and exits 1 for). A later call over rects that are
 // already held fetches nothing. The query asks only for the rects, not the whole tiles they touch, so the index
 // treats a whole tile as covered although streets outside the rects were not fetched: newAreaM2 can score a small
 // area there where the app's own source (whole street blocks) would have found streets, so the bench's scores are

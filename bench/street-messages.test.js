@@ -72,6 +72,7 @@ const err = (reason, more) => Object.assign(new Error("overpass HTTP 502"), { re
   assert.equal(progress({ done: 3, total: 12 }), "Getting the street map, 3 of 12…");
   assert.equal(progress({ done: 0, total: 12 }), "Getting the street map, 0 of 12…");
   assert.equal(progress({}), "Getting the street map…");
+  assert.equal(progress(), "Getting the street map…", "no report at all");
 }
 { // progress while a busy server is waited out: the wait rounded like a retry time, then the counts
   assert.equal(progress({ done: 4, total: 12, waitUntil: now + 15_000 }, now), "The street servers are busy. Trying again in about 20 s… (4 of 12)");

@@ -271,5 +271,7 @@ function cellsOf(files) {
   const raw = fs.readFileSync(path.join(__dirname, "..", "app", "index.html"), "utf8");
   assert.ok(raw.includes(tag));
   assert.equal(at("vendor/pako.min.js", withoutComments(raw.replace(tag, `<!-- ${tag} -->`))), -1, "a commented-out tag is not found");
+  assert.equal(html, withoutComments(raw), "readPage is the page with its comments removed");
+  assert.ok(!html.includes("<!--"), "no comment is left in what the tests read");
 }
 console.log("fog-writer.test.js ok");
