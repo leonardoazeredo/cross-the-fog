@@ -8,17 +8,6 @@
 // way back is pushed onto different streets: that is what makes long thin
 // loops (out one fogged street, back a parallel one) fall out naturally.
 // Everything runs locally and every plan carries its own street geometry.
-// What resampleWps reads from the page, looked up on the host when a plan is made, never at load: pageGlobals.ts
-// passes the page's own object.
-export interface PlannerHost {
-  L?: { latLng(lat: number, lng: number): unknown };
-}
-
-let host: PlannerHost | null = null;
-export function bindPlannerHost(h: PlannerHost): void {
-  host = h;
-}
-
 // The planner, its heap and the plans it builds are held loosely: they are plain objects the search code builds and
 // reads field by field, and this file does not restructure them.
 // biome-ignore lint/suspicious/noExplicitAny: see above
@@ -564,8 +553,7 @@ function resampleWps(coords: any, n: any, kx: any, ky: any) {
   for (let t = 1; t <= n; t++) {
     const target = (total * t) / (n + 1);
     while (k < cum.length - 1 && (cum[k] as number) < target) k++;
-    if (!host?.L) throw new ReferenceError("L is not defined");
-    out.push(host.L.latLng(coords[k][1], coords[k][0]));
+    out.push({ lat: coords[k][1], lng: coords[k][0] });
   }
   return out;
 }
