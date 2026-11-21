@@ -32,10 +32,12 @@ function between(src: string, from: string, to?: string): string {
   return src.slice(start, end);
 }
 
-const casesIn = (src: string) => [...src.matchAll(/case "([^"]+)":/g)].map((m) => m[1] as string);
+// The keys of a handler map written at four spaces of indent: `ready: ...` or `"back:result": ...`.
+const mapKeys = (src: string) =>
+  [...src.matchAll(/^ {4}"?([\w:]+)"?: /gm)].map((m) => m[1] as string);
 
 // The types the controller ignores with no handler of its own, on purpose. Empty today:
-// `devAddActivity` has a case that does nothing unless `__DEV__` (controller.test.ts pins both).
+// `devAddActivity` has a handler that does nothing unless `__DEV__` (controller.test.ts pins both).
 const IGNORED_ON_PURPOSE_BY_THE_CONTROLLER: string[] = [];
 
 // The types in `types` that nothing handles and no one ignored on purpose.
@@ -229,7 +231,7 @@ it("keeps the controller's handler map checked against every page-to-app type", 
   const controller = read("src/controller.ts");
   expect(controller).toContain("} satisfies Handlers<WebToNative>;");
   const map = between(controller, "const handlers = {", "} satisfies Handlers<WebToNative>;");
-  const keys = [...map.matchAll(/^ {4}"?([\w:]+)"?: /gm)].map((m) => m[1] as string);
+  const keys = mapKeys(map);
   expect(unhandled(WEB_TO_NATIVE_TYPES, keys, IGNORED_ON_PURPOSE_BY_THE_CONTROLLER)).toEqual([]);
   expect(keys.filter((k) => !WEB_TO_NATIVE_TYPES.includes(k))).toEqual([]);
 });
@@ -245,7 +247,7 @@ it("splits the app-to-page types between the session and the page API, each half
   const session = read("web-adapter/session.ts");
   expect(session).toContain("} satisfies Handlers<SessionMessage>;");
   const map = between(session, "const handlers = {", "} satisfies Handlers<SessionMessage>;");
-  const keys = [...map.matchAll(/^ {4}"?([\w:]+)"?: /gm)].map((m) => m[1] as string);
+  const keys = mapKeys(map);
   expect(keys.sort()).toEqual([...sessionTypes].sort());
 
   // PAGE_EVENTS is the page half's keys, not a second list.
@@ -256,15 +258,17 @@ it("splits the app-to-page types between the session and the page API, each half
   expect(pageEvents.filter((t) => !index.includes(`.on("${t}"`))).toEqual([]);
 });
 
-it("finds a type nothing handles (control for the helpers of the cases above)", () => {
+it("finds a type nothing handles and the keys of a map (control for the helpers of the cases above)", () => {
   expect(unhandled(["a", "b"], ["a"], [])).toEqual(["b"]);
   expect(unhandled(["a", "b"], ["a"], ["b"])).toEqual([]);
-  expect(casesIn('switch (x) { case "a": break; case "b:c": break; }')).toEqual(["a", "b:c"]);
+  // Only the keys at the map's own indent, quoted or not; a line inside a handler body is not one.
   expect(
-    casesIn(
-      withoutComments('switch (x) {\n  // case "a":\n  /* case "b": */\n  case "c": break; }'),
+    mapKeys(
+      '    ready: () => {},\n    "back:result": (m) => {\n      const x: 1 = 1;\n    },\n  other: 1,',
     ),
-  ).toEqual(["c"]);
+  ).toEqual(["ready", "back:result"]);
+  // A key in a comment is not one: the sources are read without their comments.
+  expect(mapKeys(withoutComments("    // ghost: 1\n    ready: () => {},"))).toEqual(["ready"]);
 });
 
 it("keys each message table by the type literal of every schema under the key", () => {

@@ -895,9 +895,9 @@ it("does nothing for the developer add-activity message in a debug app with no h
 
 // tsc checks the handler map against the union, so a message that passed the schema has an entry. One that did
 // not (a caller that skipped the parse) names no entry of the map's own and is dropped with no effect and no error.
-// The names of Object.prototype are types it has no case for too: a lookup by type must not find a function there.
+// The names of Object.prototype are types it has no handler for too: a lookup by type must not find a function there.
 it.each(["mystery", "constructor", "toString", "hasOwnProperty", "__proto__"])(
-  "does nothing, and says nothing, for the type %s, which it has no case for",
+  "does nothing, and says nothing, for the type %s, which it has no handler for",
   async (type) => {
     const h = createHarness();
     await h.c.start();
