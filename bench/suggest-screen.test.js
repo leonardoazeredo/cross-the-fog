@@ -154,7 +154,10 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
   const spec = [ // bearing, area, newPct, lenM, ascent, descent
     [10, 50, 90, 700, 11, 12], [80, 40, 80, 710, 21, 22], [150, 30, 70, 720, 31, 32], [220, 20, 60, 730, 41, 42], [290, 10, 50, 740, 51, 52],
   ];
-  const cand = ([brg, , , lenM, ascent, descent]) => ({ isBase: lenM === 710, r: { coords: [[S0.lng, S0.lat], at(brg, 600), at(brg, 650)], lenM, ascent, descent, legs: [] } });
+  // The third walks 600 m out in 100 m steps and back 300 m over the same ground: 4 of its 9 segments retrace, so
+  // an A to B card says 44 (rounded from 44.4); the others retrace nothing.
+  const lollipop = (brg) => [0, 100, 200, 300, 400, 500, 600, 500, 400, 300].map((m) => (m ? at(brg, m) : [S0.lng, S0.lat]));
+  const cand = ([brg, , , lenM, ascent, descent]) => ({ isBase: lenM === 710, r: { coords: brg === 150 ? lollipop(brg) : [[S0.lng, S0.lat], at(brg, 600), at(brg, 650)], lenM, ascent, descent, legs: [] } });
   const gains = new Map(spec.map((sp) => [cand(sp).r.coords[1].join(), { area: sp[1], newPct: sp[2] }]));
   const dup = { r: Object.assign({}, cand(spec[0]).r, { lenM: 999 }) };
   const southOld = (lon, lat) => lat >= S0.lat; // the routes heading south are old ground
@@ -172,11 +175,11 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
     assert.equal(list.length, 3, `${mode}: the top three of five`);
     assert.deepEqual(tool.results.map((c) => c.r.lenM), [700, 710, 720], `${mode}: in rank order, the duplicate dropped`);
     list.forEach((c, i) => {
-      const sp = spec[i], res = tool.results[i];
+      const sp = spec[i];
       assert.deepEqual(Object.assign({}, c), {
         color: COLORS[i], km: sp[3] / 1000, deltaKm: sp[3] / 1000 - (extra.baseKm != null ? extra.baseKm : extra.targetKm),
         ascent: sp[4], descent: sp[5], area: sp[1], newPct: sp[2],
-        retracePct: mode === "p2p" ? Math.round(res.retrace * 100) : undefined, isBase: i === 1,
+        retracePct: mode === "p2p" ? [0, 0, 44][i] : undefined, isBase: i === 1,
       }, `${mode}: card ${i}`);
     });
     assert.equal(emits[0].raw.bufferPct, 15, `${mode}: the run's own fields travel with the list`);
