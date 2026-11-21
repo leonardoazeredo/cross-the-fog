@@ -13,7 +13,9 @@ const files = args.filter((a) => !a.startsWith("--"));
 const flag = (n) => args.find((a) => a.startsWith(`--${n}`));
 const exclude = new Set(((flag("exclude=") || "").split("=")[1] || "").split(",").filter(Boolean));
 const subset = args.includes("--subset");
-if (files.length !== 2) {
+// a misspelt flag would be ignored and silently compare less than was asked
+const unknown = args.filter((a) => a.startsWith("--") && a !== "--subset" && !a.startsWith("--exclude="));
+if (files.length !== 2 || unknown.length) {
   console.error("usage: node bench/identical.js <reference.json> <candidate.json> [--exclude=a,b] [--subset]");
   process.exit(2);
 }
@@ -21,8 +23,11 @@ if (files.length !== 2) {
 const read = (f, i) => {
   try {
     const run = JSON.parse(fs.readFileSync(f, "utf8"));
-    if (Array.isArray(run.scenarios)) return run;
-    console.error(`file ${i + 1}: no scenarios list`);
+    if (Array.isArray(run.scenarios)) {
+      // the scenarios are matched by name, so two of one name would hide a difference
+      if (new Set(run.scenarios.map((s) => s.scenario)).size === run.scenarios.length) return run;
+      console.error(`file ${i + 1}: a scenario name occurs twice`);
+    } else console.error(`file ${i + 1}: no scenarios list`);
   } catch (e) {
     console.error(`file ${i + 1}: not readable JSON (${e.name})`);
   }
@@ -58,6 +63,10 @@ for (const [name, s] of a) {
 }
 if (!subset) for (const name of b.keys()) if (!a.has(name)) note("scenario added");
 
+if (!compared && !differ.size) {
+  console.log("NOTHING COMPARED");
+  process.exit(1);
+}
 console.log(`scenarios: ${a.size} reference, ${b.size} candidate; values compared: ${compared}; excluded fields: ${[...exclude].join(",") || "none"}`);
 if (differ.size) {
   for (const [field, n] of [...differ].sort()) console.log(`differs: ${field} (${n})`);
