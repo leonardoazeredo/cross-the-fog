@@ -25,6 +25,7 @@ const B = [{ s: 52.0, w: 14.7, n: 52.01, e: 14.71 }];
     assert.equal(bodies.length, 1, "the same rects again fetch nothing");
     const err = await s.ensureRects(B).then(() => null, (e) => e);
     assert.ok(err instanceof Error && /one set of rects per index/.test(err.message), "other rects that need a fetch are refused: " + (err && err.message));
+    assert.equal(StreetIndex.isDownloadError(err), false, "the refusal is a bug, not a download error: SuggestTool ends it internal, which run.js counts");
     assert.equal(bodies.length, 1, "and nothing was posted for them");
   } finally { Overpass.post = realPost; Overpass._reset(); }
   { // the same rects again after a failed first fetch go out with the identical query: the guard refuses other rects, not a retry
@@ -38,7 +39,8 @@ const B = [{ s: 52.0, w: 14.7, n: 52.01, e: 14.71 }];
     try {
       const s = new StreetIndex({ newFrac: () => 1 });
       installTileFetch(s);
-      assert.ok(await s.ensureRects(A).then(() => null, (e) => e), "the first fetch fails");
+      const first = await s.ensureRects(A).then(() => null, (e) => e);
+      assert.ok(StreetIndex.isDownloadError(first) && first.cause.reason === "busy", "the first fetch fails busy");
       fail = false;
       assert.deepEqual(await s.ensureRects(A), { done: 1, total: 1 });
       assert.equal(posts.length, 2);
