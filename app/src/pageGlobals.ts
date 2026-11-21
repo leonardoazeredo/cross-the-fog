@@ -19,7 +19,7 @@ import { ImportMessages } from "./importMessages.ts";
 import { MD5 } from "./md5.ts";
 import { bindOverpassHost, Overpass, type OverpassHost } from "./overpass.ts";
 import { type FogMap, FogParser } from "./parser.ts";
-import { bindPlannerHost, GraphPlanner, type PlannerHost } from "./planner.ts";
+import { GraphPlanner } from "./planner.ts";
 import { Reveal } from "./reveal.ts";
 import { RouteLocal } from "./routeLocal.ts";
 import { LocalRouter } from "./router.ts";
@@ -36,7 +36,7 @@ interface Pako {
   inflate(bytes: Uint8Array): Uint8Array;
   inflateRaw(bytes: Uint8Array): Uint8Array;
 }
-export interface PageWindow extends OverpassHost, ElevationHost, PlannerHost, SuggestHost {
+export interface PageWindow extends OverpassHost, ElevationHost, SuggestHost {
   pako?: Pako;
   indexedDB?: IDBFactory | null;
   [name: string]: unknown;
@@ -46,8 +46,6 @@ export function pageGlobals(page: PageWindow) {
   // Overpass keeps its state at module level, one instance for the bundle, so it has one host: the last window given.
   // It reads that window's fetch, `navigator.onLine` and `crossfogNextgisKey` each time a request, `has` or `cap` runs.
   bindOverpassHost(page);
-  // and the planner, which reads `L` when it resamples a plan's waypoints
-  bindPlannerHost(page);
   // and the suggestion tool, which reads `L` and `matchMedia` when it draws or places a pin
   bindSuggestHost(page);
   // `deflate` defaults to window.pako's, and `inflate`, which reads every file back before it is handed out, to

@@ -16,8 +16,8 @@ import { HOLD_AS } from "./streetGrid.ts";
 // What the tool reads from the page, looked up on the host when it runs, never at load: Leaflet's `L` (markers, icons,
 // polylines, bounds) and `matchMedia`. pageGlobals.ts binds the page's own object.
 export interface SuggestHost {
-  // typed as the other hosts type it; this file uses the rest of Leaflet's surface through `leaflet()`
-  L?: { latLng(lat: number, lng: number): unknown };
+  // the surface this file uses is read through `leaflet()`
+  L?: object;
   matchMedia?: (query: string) => { matches: boolean };
 }
 
@@ -445,7 +445,7 @@ SuggestTool.prototype._snapToNewStreets = function (this: Self, ll: any, radiusM
   for (let dy = -radiusM; dy <= radiusM; dy += step) {
     for (let dx = -radiusM; dx <= radiusM; dx += step) {
       if (!dx && !dy) continue;
-      const p = leaflet().latLng(ll.lat + dy / ky, ll.lng + dx / kx);
+      const p = { lat: ll.lat + dy / ky, lng: ll.lng + dx / kx };
       const m = this._newAreaM2(p, 200);
       if (m === null) continue;
       const s = m * (1 - Math.hypot(dx, dy) / (radiusM * 2.2));
@@ -675,10 +675,10 @@ SuggestTool.prototype._viaPoint = function (this: Self, t: any, side: any, d: an
   if (L2 < 100) return null;
   const px = -(by - ay) / L2,
     py = (bx - ax) / L2;
-  return leaflet().latLng(
-    (ay + (by - ay) * t + py * side * d) / ky,
-    (ax + (bx - ax) * t + px * side * d) / kx,
-  );
+  return {
+    lat: (ay + (by - ay) * t + py * side * d) / ky,
+    lng: (ax + (bx - ax) * t + px * side * d) / kx,
+  };
 };
 
 SuggestTool.prototype._viaCandidates = function (this: Self, budgetM: any) {
@@ -818,7 +818,7 @@ SuggestTool.prototype._suggestP2P = async function (this: Self, buffer: any, tar
   if (budget <= 12000) {
     const planner = this._graph();
     if (planner) {
-      const mid = leaflet().latLng((A.lat + B.lat) / 2, (A.lng + B.lng) / 2);
+      const mid = { lat: (A.lat + B.lat) / 2, lng: (A.lng + B.lng) / 2 };
       try {
         if (planner.meanFracNear(mid, Math.min(1800, budget * 0.25)) < 0.82)
           planned = planner.planP2P(A, B, budget, 3);
@@ -959,7 +959,7 @@ SuggestTool.prototype._loopBearings = function (this: Self, S: any, distM: any) 
   const { kx, ky } = metresPerDeg(S.lat);
   const at = (thDeg: any, m: any) => {
     const th = (thDeg * Math.PI) / 180;
-    return leaflet().latLng(S.lat + (Math.cos(th) * m) / ky, S.lng + (Math.sin(th) * m) / kx);
+    return { lat: S.lat + (Math.cos(th) * m) / ky, lng: S.lng + (Math.sin(th) * m) / kx };
   };
   const R = bearingRadius(distM);
   const score = (p: any) => {
@@ -991,7 +991,7 @@ SuggestTool.prototype._loopVias = function (
   const { kx, ky } = metresPerDeg(S.lat);
   const at = (thDeg: any, m: any) => {
     const th = (thDeg * Math.PI) / 180;
-    return leaflet().latLng(S.lat + (Math.cos(th) * m) / ky, S.lng + (Math.sin(th) * m) / kx);
+    return { lat: S.lat + (Math.cos(th) * m) / ky, lng: S.lng + (Math.sin(th) * m) / kx };
   };
   return ((LOOP_SHAPES as Record<string, number[][]>)[shape] as number[][])
     .map(([off, f]: any) => at(bearingDeg + off, a * f))
@@ -1004,7 +1004,7 @@ SuggestTool.prototype._loopViasTri = function (this: Self, S: any, bearingDeg: a
   const { kx, ky } = metresPerDeg(S.lat);
   const at = (thDeg: any) => {
     const th = (thDeg * Math.PI) / 180;
-    return leaflet().latLng(S.lat + (Math.cos(th) * side) / ky, S.lng + (Math.sin(th) * side) / kx);
+    return { lat: S.lat + (Math.cos(th) * side) / ky, lng: S.lng + (Math.sin(th) * side) / kx };
   };
   return [at(bearingDeg - 30), at(bearingDeg + 30)].map((v) =>
     this._snapToNewStreets(v, side * 0.3),
@@ -1158,7 +1158,7 @@ function statsFromCoords(coords: any) {
 function joinPins(route: any, from: any, to: any) {
   const joins = route.legs.slice(0, -1).map((l: any) => {
     const c = l.coords[l.coords.length - 1];
-    return leaflet().latLng(c[1], c[0]);
+    return { lat: c[1], lng: c[0] };
   });
   return [from].concat(joins, [to]);
 }
@@ -1179,7 +1179,7 @@ function resampleMids(coords: any, n: any) {
   for (let t = 1; t <= n; t++) {
     const target = (total * t) / (n + 1);
     while (k < cum.length - 1 && (cum[k] as number) < target) k++;
-    mids.push(leaflet().latLng(coords[k][1], coords[k][0]));
+    mids.push({ lat: coords[k][1], lng: coords[k][0] });
   }
   return mids;
 }
