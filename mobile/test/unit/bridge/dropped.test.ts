@@ -244,8 +244,8 @@ describe("reportDropped", () => {
     expect(abandon).not.toHaveBeenCalled();
   });
 
-  // Every page-to-app type, broken by its version, with an id a dropped message could be answered with. The list
-  // is not the schema's (messageTable.test.ts pins that); it is the set the answers are checked against.
+  // Every page-to-app type name. messageTable.test.ts pins the schema's list, so a new type that is not
+  // answerable needs no entry here; one that becomes answerable must be added, or the case below fails.
   const EVERY_TYPE = [
     "ready",
     "pickBackup",
