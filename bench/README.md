@@ -24,7 +24,8 @@ node bench/identical.js ref.json cand.json [--exclude=ms] [--subset]   # exact d
   (1 = round blob, 3+ = a proper thin "line" of a loop), the editor pins of each card (`adoptWps`) and every state the
   run handed the page (`emits`).
 - A change that must not alter a suggestion is checked with `identical.js`, not `compare.js`: record `run.js` before
-  and after and diff them; `ms` is the one field that differs between two runs of the same code. `identical.js` prints
+  and after and diff them; `ms` is the one field that differs between two runs of the same code (`requests` and
+  `cacheHits` as well when one of the recordings fetched live). `identical.js` prints
   field names and counts only, so its output is safe to paste; the recorded files derive from `Sync/`.
 
 ## Local routing
