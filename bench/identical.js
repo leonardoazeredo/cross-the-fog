@@ -4,7 +4,8 @@
 // the reference lacks (a run recorded before a field was added). --exclude names fields skipped wherever they occur, for the ones
 // that differ between two runs of the same code. The output is counts and field names only: the recorded values
 // derive from the Sync/ folder and go in no log, fixture or report.
-// Exit: 0 identical, 1 differ, 2 usage.
+// Exit: 0 identical, 1 differ or nothing was compared, 2 a bad argument or a file it cannot compare (not JSON, no
+// scenarios list, a scenario name twice).
 "use strict";
 const fs = require("fs");
 
