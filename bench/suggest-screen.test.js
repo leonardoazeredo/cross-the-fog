@@ -207,6 +207,13 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
     assert.equal(idAtRemove, id + 1, `${mode}: the run id moves before the layers go`);
     assert.equal(holdAtRemove, null, `${mode}: the held graph is let go before the layers go`);
     assert.deepEqual(rec.removed, rec.polys, `${mode}: layers leave in the order they were drawn`);
+
+    // dedupe alone: with two candidates _diversify returns them as ranked, so only the same-route check can drop the copy
+    const rec2 = recorder();
+    const two = build(mode, street, rec2, (coords) => gains.get(coords[1].join()), southOld);
+    two.tool.clearResults();
+    two.tool._finish(two.tool._runId, [cand(spec[0]), dup], extra, mode === "loop" ? { lat: S0.lat, lng: S0.lng } : undefined);
+    assert.deepEqual(two.tool.results.map((c) => c.r.lenM), [700], `${mode}: a copy of the best route is dropped`);
   }
 
   { // a replaced run is not even scored
