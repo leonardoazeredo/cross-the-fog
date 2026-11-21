@@ -145,9 +145,9 @@ const COLORS = ["#ff2d55", "#ff4fa3", "#ff8c2d"];
   }
 
   // Several candidates: the top three of five, in rank order, each with its own colour, line split, card values
-  // and the unselected line styles. Straight two-point routes from one start, a compass bearing apart (so the
-  // loop's bearing spread keeps all of them), a duplicate of the best one that dedupe drops, and an input order
-  // that is not the rank order.
+  // and line style (selected for the first, unselected for the others). The routes leave one start, a compass
+  // bearing apart (so the loop's bearing spread keeps all of them), and are straight out and a bit further except
+  // one that doubles back; a duplicate of the best one is dropped, and the input order is not the rank order.
   const S0 = { lat: 51, lng: 13.7 };
   // loopBearingOf reads raw degrees, so the offsets use one scale for both axes
   const at = (brg, m) => [S0.lng + (m * Math.sin(brg * Math.PI / 180)) / KY, S0.lat + (m * Math.cos(brg * Math.PI / 180)) / KY];
