@@ -89,14 +89,61 @@ describe("parseGpx edge cases", () => {
     expect(() => parseGpx("")).toThrow(GpxError);
   });
 
-  it("throws GpxError for a point without a time", () => {
+  it("throws GpxError when the only point has no time", () => {
     expect(() => parseGpx(wrap('<trkpt lat="1" lon="2"></trkpt>'))).toThrow(GpxError);
   });
 
-  it("throws GpxError for a position outside the globe", () => {
+  it("throws GpxError when the only point is outside the globe or has no number", () => {
     expect(() => parseGpx(wrap(pt("", "91")))).toThrow(GpxError);
     expect(() => parseGpx(wrap(pt("", "10", "181")))).toThrow(GpxError);
     expect(() => parseGpx(wrap(pt("", "x")))).toThrow(GpxError);
+  });
+
+  it("skips a track point with no valid position or time and counts it, and the walk stays", () => {
+    const a = pt("", "10", "20");
+    const b = pt("", "10.001", "20");
+    const bad = [
+      '<trkpt lat="1" lon="2"></trkpt>', // no time
+      '<trkpt lat="1" lon="2"/>', // self-closing, so no time
+      pt("", "91"), // latitude off the globe
+      pt("", "10", "181"), // longitude off the globe
+      pt("", "x"), // no number
+      '<trkpt lat="1" lon="2"><time>not a time</time></trkpt>',
+    ];
+    for (const one of bad) {
+      const p = parseGpx(wrap(a + one + b));
+      expect(
+        p.points.map((q) => q.lat),
+        one,
+      ).toEqual([10, 10.001]);
+      expect(p.skippedPoints, one).toBe(1);
+    }
+    expect(parseGpx(wrap(a + bad.join("") + b)).skippedPoints).toBe(bad.length);
+    expect(parseGpx(wrap(a + b)).skippedPoints).toBe(0);
+  });
+
+  it("measures the track between the points it kept, not through a skipped one", () => {
+    const a = pt("", "10", "20");
+    const b = pt("", "10.001", "20");
+    expect(parseGpx(wrap(a + pt("", "91") + b)).trackDistanceM).toBeCloseTo(
+      parseGpx(wrap(a + b)).trackDistanceM,
+      6,
+    );
+  });
+
+  it("refuses a file where skipping leaves fewer than two points", () => {
+    expect(() => parseGpx(wrap(pt() + pt("", "91")))).toThrow(GpxError);
+    expect(() => parseGpx(wrap(pt("", "91") + pt("", "92")))).toThrow(GpxError);
+    expect(() => parseGpx(wrap(pt()))).not.toThrow(); // a lone good point is a walk of one point, as before
+  });
+
+  it("states the skipped count in the stats only when there is one", () => {
+    const a = pt("", "10", "20");
+    const b = pt("", "10.001", "20");
+    expect(activityStats(parseGpx(wrap(a + pt("", "91") + pt("", "92") + b))).skippedPoints).toBe(
+      2,
+    );
+    expect("skippedPoints" in activityStats(parseGpx(wrap(a + b)))).toBe(false);
   });
 
   it("keeps file content out of the error message", () => {
@@ -133,6 +180,94 @@ describe("parseGpx edge cases", () => {
   it("accepts single-quoted attributes and extension prefixes it does not know by name", () => {
     const p = parseGpx(wrap(`<trkpt lat='10' lon='20'><time>2026-03-01T10:00:00Z</time></trkpt>`));
     expect(p.points[0]).toMatchObject({ lat: 10, lon: 20 });
+  });
+});
+
+describe("parseGpx cases from the review", () => {
+  const wrap = (points: string) => `<gpx><trk><trkseg>${points}</trkseg></trk></gpx>`;
+  const pt = (extra = "", lat = "10", lon = "20", time = "2026-03-01T10:00:00Z") =>
+    `<trkpt lat="${lat}" lon="${lon}">${extra}<time>${time}</time></trkpt>`;
+
+  it("throws GpxError for a point that is never closed, even after good ones", () => {
+    const open = '<trkpt lat="1" lon="2"><time>2026-03-01T10:00:00Z</time>';
+    expect(() => parseGpx(wrap(pt() + open))).toThrow(GpxError);
+    expect(() => parseGpx('<gpx><trk><trkseg><trkpt lat="1')).toThrow(GpxError);
+  });
+
+  it("reads a file with no closing </gpx>", () => {
+    const text = wrap(pt() + pt("", "10.001")).replace("</gpx>", "");
+    expect(parseGpx(text).points).toHaveLength(2);
+  });
+
+  it("throws GpxError for a file that ends right at <trkpt, after good points", () => {
+    expect(() =>
+      parseGpx(wrap(pt() + pt("", "10.001")).replace("</trkseg></trk></gpx>", "<trkpt")),
+    ).toThrow(GpxError);
+  });
+
+  it("keeps the first and last kept points as the start and end when the bad points lead and trail", () => {
+    const bad = '<trkpt lat="1" lon="2"></trkpt>';
+    const p = parseGpx(wrap(bad + pt() + pt("", "10.001", "20", "2026-03-01T10:00:09Z") + bad));
+    expect(p.skippedPoints).toBe(2);
+    expect(p.startedAt).toBe("2026-03-01T10:00:00.000Z");
+    expect(p.endedAt).toBe("2026-03-01T10:00:09.000Z");
+  });
+
+  it("does not measure the pause jump when the first point of a second segment is the bad one", () => {
+    const bad = '<trkpt lat="1" lon="2"></trkpt>';
+    const two = (middle: string) =>
+      `<gpx><trk><trkseg>${pt()}${pt("", "10.001")}</trkseg><trkseg>${middle}${pt("", "11", "20", "2026-03-01T11:00:00Z")}${pt("", "11.001", "20", "2026-03-01T11:00:09Z")}</trkseg></trk></gpx>`;
+    expect(parseGpx(two(bad)).trackDistanceM).toBeCloseTo(parseGpx(two("")).trackDistanceM, 6);
+  });
+
+  it("skips a point with a time before 1970", () => {
+    const early = '<trkpt lat="1" lon="2"><time>1969-12-31T23:59:59Z</time></trkpt>';
+    const p = parseGpx(wrap(early + pt() + pt("", "10.001")));
+    expect(p.skippedPoints).toBe(1);
+    expect(p.points).toHaveLength(2);
+  });
+
+  it("does not take a <trkptExt> element for a track point", () => {
+    const p = parseGpx(wrap(`${pt()}<trkptExt>x</trkptExt>${pt("", "10.001")}`));
+    expect(p.points).toHaveLength(2);
+    expect(p.skippedPoints).toBe(0);
+  });
+
+  it("measures a step across the antimeridian as a short one", () => {
+    const p = parseGpx(
+      wrap(pt("", "0", "179.9995") + pt("", "0", "-179.9995", "2026-03-01T10:00:03Z")),
+    );
+    expect(p.trackDistanceM).toBeGreaterThan(100);
+    expect(p.trackDistanceM).toBeLessThan(120);
+  });
+
+  it("reads an empty <ele></ele> as no elevation", () => {
+    expect(parseGpx(wrap(pt("<ele></ele>"))).points[0]).toEqual({ t: START, lat: 10, lon: 20 });
+  });
+
+  it("reads a CDATA time as no valid time, skipping the point", () => {
+    const cdata = '<trkpt lat="1" lon="2"><time><![CDATA[2026-03-01T10:00:00Z]]></time></trkpt>';
+    const p = parseGpx(wrap(pt() + cdata + pt("", "10.001")));
+    expect(p.points).toHaveLength(2);
+    expect(p.skippedPoints).toBe(1);
+  });
+
+  it("reads 50,000 points in well under two seconds", () => {
+    const rows: string[] = [];
+    for (let i = 0; i < 50_000; i++) {
+      rows.push(pt("", String(10 + i * 0.00001), "20", new Date(START + i * 3000).toISOString()));
+    }
+    const started = performance.now();
+    const p = parseGpx(wrap(rows.join("")));
+    expect(p.points).toHaveLength(50_000);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it("keeps a summary duration of 0 as the figure, not the track's", () => {
+    const meta =
+      "<metadata><extensions><gmap:durationSeconds>0</gmap:durationSeconds></extensions></metadata>";
+    const text = `<gpx>${meta}<trk><trkseg>${pt() + pt("", "10.001", "20", "2026-03-01T10:00:30Z")}</trkseg></trk></gpx>`;
+    expect(activityStats(parseGpx(text)).durationS).toBe(0);
   });
 });
 

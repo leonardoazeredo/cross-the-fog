@@ -56,6 +56,19 @@ describe("hand-off", () => {
     expect(link.released()).toEqual([A]);
   });
 
+  it("stores a walk with one bad point, with the skipped count in its stats", async () => {
+    const { link, activities, flow } = setup();
+    const bad = gpx("2026-03-01T10:00:00Z").replace(
+      "<trkpt",
+      '<trkpt lat="95" lon="0"><time>2026-03-01T10:00:01Z</time></trkpt><trkpt',
+    );
+    link.stage(offer(A, "2026-03-01T10:00:00Z", { gpx: bad }));
+
+    expect(await flow.run()).toEqual({ stored: 1, released: 1, unreadable: 0 });
+    expect((await activities.get(A))?.stats.skippedPoints).toBe(1);
+    expect((await activities.get(A))?.track).toHaveLength(2);
+  });
+
   // The native sink stages an activity again when the watch resends it after the page released it
   // (the staging store keeps nothing of released ids); this store keeps that from becoming a second walk.
   it("stores a resent activity once: staged again after its release, it is released and not stored twice", async () => {

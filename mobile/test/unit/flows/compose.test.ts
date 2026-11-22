@@ -100,6 +100,21 @@ describe("composed flows", () => {
     expect(await activities.get(B)).toBeNull();
   });
 
+  it("started twice hands off and listens once", async () => {
+    const { link, activities, sent, flows } = setup();
+    const stop = flows.start();
+    flows.start();
+    await settle();
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
+    await settle();
+    expect(sent.filter((m) => m.type === "activities")).toHaveLength(1);
+    expect(await activities.get(A)).not.toBeNull();
+    stop();
+    link.setStatus({ paired: true, reachable: true });
+    await settle();
+    expect(sent.filter((m) => m.type === "linkStatus")).toEqual([]);
+  });
+
   it("publishes nothing when the hand-off stored nothing", async () => {
     const { sent, flows } = setup();
     flows.start();

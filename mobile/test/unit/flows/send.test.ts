@@ -30,6 +30,43 @@ function valid(sent: NativeToWeb[]): void {
   for (const m of sent) expect(parseNativeToWeb(encode(m))).toEqual(m);
 }
 
+describe("start", () => {
+  it("called twice while running adds no second set of listeners", async () => {
+    const { link, sent, flow, stop } = setup();
+    const again = flow.start();
+    link.setStatus({ paired: true, reachable: true });
+    await flush();
+    expect(sent.filter((m) => m.type === "linkStatus")).toHaveLength(1);
+    again(); // the second call's stop ends the one run
+    sent.length = 0;
+    link.setStatus({ paired: true, reachable: true });
+    await flush();
+    expect(sent).toEqual([]);
+    stop(); // a stop after the run ended does nothing
+  });
+
+  it("a stop handed out earlier does not end the run that replaced it", async () => {
+    const { link, sent, flow, stop } = setup();
+    stop();
+    flow.start();
+    stop(); // the first run's stop, called late: the live run stays the running one
+    flow.start(); // so this adds no second set of listeners
+    sent.length = 0;
+    link.setStatus({ paired: true, reachable: true });
+    await flush();
+    expect(sent.filter((m) => m.type === "linkStatus")).toHaveLength(1);
+  });
+
+  it("can start again after it was stopped", async () => {
+    const { link, sent, flow, stop } = setup();
+    stop();
+    flow.start();
+    link.setStatus({ paired: true, reachable: true });
+    await flush();
+    expect(sent.filter((m) => m.type === "linkStatus")).toHaveLength(1);
+  });
+});
+
 describe("send revisions", () => {
   it("says which GPX a status is for: the hash of the GPX it queued", async () => {
     const { sent, flow } = setup();
@@ -76,7 +113,7 @@ describe("send revisions", () => {
     sent.length = 0;
 
     link.confirmRoute(v1.id, await revisionOf(v1.gpx));
-    await vi_flush();
+    await flush();
     expect((await routes.get(v1.id))?.sentAt).toBeUndefined();
     expect(sent).toEqual([
       {
@@ -89,7 +126,7 @@ describe("send revisions", () => {
     ]);
 
     link.confirmRoute(v2.id, await revisionOf(v2.gpx));
-    await vi_flush();
+    await flush();
     expect((await routes.get(v2.id))?.sentAt).toBe("2026-03-01T09:30:00.000Z");
     expect(sent[1]).toMatchObject({ state: "onWatch", revision: await revisionOf(v2.gpx) });
     valid(sent);
@@ -102,7 +139,7 @@ describe("send revisions", () => {
     await flow.sendRoute(r);
     sent.length = 0;
     link.confirmRoute(r.id);
-    await vi_flush();
+    await flush();
     expect((await routes.get(r.id))?.sentAt).toBe("2026-03-01T09:30:00.000Z");
     expect(sent).toEqual([{ v: 1, type: "routeStatus", routeId: r.id, state: "onWatch" }]);
   });
@@ -111,7 +148,7 @@ describe("send revisions", () => {
     const { link, routes, sent } = setup();
     await link.queueRoute(route());
     link.confirmRoute(route().id, await revisionOf("<gpx>gone</gpx>"));
-    await vi_flush();
+    await flush();
     expect(await routes.get(route().id)).toBeNull();
     expect(sent).toEqual([
       {
@@ -143,14 +180,14 @@ describe("send revisions", () => {
     const v2 = route({ gpx: "<gpx>v2</gpx>" });
     await flow.sendRoute(v1);
     link.confirmRoute(v1.id, await revisionOf(v1.gpx));
-    await vi_flush();
+    await flush();
     expect(hold).not.toBeNull();
 
     const second = flow.sendRoute(v2);
-    await vi_flush();
+    await flush();
     (hold as unknown as () => void)();
     await second;
-    await vi_flush();
+    await flush();
 
     expect((await routes.get(v2.id))?.sentAt).toBeUndefined();
     expect((await routes.get(v2.id))?.gpx).toBe(v2.gpx);
@@ -196,7 +233,7 @@ describe("send revisions", () => {
     healthy = false;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     link.confirmRoute(r.id, "a".repeat(64));
-    await vi_flush();
+    await flush();
     expect((await routes.get(r.id))?.sentAt).toBeUndefined();
     expect(sent).toEqual([
       { v: 1, type: "routeStatus", routeId: r.id, state: "onWatch", revision: "a".repeat(64) },
@@ -317,7 +354,7 @@ describe("send", () => {
     sent.length = 0;
 
     link.confirmRoute(r.id, await revisionOf(r.gpx));
-    await vi_flush();
+    await flush();
 
     expect((await routes.get(r.id))?.sentAt).toBe("2026-03-01T09:30:00.000Z");
     expect(sent).toEqual([
@@ -339,7 +376,7 @@ describe("send", () => {
     sent.length = 0;
 
     link.setRouteAside(r.id, await revisionOf(r.gpx));
-    await vi_flush();
+    await flush();
 
     expect(sent).toEqual([
       {
@@ -363,7 +400,7 @@ describe("send", () => {
     sent.length = 0;
 
     link.setRouteAside(r.id);
-    await vi_flush();
+    await flush();
 
     expect(sent).toEqual([
       { v: 1, type: "routeStatus", routeId: r.id, state: "failed", why: COPY.routeNotSent },
@@ -517,7 +554,7 @@ describe("send", () => {
     await flow.sendRoute(r);
     sent.length = 0;
     link.confirmRoute(r.id);
-    await vi_flush();
+    await flush();
     expect(sent).toEqual([{ v: 1, type: "routeStatus", routeId: r.id, state: "onWatch" }]);
   });
 
@@ -542,7 +579,7 @@ describe("send", () => {
     const { link, routes, sent } = setup();
     await link.queueRoute(route());
     link.confirmRoute(route().id);
-    await vi_flush();
+    await flush();
     expect(sent).toEqual([{ v: 1, type: "routeStatus", routeId: route().id, state: "onWatch" }]);
     expect(await routes.get(route().id)).toBeNull();
   });
@@ -619,11 +656,11 @@ describe("send", () => {
     link.confirmRoute(route().id);
     link.setRouteAside(route().id);
     link.setStatus({ paired: true, reachable: true });
-    await vi_flush();
+    await flush();
     expect(sent).toEqual([]);
   });
 });
 
-async function vi_flush(): Promise<void> {
+async function flush(): Promise<void> {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 }
