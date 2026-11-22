@@ -1,15 +1,17 @@
 import { deflateGpx } from "../history/gpxBlob.js";
 import type { SqlDriver, SqlTx } from "./driver.js";
 
-type Migration = string | ((tx: SqlTx) => Promise<void>);
+type Migration = string | ((tx: SqlTx, step: number) => Promise<void>);
 
 // The GPX becomes a deflated BLOB. SQLite cannot change a column's type in place, so the table is
 // rebuilt (which also keeps the column NOT NULL, allowed by ADD COLUMN only with a default), and
 // the deflate runs in JS, so rows are copied one at a time (one GPX in memory at once). migrate()
 // runs every step in one transaction, so a step that stops midway leaves schema 1 whole for the
 // next open to migrate; in a killed process SQLite rolls the unfinished transaction back on that
-// open. This step writes with deflateGpx, whose format is frozen (see gpxBlob.ts).
-async function deflateActivityGpx(tx: SqlTx): Promise<void> {
+// open. This step writes with deflateGpx, whose format is frozen (see gpxBlob.ts). A row whose GPX
+// cannot be deflated keeps its text as it is (SQLite stores it as TEXT in the BLOB column and the
+// reader tells the two forms apart by type): one bad row must not fail every open, and no walk is lost.
+async function deflateActivityGpx(tx: SqlTx, step: number): Promise<void> {
   await tx.exec(`CREATE TABLE activities_v2 (
     id TEXT PRIMARY KEY,
     travel_mode TEXT NOT NULL,
@@ -23,6 +25,8 @@ async function deflateActivityGpx(tx: SqlTx): Promise<void> {
     encoder_version TEXT NOT NULL
   )`);
   const ids = await tx.all<{ id: string }>("SELECT id FROM activities");
+  let kept = 0;
+  let failure: unknown;
   for (const { id } of ids) {
     const [row] = await tx.all<{ gpx: string }>("SELECT gpx FROM activities WHERE id = ?", [id]);
     if (!row) throw new Error("an activity vanished while its GPX was deflated");
@@ -31,8 +35,25 @@ async function deflateActivityGpx(tx: SqlTx): Promise<void> {
          SELECT id, travel_mode, started_at, ended_at, route_id, ?, track_json, stats_json,
                 received_at, encoder_version
          FROM activities WHERE id = ?`,
-      [deflateGpx(row.gpx), id],
+      [deflatedOrKept(row.gpx), id],
     );
+  }
+  if (kept > 0) {
+    // The step and the error's class only: a message or a row could name a place.
+    console.warn(
+      `crossfog: migration step ${step} kept ${kept} GPX rows undeflated`,
+      failure instanceof Error ? failure.name : typeof failure,
+    );
+  }
+
+  function deflatedOrKept(gpx: string): Uint8Array | string {
+    try {
+      return deflateGpx(gpx);
+    } catch (e) {
+      kept++;
+      failure ??= e;
+      return gpx;
+    }
   }
   await tx.exec("DROP TABLE activities; ALTER TABLE activities_v2 RENAME TO activities;");
 }
@@ -101,7 +122,7 @@ export async function migrate(db: SqlDriver): Promise<number> {
     for (let v = current; v < MIGRATIONS.length; v++) {
       const step = MIGRATIONS[v] as Migration;
       if (typeof step === "string") await tx.exec(step);
-      else await step(tx);
+      else await step(tx, v);
     }
     // PRAGMA takes no bound parameters; the value is our own integer.
     await tx.exec(`PRAGMA user_version = ${MIGRATIONS.length}`);
