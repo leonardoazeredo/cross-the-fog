@@ -31,6 +31,10 @@ vi.mock("../../../src/platform/backupPlatform.js", () => ({
       disk.set(to, disk.get(from) ?? "");
       disk.delete(from);
     },
+    head(name: string, length: number) {
+      const bytes = new TextEncoder().encode(disk.get(name) ?? "");
+      return { size: bytes.length, bytes: bytes.subarray(0, length) };
+    },
   }),
 }));
 // Hoisted so the factory, rerun by each vi.resetModules, hands out the spy the test checks.
@@ -49,11 +53,21 @@ vi.mock("../../../src/platform/platformModule.js", () => ({
 let checkFile: (contents: string) => Promise<"intact" | "damaged">;
 const checked: string[] = [];
 const checkedKeys: string[] = [];
+const shortAnswers: Array<boolean | null | undefined> = [];
 vi.mock("../../../src/platform/expoSqliteDriver.js", () => ({
-  checkFileIntegrity: async ({ name, keyHex }: { name: string; keyHex: string }) => {
+  checkFileIntegrity: async ({
+    name,
+    keyHex,
+    isShort,
+  }: {
+    name: string;
+    keyHex: string;
+    isShort?: () => boolean | null;
+  }) => {
     const contents = disk.get(name) ?? "";
     checked.push(contents);
     checkedKeys.push(keyHex);
+    shortAnswers.push(isShort?.());
     return checkFile(contents);
   },
   createExpoSqliteDriver: async ({ name }: { name: string }) => {
@@ -103,6 +117,7 @@ beforeEach(() => {
   opened.length = 0;
   checked.length = 0;
   checkedKeys.length = 0;
+  shortAnswers.length = 0;
 });
 
 describe("createDatabase with a key that does not open the file", () => {
@@ -166,6 +181,44 @@ describe("createDatabase after a restore that stopped before the replaced copy w
     disk.set(LIVE_DB, "restored");
     disk.set(REPLACED_DB, "old");
     openFile = async () => driver();
+  });
+
+  it("checks a restored file that opened in full before the copy is dropped, and drops it when intact", async () => {
+    expect((await createDatabase()).kind).toBe("ready");
+    expect(opened).toEqual(["restored"]);
+    expect(checked).toEqual(["restored"]);
+    expect(disk.has(REPLACED_DB)).toBe(false);
+  });
+
+  it("asks the check whether the file is shorter than its header, which cannot be told for a file with no header", async () => {
+    await createDatabase();
+    expect(shortAnswers).toEqual([null]);
+  });
+
+  it("puts the copy back, closing the restored file first, when a file that opened fails the check", async () => {
+    checkFile = async () => "damaged";
+    const first = driver();
+    openFile = async (contents) => (contents === "restored" ? first : driver());
+    expect((await createDatabase()).kind).toBe("ready");
+    expect(first.close).toHaveBeenCalledTimes(1);
+    expect(opened).toEqual(["restored", "old"]);
+    expect(disk.get(LIVE_DB)).toBe("old");
+    expect(disk.has(REPLACED_DB)).toBe(false);
+  });
+
+  it("keeps both files, and opens the restored one, when the check gives no verdict", async () => {
+    checkFile = async () => {
+      throw new Error("integrity_check could not read a page");
+    };
+    expect((await createDatabase()).kind).toBe("ready");
+    expect(disk.get(LIVE_DB)).toBe("restored");
+    expect(disk.get(REPLACED_DB)).toBe("old");
+  });
+
+  it("does not check a file when there is no copy beside it", async () => {
+    disk.delete(REPLACED_DB);
+    expect((await createDatabase()).kind).toBe("ready");
+    expect(checked).toEqual([]);
   });
 
   it("keeps both files when the key is out of reach, and opens the restored one next time", async () => {

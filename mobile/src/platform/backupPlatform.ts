@@ -1,5 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
-import { Directory, File, Paths } from "expo-file-system";
+import { Directory, File, FileMode, Paths } from "expo-file-system";
 import { type DatabaseFiles, LIVE_DB } from "../backup/replace.js";
 import type { Scratch } from "../backup/types.js";
 import type { SourceFile } from "../fog/store.js";
@@ -23,6 +23,15 @@ export function createDatabaseFiles(): DatabaseFiles {
     },
     move(from, to) {
       fileAt(from).moveSync(fileAt(to));
+    },
+    head(name, length) {
+      const f = fileAt(name);
+      const handle = f.open(FileMode.ReadOnly);
+      try {
+        return { size: f.size, bytes: handle.readBytesSync(length) };
+      } finally {
+        handle.close();
+      }
     },
   };
 }

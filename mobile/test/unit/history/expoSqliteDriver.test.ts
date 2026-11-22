@@ -513,6 +513,48 @@ describe("checkFileIntegrity", () => {
     await expect(check({ [CIC]: rows })).resolves.toBe("damaged");
   });
 
+  it("calls a file damaged when it is shorter than its header says, without asking integrity_check", async () => {
+    const log: string[] = [];
+    await expect(
+      checkFileIntegrity({
+        name: "x.db",
+        keyHex: KEY,
+        open: async () => checkDb({}, log),
+        isShort: () => true,
+      }),
+    ).resolves.toBe("damaged");
+    expect(log).not.toContain("PRAGMA integrity_check");
+    expect(log.at(-1)).toBe("close");
+  });
+
+  it("goes on to integrity_check when the file is not short or its header cannot be read", async () => {
+    for (const isShort of [() => false, () => null]) {
+      await expect(
+        checkFileIntegrity({
+          name: "x.db",
+          keyHex: KEY,
+          open: async () => checkDb({ "PRAGMA integrity_check": OK }, []),
+          isShort,
+        }),
+      ).resolves.toBe("intact");
+    }
+  });
+
+  it("gives no verdict, and closes, when asking whether the file is short throws", async () => {
+    const log: string[] = [];
+    await expect(
+      checkFileIntegrity({
+        name: "x.db",
+        keyHex: KEY,
+        open: async () => checkDb({}, log),
+        isShort: () => {
+          throw new Error("cannot read the file");
+        },
+      }),
+    ).rejects.toThrow("cannot read the file");
+    expect(log.at(-1)).toBe("close");
+  });
+
   it("calls a file damaged when integrity_check reports a problem instead of ok", async () => {
     const report = [{ integrity_check: "*** in database main ***\nTree 2 page 201: bad" }];
     await expect(check({ "PRAGMA integrity_check": report })).resolves.toBe("damaged");

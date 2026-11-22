@@ -155,11 +155,13 @@ export function createFogStore(
       pointers.sort((a, b) => (pointerNum(b) ?? 0) - (pointerNum(a) ?? 0));
 
       let kept: string | null = null;
+      let keptMeta: CopyMeta | null = null;
       for (const ptr of pointers) {
         if (kept == null) {
           const meta = await readMeta(ptr);
           if (meta && (await fs.exists(zipName(meta)))) {
             kept = ptr;
+            keptMeta = meta;
             continue;
           }
         }
@@ -167,11 +169,15 @@ export function createFogStore(
       }
 
       const hasPending = await fs.exists("pending.json");
+      const pendingMeta = hasPending ? await readMeta("pending.json") : null;
       await fs.remove("pending.json");
 
       await gc();
 
-      return { discardedPending: hasPending };
+      // A promote that took effect but could not remove pending.json leaves the pending copy saved as the
+      // current one; that import did not fail, and saying so would be wrong.
+      const tookEffect = pendingMeta !== null && pendingMeta.sha256 === keptMeta?.sha256;
+      return { discardedPending: hasPending && !tookEffect };
     },
   };
 }

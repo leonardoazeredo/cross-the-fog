@@ -15,6 +15,8 @@ export interface DatabaseFiles {
   exists(name: string): boolean;
   remove(name: string): void;
   move(from: string, to: string): void;
+  /** The file's size and its first `length` bytes (fewer when the file is shorter); reads no more than that. */
+  head(name: string, length: number): { size: number; bytes: Uint8Array };
 }
 
 const SIDECARS = ["-wal", "-shm"];
@@ -73,6 +75,12 @@ export interface ReplaceDeps {
   isKeyLost(e: unknown): boolean;
   /** Opens a database file in the SQLite directory with the device key. */
   openFile(name: string, keyHex: DatabaseKeyHex): Promise<SqlDriver>;
+  /**
+   * The database's own verdict on the live file after it reopened, a full read of it: damage in pages the
+   * open and the migration never touch shows only once the old file is gone. "unknown" when the check
+   * cannot run.
+   */
+  verifyLive(): Promise<"intact" | "damaged" | "unknown">;
 }
 
 /** The key a restore builds with: the device's own, or a new one that replaces a lost one after the swap. */
@@ -193,6 +201,18 @@ export function createDatabaseReplacer(
         await deps.reopen().catch(() => undefined);
         throw e;
       }
-      discardReplacedCopy(files);
+      const verdict = await deps.verifyLive();
+      if (verdict === "damaged") {
+        // With a replacement key kept the old file cannot be opened, so the new one stays whatever it is.
+        if (keyKept) discardReplacedCopy(files);
+        else {
+          await deps.closeLive();
+          rollback();
+          await deps.reopen().catch(() => undefined);
+        }
+        throw new Error("the restored database failed its integrity check");
+      }
+      // With no verdict the old file stays beside the new one; the next first open checks again.
+      if (verdict === "intact") discardReplacedCopy(files);
     });
 }

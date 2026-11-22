@@ -1,11 +1,13 @@
 import { File, Paths } from "expo-file-system";
 import {
+  type DatabaseFiles,
   discardReplacedCopy,
   LIVE_DB,
   putBackReplacedCopy,
   REPLACED_DB,
   recoverInterruptedReplace,
 } from "../backup/replace.js";
+import { FIRST_PAGE_BYTES, fileIsShort } from "../db/cipherHeader.js";
 import { NotADatabaseError } from "../db/driver.js";
 import { createGate } from "../db/gate.js";
 import { type HistoryDatabase, openHistory, wrongKeyAsKeyLost } from "../db/openHistory.js";
@@ -36,15 +38,32 @@ let recovered = false;
  * other than a page report (no key, a wrong key, a failed read, a file it cannot read at all), is
  * no verdict, so both files stay and the next open decides again, as for a full disk or a bug.
  */
-async function restoredFileUnusable(e: unknown): Promise<boolean> {
+async function restoredFileUnusable(e: unknown, files: DatabaseFiles): Promise<boolean> {
   if (e instanceof NotADatabaseError || e instanceof NewerSchemaError) return true;
+  return (await checkLiveFile(files)) === "damaged";
+}
+
+/**
+ * The database's own verdict on the live file: the page checks of `checkFileIntegrity` plus whether the
+ * file is shorter than the page count in its header. "unknown" when the check cannot run (no key, a wrong
+ * key, a failed read), which is never taken for either answer.
+ */
+export async function checkLiveFile(
+  files: DatabaseFiles = createDatabaseFiles(),
+): Promise<"intact" | "damaged" | "unknown"> {
   try {
-    return (
-      (await checkFileIntegrity({ name: LIVE_DB, keyHex: await getDatabaseKeyHex() })) === "damaged"
-    );
+    const keyHex = await getDatabaseKeyHex();
+    return await checkFileIntegrity({
+      name: LIVE_DB,
+      keyHex,
+      isShort() {
+        const { size, bytes } = files.head(LIVE_DB, FIRST_PAGE_BYTES);
+        return fileIsShort({ size, firstPage: bytes, keyHex });
+      },
+    });
   } catch (checkError) {
     warnClass("restore", "integrity-check", checkError);
-    return false;
+    return "unknown";
   }
 }
 
@@ -86,7 +105,7 @@ export function createDatabase(): Promise<HistoryDatabase> {
     } catch (e) {
       if (!files.exists(REPLACED_DB)) {
         history = wrongKeyAsKeyLost(e);
-      } else if (await restoredFileUnusable(e)) {
+      } else if (await restoredFileUnusable(e, files)) {
         // The restore is undone here with no word to the owner, so the log is the only trace of why.
         warnClass("restore", "put-back", e);
         putBackReplacedCopy(files);
@@ -95,8 +114,21 @@ export function createDatabase(): Promise<HistoryDatabase> {
         throw e;
       }
     }
+    // Damage in pages the open and the migration never read shows only later, when the copy is gone, so a
+    // restored file that opened is checked in full before the copy is dropped. A check with no verdict keeps
+    // the copy for the next first open.
+    if (history.kind === "ready" && files.exists(REPLACED_DB)) {
+      const verdict = await checkLiveFile(files);
+      if (verdict === "damaged") {
+        warnClass("restore", "put-back-after-integrity-check", null);
+        await history.db.close();
+        putBackReplacedCopy(files);
+        history = await open().catch(wrongKeyAsKeyLost);
+      } else if (verdict === "intact") {
+        discardReplacedCopy(files);
+      }
+    }
     recovered = true;
-    if (history.kind === "ready") discardReplacedCopy(files);
     return history;
   })();
   const attempt = opened;

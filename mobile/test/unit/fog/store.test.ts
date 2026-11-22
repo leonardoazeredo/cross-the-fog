@@ -131,6 +131,30 @@ it("recover removes leftovers and keeps the saved copy", async () => {
   expect([...fs.files.keys()].sort()).toEqual([`${sha(A)}.zip`, "current-000001.json"]);
 });
 
+it("recover does not call an import failed when the saved copy is the pending one, and still drops pending.json", async () => {
+  await save(store, fileA);
+  // A promote that took effect but could not remove pending.json.
+  fs.files.set("pending.json", fs.files.get("current-000001.json") as Uint8Array);
+  expect(await store.recover()).toEqual({ discardedPending: false });
+  expect(fs.files.has("pending.json")).toBe(false);
+  expect(await store.current()).toMatchObject({ sha256: sha(A) });
+});
+
+it("recover still calls an import failed when pending.json names another copy or cannot be read", async () => {
+  await save(store, fileA);
+  await store.beginImport(fileB, "picker");
+  expect(await store.recover()).toEqual({ discardedPending: true });
+
+  await store.beginImport(fileB, "picker");
+  fs.files.set("pending.json", new TextEncoder().encode("{"));
+  expect(await store.recover()).toEqual({ discardedPending: true });
+});
+
+it("recover calls an import failed when nothing is saved and one is pending", async () => {
+  await store.beginImport(fileA, "picker");
+  expect(await store.recover()).toEqual({ discardedPending: true });
+});
+
 it("RF3: a crash at any step of an import leaves the old copy or the new one", async () => {
   const total = await mutationsFor((s) => save(s, fileB), { savedFirst: fileA });
   for (let k = 1; k <= total; k++) {

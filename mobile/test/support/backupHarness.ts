@@ -75,6 +75,10 @@ export async function createHarness(opts: { free?: number } = {}): Promise<Harne
     exists: (name) => existsSync(join(sqliteDir, name)),
     remove: (name) => rmSync(join(sqliteDir, name), { force: true }),
     move: (from, to) => renameSync(join(sqliteDir, from), join(sqliteDir, to)),
+    head(name, length) {
+      const bytes = readFileSync(join(sqliteDir, name));
+      return { size: bytes.length, bytes: bytes.subarray(0, length) };
+    },
   };
   const gate = createGate();
 
@@ -101,6 +105,7 @@ export async function createHarness(opts: { free?: number } = {}): Promise<Harne
         replaceLostDatabaseKey: async () => {},
         isKeyLost: (e) => e instanceof Error && e.name === "KeyLostError",
         openFile: async (name) => createNodeSqliteDriver(join(sqliteDir, name)),
+        verifyLive: async () => "intact" as const,
         ...over,
       };
     },

@@ -1174,7 +1174,7 @@ it("a promote that fails in its last step, after pending.json is gone, has still
   expect(noNotice(h)).toEqual([]);
 });
 
-it("a promote that fails removing pending.json has still saved the new fog; the copy it cannot clear makes the next start say the import failed", async () => {
+it("a promote that fails removing pending.json has still saved the new fog; the next start does not say the import failed", async () => {
   const h = await savedThenImportingB();
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   const real = h.fs.remove.bind(h.fs);
@@ -1189,9 +1189,9 @@ it("a promote that fails removing pending.json has still saved the new fog; the 
   expect(h.busy.at(-1)).toBe(false);
   expect(noNotice(h)).toEqual([]);
 
-  // The accepted limit: recover drops any pending copy and says so, though the saved fog is the new one.
+  // The pending copy is the saved one, so recover drops it and says nothing.
   h.fs.remove = real;
-  expect(await h.store.recover()).toEqual({ discardedPending: true });
+  expect(await h.store.recover()).toEqual({ discardedPending: false });
   expect((await h.store.current())?.sha256).toBe(sha(B));
 });
 

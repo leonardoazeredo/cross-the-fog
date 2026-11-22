@@ -243,6 +243,58 @@ describe("database replacer", () => {
     expect(order).toEqual(["keep", "reopen"]);
   });
 
+  it("checks the new file in full before dropping the old one, and drops it when the check passes", async () => {
+    const { deps } = lostKeyDeps();
+    const order: string[] = [];
+    const reopen = deps.reopen;
+    await createDatabaseReplacer({
+      ...deps,
+      reopen: async () => {
+        order.push("reopen");
+        await reopen();
+      },
+      verifyLive: async () => {
+        order.push(target.files.exists(REPLACED_DB) ? "verify, old file still there" : "verify");
+        return "intact";
+      },
+    })(await openedBackup());
+    expect(order).toEqual(["reopen", "verify, old file still there"]);
+    expect(target.files.exists(REPLACED_DB)).toBe(false);
+  });
+
+  it("puts the old file back and fails when the new file does not pass the check", async () => {
+    await createActivityStore(target.db).add(
+      activity({ id: "33333333-3333-4333-8333-333333333333" }),
+    );
+    const deps = target.replacerDeps();
+    await expect(
+      createDatabaseReplacer({ ...deps, verifyLive: async () => "damaged" })(await openedBackup()),
+    ).rejects.toThrow("integrity");
+    expect((await createActivityStore(target.db).list()).map((a) => a.id)).toEqual([
+      "33333333-3333-4333-8333-333333333333",
+    ]);
+    expect(target.files.exists(REPLACED_DB)).toBe(false);
+    expect(target.files.exists(RESTORING_DB)).toBe(false);
+  });
+
+  it("keeps the old file beside the new one when the check gives no verdict", async () => {
+    const deps = target.replacerDeps();
+    await createDatabaseReplacer({ ...deps, verifyLive: async () => "unknown" })(
+      await openedBackup(),
+    );
+    expect(target.files.exists(REPLACED_DB)).toBe(true);
+    expect((await createActivityStore(target.db).list()).map((a) => a.id)).toEqual([activity().id]);
+  });
+
+  it("keeps a damaged new file when its replacement key is kept, since nothing can open the old one", async () => {
+    const { deps } = lostKeyDeps();
+    await expect(
+      createDatabaseReplacer({ ...deps, verifyLive: async () => "damaged" })(await openedBackup()),
+    ).rejects.toThrow("integrity");
+    expect(target.files.exists(REPLACED_DB)).toBe(false);
+    expect(target.files.exists(LIVE_DB)).toBe(true);
+  });
+
   it("keeps the new file live when it does not reopen after its key was kept", async () => {
     await createActivityStore(target.db).add(
       activity({ id: "33333333-3333-4333-8333-333333333333" }),

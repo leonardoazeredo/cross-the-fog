@@ -111,13 +111,19 @@ function wrap(db: ExpoDb): SqlTx {
  *   none of those says anything about the file);
  * - an error when `integrity_check` reports a page it failed to read for a reason other than
  *   corruption;
- * - whatever `integrity_check` throws when it cannot read the file (it throws, not reports, on a
- *   file cut at a page boundary).
+ * - whatever `integrity_check` throws when it cannot read the file, unless `isShort` says the file
+ *   is shorter than its own header records.
+ *
+ * A file cut at a page boundary passes `cipher_integrity_check` (every page it has verifies) and
+ * makes `integrity_check` throw, so `isShort` (the file's size against the page count in its header)
+ * is what calls it damaged, asked after the page check and before `integrity_check`.
  */
 export async function checkFileIntegrity(opts: {
   name: string;
   keyHex: DatabaseKeyHex;
   open?: (name: string) => Promise<ExpoDb>;
+  /** True when the file holds fewer pages than its header records, null when that cannot be told. */
+  isShort?: () => boolean | null;
 }): Promise<"intact" | "damaged"> {
   if (!/^[0-9a-f]{64}$/.test(opts.keyHex)) throw new Error("database key must be 64 hex digits");
   const db = await (opts.open ?? openNewConnection)(opts.name);
@@ -135,6 +141,7 @@ export async function checkFileIntegrity(opts: {
       throw new Error("cipher_integrity_check answered with something that is not a page report");
     }
     if (reports.length > 0) return "damaged";
+    if (opts.isShort?.() === true) return "damaged";
     const rows = await db.getAllAsync<Record<string, unknown>>("PRAGMA integrity_check", []);
     // SQLite reports a page it failed to read for a reason other than corruption (a read fault) as a
     // row too; that says nothing about the file.

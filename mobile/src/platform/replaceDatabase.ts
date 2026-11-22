@@ -2,7 +2,7 @@ import { getRandomBytes } from "expo-crypto";
 import { createDatabaseReplacer } from "../backup/replace.js";
 import { newDatabaseKeyHex } from "../db/keyHex.js";
 import { createDatabaseFiles } from "./backupPlatform.js";
-import { closeDatabase, createDatabase, historyGate } from "./database.js";
+import { checkLiveFile, closeDatabase, createDatabase, historyGate } from "./database.js";
 import { createExpoSqliteDriver } from "./expoSqliteDriver.js";
 import {
   getDatabaseKeyHex,
@@ -25,4 +25,5 @@ export const replaceDatabase = createDatabaseReplacer({
   replaceLostDatabaseKey,
   isKeyLost: (e) => e instanceof KeyLostError,
   openFile: (name, keyHex) => createExpoSqliteDriver({ name, keyHex }),
+  verifyLive: () => checkLiveFile(),
 });
