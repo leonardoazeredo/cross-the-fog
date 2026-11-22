@@ -4,9 +4,10 @@ package codes.madera.crossfog.link
  * The watch's end: takes in the routes the phone sends and sends the activities it recorded.
  *
  * `routeSaved` carries the revision of the route as received and goes out only after
- * [WatchRouteStore.save] reports it kept. An activity leaves the outbox only on `activityStored` for
- * the id outstanding, so a link that drops before the confirmation leaves it queued, and the phone
- * answers the resend without storing it twice.
+ * [WatchRouteStore.save] reports it kept. This endpoint deletes an activity from the outbox only on
+ * `activityStored` for the id outstanding, so a link that drops before the confirmation leaves it queued,
+ * and the phone answers the resend without storing it twice; on `itemRefused` it reports to the app,
+ * which sets the activity aside, and goes on to the next one.
  */
 class WatchEndpoint(
   stream: ByteStream,

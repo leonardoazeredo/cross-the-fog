@@ -119,8 +119,9 @@ enum class ItemKind { ROUTE, ACTIVITY }
 data class ItemRef(val kind: ItemKind, val id: String)
 
 /**
- * Everything an endpoint knows when it stops. [failed] is the item a store or sink threw on, or that
- * could not be framed ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM]); it may be the
+ * Everything an endpoint knows when it stops. [failed] is the item a store or sink threw on (anything but
+ * [ItemRefusedException], which does not close), or that could not be framed ([CloseReason.STORE_FAILED],
+ * [CloseReason.UNSENDABLE_ITEM]); it may be the
  * peer's item (a sink that cannot keep an activity) or this end's own (a route that cannot be marked
  * delivered). [inFlight] is this end's own item that was offered and not yet confirmed when the
  * session ended, for any reason, so a caller can count sessions that ended on the same item.
@@ -142,7 +143,7 @@ interface LinkEvents {
   /**
    * Called once, when the endpoint stops for any reason; the caller opens a new stream and a new
    * endpoint to try again. [itemId] is the route or activity id the endpoint was working on when a
-   * store or sink threw ([CloseReason.STORE_FAILED]) or the item could not be put on the wire
+   * store or sink threw anything but [ItemRefusedException] ([CloseReason.STORE_FAILED]) or the item could not be put on the wire
    * ([CloseReason.UNSENDABLE_ITEM]); null when no item was in hand (a read of the queue that threw, a
    * timeout, a message out of turn). The same item is first in the queue next session, so a
    * caller that sees the same id fail every time must set it aside, or nothing behind it is ever sent.

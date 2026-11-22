@@ -14,7 +14,7 @@ The Kotlin plugin version comes from whichever build includes the project, so `b
 Version 1, in `codes.madera.crossfog.link`:
 
 - `Framing`: a frame is a 4-byte big-endian length then the body; at most 16 MiB (`MAX_FRAME_BYTES`), no empty frame; the length is checked before a body byte is read.
-- `Messages`: the twelve messages (seven for a normal session, five for pairing) as `{"v":1,"type":...}` JSON objects. Every field is checked for type, presence and bounds before a value exists; a refusal is a `ProtocolException` whose `error` is a `ProtocolError` and whose message never holds input.
+- `Messages`: the twelve messages (seven for a normal session, five for pairing) as `{"v":1,"type":...}` JSON objects. Every field is checked for type, presence and bounds before a value exists; a message that fails the check is a `ProtocolException` whose `error` is a `ProtocolError` and whose message never holds input.
 - `StrictJson`: a strict RFC 8259 check of the one object, run before org.json builds anything. Android's org.json skips comments, reads `0x1` and `01`, reads `-0` as the integer 0 (the JVM one as a double), and keeps the last of two equal keys; the JVM artifact the tests run on does none of that, so the rule is decided here and is the same on both.
 - `Revision`: SHA-256 of a route's GPX text as UTF-8, 64 lowercase hex digits. It hashes the text as it encodes it, a chunk at a time, so a 16 MiB track is not copied into a byte array first.
 - Reading one maximum-size item (`Items`, `Messages.parseObject`) keeps no decoded copy for the UTF-8 check and does not build the frame to size it (`Messages.encodedSize`, which a test pins to `encode`'s length): about two copies of the item are allocated on Android (the JVM's Maven org.json builds each string through a builder and makes about four), down from about fourteen; `ReadMemoryTest` and the phone module's `ReadAllocationTest` hold those bounds.
@@ -58,11 +58,12 @@ Version 1, in `codes.madera.crossfog.link`:
 |---|---|---|---|
 | Idle | ready, `wake()`, or a route delivered; queue empty | Idle | none |
 | Idle | the same, a route queued | Offered | read it from the store, write `routeOffer`, start the wait |
+| Idle | the same, and the first queued is the route refused in this session (same id and revision) | Idle | none: nothing behind it is sent until the app sets it aside |
 | Offered | `routeSaved` with the offered id and revision | Idle | `markDelivered(id, revision)` (compare and mark in the store); send the next route |
 | Offered | the same, and `markDelivered` throws | Closed `STORE_FAILED` | the route stays queued |
 | Idle, Offered | `routeSaved` for another id or revision, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | the store is not touched |
 | Idle, Offered | `activityOffer` | same | `ActivitySink.store`; on `SAVED` or `ALREADY_HELD` write `activityStored` |
-| Idle, Offered | `activityOffer`, and the sink throws | Closed `STORE_FAILED` | no confirmation; the watch keeps it |
+| Idle, Offered | `activityOffer`, and the sink throws anything but `ItemRefusedException` | Closed `STORE_FAILED` | no confirmation; the watch keeps it |
 | Offered | `itemRefused` with kind `route` and the offered id | Idle | `LinkEvents.itemRefused` (the app sets the route aside, never deletes it); the same id and revision is not offered again in this session; send the next route |
 | Idle, Offered | `itemRefused` of any other kind or id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | none |
 | Idle, Offered | `activityOffer`, and the sink throws `ItemRefusedException` | same | write `itemRefused` (kind `activity`); the session stays open |
@@ -74,11 +75,12 @@ Version 1, in `codes.madera.crossfog.link`:
 |---|---|---|---|
 | Idle | ready, `wake()`, or an activity deleted; outbox empty | Idle | none |
 | Idle | the same, an activity queued | Offered | read it from the outbox, write `activityOffer`, start the wait |
+| Idle | the same, and the first queued is the activity refused in this session (same id) | Idle | none: nothing behind it is sent until the app sets it aside |
 | Offered | `activityStored` for the offered id | Idle | `delete(id)`; send the next activity |
 | Offered | the same, and `delete` throws | Closed `STORE_FAILED` | the activity stays queued |
 | Idle, Offered | `activityStored` for another id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | the outbox is not touched |
 | Idle, Offered | `routeOffer` | same | `WatchRouteStore.save`; on `SAVED` or `ALREADY_HELD` write `routeSaved` with the revision received |
-| Idle, Offered | `routeOffer`, and the store throws | Closed `STORE_FAILED` | no confirmation; the phone keeps it |
+| Idle, Offered | `routeOffer`, and the store throws anything but `ItemRefusedException` | Closed `STORE_FAILED` | no confirmation; the phone keeps it |
 | Offered | `itemRefused` with kind `activity` and the offered id | Idle | `LinkEvents.itemRefused` (the app sets the activity aside, never deletes it); that id is not offered again in this session; send the next activity |
 | Idle, Offered | `itemRefused` of any other kind or id, a second one, or one with nothing offered | Closed `UNEXPECTED_MESSAGE` | none |
 | Idle, Offered | `routeOffer`, and the store throws `ItemRefusedException` | same | write `itemRefused` (kind `route`); the session stays open |
