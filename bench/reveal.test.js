@@ -334,7 +334,7 @@ for (const [lon, lat] of [[151.2, -33.9], [-74.0, 40.7], [-151.2, -33.9], [0.000
   let compactions = 0;
   const small = Reveal.reveal(t, Reveal.RULES, { flushAt: 16, onCompact: () => { compactions++; } });
   assert.deepEqual(small, never, "compacting early changes nothing in the answer");
-  // about 2400 unique cells pass a threshold of 16 many times over, and the threshold doubles past them; one stuck at 16 would compact at every point (250)
+  // the unique cells pass a threshold of 16 many times over (asserted below), and the threshold doubles past them; one stuck at 16 would compact at every point (250)
   assert.ok(small.length / 2 > 16 * 16, "the track must pass the threshold many times over");
   assert.ok(compactions >= 2 && compactions < 30, `${compactions} compactions`);
 }
