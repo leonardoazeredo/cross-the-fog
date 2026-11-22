@@ -103,7 +103,7 @@ export interface TrackPoint {
   accuracy?: number | string | undefined;
 }
 
-// Test hooks: flushAt replaces FLUSH_AT, onCompact hears each compaction of the key buffer.
+// Test hooks: flushAt replaces FLUSH_AT, onCompact hears each compaction made inside the loop (not the last one, after it).
 export interface RevealOptions {
   flushAt?: number;
   onCompact?: () => void;
