@@ -297,7 +297,8 @@ describe("parseGpx on what the watch's encoder writes", () => {
       steps: 0,
       cadence: 100,
     });
-    // Exactly these fields: a point must not pick up the next point's elevation, speed or heart rate.
+    // Exactly the fields each point wrote: point 1 has no steps or cadence although point 0 has them, so a point
+    // that kept the previous one's values would fail here.
     expect(parsed.points[1]).toEqual({
       t: START + 3000,
       lat: 51.477,
