@@ -61,7 +61,7 @@ class RecordingOutboxHookTest {
             WatchLink(
                 outbox = outbox,
                 ledger = ledger,
-                routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }),
+                routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }, { true }),
                 pins = FilePinStore(File(tmp.root, "link"), {}),
                 identityPresent = { true },
             )

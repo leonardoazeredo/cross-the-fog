@@ -79,23 +79,22 @@ export class Tile {
   header: Uint16Array;
   _tv: number | null | undefined;
 
-  // Throws an error that names the tile when the data is too short for the header or a header index points past the blocks:
-  // read on, a cut file would hand out short bitmaps, and the error would surface far from the bad file (NaN counts,
-  // a RangeError in the writer).
+  // Throws an error (naming no tile: an id is a rough location) when the data is too short for the header or a
+  // header index points past the blocks: read on, a cut file would hand out short bitmaps, and the error would
+  // surface far from the bad file (NaN counts, a RangeError in the writer).
   constructor(id: number, data: Uint8Array) {
     this.id = id;
     this.x = tileX(id);
     this.y = tileY(id);
     if (data.length < TILE_HEADER_SIZE)
-      throw new Error(`tile ${id}: ${data.length} bytes, shorter than its header`);
+      throw new Error(`a tile of ${data.length} bytes is shorter than its header`);
     this.data = data;
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     this.header = new Uint16Array(TILE_HEADER_LEN);
     const stored = Math.floor((data.length - TILE_HEADER_SIZE) / BLOCK_SIZE);
     for (let i = 0; i < TILE_HEADER_LEN; i++) {
       const idx = dv.getUint16(i * 2, true);
-      if (idx > stored)
-        throw new Error(`tile ${id}: block index ${idx}, but only ${stored} blocks stored`);
+      if (idx > stored) throw new Error(`a block index points past the ${stored} blocks stored`);
       this.header[i] = idx;
     }
   }

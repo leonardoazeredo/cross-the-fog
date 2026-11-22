@@ -1,5 +1,7 @@
 package codes.madera.crossfog.watch.link
 
+import codes.madera.crossfog.link.ItemRefusedException
+import codes.madera.crossfog.link.RefusalReason
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 import org.junit.Assert.assertEquals
@@ -21,6 +23,8 @@ class WatchRoutesTest {
     private val written = mutableListOf<String>()
     private var failWrite: Exception? = null
     private var shaOverride: String? = null
+    private var readable: (ByteArray) -> Boolean = { true }
+    private val checked = mutableListOf<Int>()
 
     private fun sha(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
@@ -34,6 +38,10 @@ class WatchRoutesTest {
                 shaOverride ?: sha(bytes)
             },
             fileExists = { File(tmp.root, it).isFile },
+            isReadable = { bytes ->
+                checked += bytes.size
+                readable(bytes)
+            },
         )
 
     private fun offer(
@@ -108,7 +116,7 @@ class WatchRoutesTest {
     @Test
     fun aWriteThatReportsNoHashIsAnError() {
         val r =
-            WatchRoutes(index, { _, _ -> null }, { false })
+            WatchRoutes(index, { _, _ -> null }, { false }, { true })
         assertThrows(IOException::class.java) { r.save(offer()) }
         assertEquals(null, index.get(ID_A))
     }
@@ -118,5 +126,40 @@ class WatchRoutesTest {
         val o = RouteOffer(ID_A, "../../etc/passwd", "2026-03-01T09:30:00Z", "<gpx>x</gpx>")
         routes().save(o)
         assertEquals("route-$ID_A.gpx", index.get(ID_A)!!.file)
+    }
+
+    @Test
+    fun aRouteTheWatchCannotReadIsRefusedForItsContentAndNothingIsWrittenOrIndexed() {
+        readable = { false }
+        val e = assertThrows(ItemRefusedException::class.java) { routes().save(offer()) }
+        assertEquals(RefusalReason.UNREADABLE, e.reason)
+        assertTrue(written.isEmpty())
+        assertEquals(null, index.get(ID_A))
+    }
+
+    @Test
+    fun aNewRevisionThatCannotBeReadLeavesTheRouteHeldAsItWas() {
+        val r = routes()
+        r.save(offer())
+        readable = { false }
+        assertThrows(ItemRefusedException::class.java) { r.save(offer(gpx = "<gpx>two</gpx>")) }
+        assertEquals(offer().revision, index.get(ID_A)!!.revision)
+        assertEquals("<gpx>one</gpx>", File(tmp.root, index.get(ID_A)!!.file).readText())
+    }
+
+    @Test
+    fun aRouteAlreadyHeldIsNotReadAgain() {
+        val r = routes()
+        r.save(offer())
+        checked.clear()
+        r.save(offer())
+        assertTrue(checked.isEmpty())
+    }
+
+    @Test
+    fun aCheckThatCannotRunIsNotARefusal() {
+        readable = { throw IOException("no space for the check") }
+        assertThrows(IOException::class.java) { routes().save(offer()) }
+        assertTrue(written.isEmpty())
     }
 }
