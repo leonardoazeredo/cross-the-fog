@@ -72,7 +72,7 @@ export function isTileName(
 // Decodes one file into env.fogMap and counts it in t. A file whose name is no tile's is not a tile (a .DS_Store, a
 // plist, a file called "Snapshot") and is left alone, so it never counts as damage; a tile's own file that cannot be
 // inflated or parsed is counted as corrupt, and only its error's class is kept (a thrown string counts as "string"):
-// the parser's message names the tile. pako returns nothing, rather than throwing, for a stream cut short, which is
+// the error's message can hold detail of the file. pako returns nothing, rather than throwing, for a stream cut short, which is
 // the usual shape of a half-copied file, so no data is damage too.
 // env: {fogMap, inflate(bytes) -> Uint8Array | undefined, parseTileId(name) -> id | null, tileName(id) -> name}
 export function decode(t: Tally, name: string, bytes: Uint8Array, env: DecodeEnv): void {
