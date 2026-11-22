@@ -118,7 +118,14 @@ abstract class Endpoint(
   }
 
   /** Tells the caller the peer refused one of this end's own items; the session is still open. */
-  protected fun report(refusal: Refusal) = events.itemRefused(refusal)
+  protected fun report(refusal: Refusal) {
+    try {
+      events.itemRefused(refusal)
+    } catch (e: Exception) {
+      // the caller could not set the item aside: it stays queued and is offered again next session, like any store failure
+      close(CloseReason.STORE_FAILED, refusal.item)
+    }
+  }
 
   /** This end's own item that is offered and not yet confirmed, or null. */
   protected open fun inFlight(): ItemRef? = null

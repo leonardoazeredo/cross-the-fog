@@ -160,7 +160,7 @@ interface LinkEvents {
   /**
    * The peer will never take an item this end offered, and the session is still open. The caller sets the
    * item aside (never deletes it) before this returns, so the next item can go out in this session; the
-   * endpoint does not offer the same id and revision again in this session either way. The default does nothing.
+   * endpoint does not offer the same id and revision again in this session either way. A throw from here closes the session with [CloseReason.STORE_FAILED] naming the item, which stays queued and is offered again next session. The default does nothing.
    */
   fun itemRefused(refusal: Refusal) {}
 }

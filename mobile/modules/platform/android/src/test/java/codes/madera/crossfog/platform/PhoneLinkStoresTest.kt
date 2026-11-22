@@ -9,6 +9,7 @@ import codes.madera.crossfog.link.ItemRef
 import codes.madera.crossfog.link.LedgerStore
 import codes.madera.crossfog.link.Refusal
 import codes.madera.crossfog.link.RefusalReason
+import codes.madera.crossfog.link.Revision
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 import java.io.File
@@ -489,7 +490,9 @@ class PhoneLinkStoresTest {
         "not json" -> outboxStore().stage(a, "not json".toByteArray())
         else -> outboxStore().stage(a, routeJson(b))
       }
-      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
+      // the misfiled copy's own revision, so only the id check keeps it from being set aside
+      val revision = if (damage == "filed under another id") Revision.of("<gpx/>") else "0".repeat(64)
+      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, revision))
       assertTrue(damage, asides.isEmpty())
       assertTrue(damage, File(outboxDir, "$a.bin").exists())
       assertFalse(damage, File(outboxDir, "aside").exists())

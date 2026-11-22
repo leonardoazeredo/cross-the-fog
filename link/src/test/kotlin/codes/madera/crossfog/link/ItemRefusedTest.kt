@@ -84,6 +84,21 @@ class ItemRefusedTest {
   }
 
   @Test
+  fun aCallerThatCannotSetTheRefusedRouteAsideClosesTheSessionAndTheRouteStaysQueued() {
+    val solo = Solo()
+    solo.phoneRoutes.queue(a)
+    solo.phoneRoutes.queue(b)
+    solo.events.onRefused = { throw java.io.IOException("disk") }
+    val phone = solo.ready(solo.phone())
+    solo.stream.takeMessages()
+    phone.feed(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertTrue(solo.phoneRoutes.setAside.isEmpty())
+  }
+
+  @Test
   fun aRefusalEndsTheWaitForAConfirmation() {
     val solo = Solo()
     solo.phoneRoutes.queue(a)
