@@ -75,6 +75,7 @@ class PhoneEndpoint(
     disarmConfirm()
     // A caller that sets the route aside inside this call lets pump find the next one; one that leaves it queued
     // has pump send nothing while that route is first in the queue.
+    // One that throws closes the session instead (`report`).
     report(Refusal(ItemRef(ItemKind.ROUTE, key.routeId), refusal.reason, key.revision))
     if (!isClosed) pump()
   }

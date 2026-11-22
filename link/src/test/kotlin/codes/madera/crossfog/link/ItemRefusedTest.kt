@@ -84,6 +84,50 @@ class ItemRefusedTest {
   }
 
   @Test
+  fun aCallerThatCannotSetTheRefusedRouteAsideClosesTheSessionAndTheRouteStaysQueued() {
+    val solo = Solo()
+    solo.phoneRoutes.queue(a)
+    solo.phoneRoutes.queue(b)
+    solo.events.onRefused = { throw java.io.IOException("disk") }
+    val phone = solo.ready(solo.phone())
+    solo.stream.takeMessages()
+    phone.feed(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ROUTE_A), solo.events.itemIds)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+    assertTrue(solo.phoneRoutes.setAside.isEmpty())
+    assertEquals(listOf(ROUTE_A, ROUTE_B), solo.phoneRoutes.queued.keys.toList())
+  }
+
+  // The route is set aside and then the app's call throws: the endpoint must not go on to offer the next route into a closed session.
+  @Test
+  fun aSetAsideThatThrowsAfterTheRouteLeftStillSendsNothingMore() {
+    val solo = Solo()
+    solo.phoneRoutes.queue(a)
+    solo.phoneRoutes.queue(b)
+    solo.events.onRefused = { solo.phoneRoutes.setAside(it.item.id); throw java.io.IOException("disk") }
+    val phone = solo.ready(solo.phone())
+    solo.stream.takeMessages()
+    phone.feed(ItemRefused(ItemKind.ROUTE, ROUTE_A, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+  }
+
+  @Test
+  fun aWatchWhoseSetAsideThrowsAfterTheActivityLeftClosesAndSendsNothingMore() {
+    val solo = Solo()
+    solo.outbox.queue(activity(ACT_1))
+    solo.outbox.queue(activity(ACT_2))
+    solo.events.onRefused = { solo.outbox.setAside(it.item.id); throw java.io.IOException("disk") }
+    val watch = solo.ready(solo.watch())
+    solo.stream.takeMessages()
+    watch.feed(ItemRefused(ItemKind.ACTIVITY, ACT_1, RefusalReason.UNREADABLE))
+    assertEquals(listOf(CloseReason.STORE_FAILED), solo.events.closed)
+    assertEquals(listOf<String?>(ACT_1), solo.events.itemIds)
+    assertEquals(emptyList<Message>(), solo.stream.takeMessages())
+  }
+
+  @Test
   fun aRefusalEndsTheWaitForAConfirmation() {
     val solo = Solo()
     solo.phoneRoutes.queue(a)
