@@ -248,7 +248,7 @@ describe("history", () => {
       },
     });
     await expect(flow.needTrack(ID(1))).resolves.toBeUndefined();
-    // The first chunk went out whole and said how many there were; the failed second one is not retried or replaced.
+    // A send that throws ends the loop: the page keeps the chunk it already got and nothing is sent in its place.
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ type: "track", activityId: ID(1), index: 0, total: 3 });
     expect((sent[0] as Extract<NativeToWeb, { type: "track" }>).points).toHaveLength(2000);
