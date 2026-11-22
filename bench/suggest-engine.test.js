@@ -1,5 +1,6 @@
 // The route editor asks the engine object for its street graph, not the suggestion tool: the engine is built apart
-// from the tool, shares its run state with it, and hands the editor a fresh planner while a suggestion holds one.
+// from the tool, shares its run state with it, and hands the editor a fresh planner once the streets or the fog
+// have outgrown the graph a suggestion holds (a graph still current is the held one).
 // Synthetic streets, no network.
 //   node bench/suggest-engine.test.js
 "use strict";
