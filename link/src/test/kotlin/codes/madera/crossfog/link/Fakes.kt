@@ -70,11 +70,21 @@ class RecordingEvents : LinkEvents {
   val closed = mutableListOf<CloseReason>()
   val itemIds = mutableListOf<String?>()
   val log = mutableListOf<String>()
+  val refusals = mutableListOf<Refusal>()
+
+  /** What the app does when the peer refuses an item, run inside the callback like an app's would be. */
+  var onRefused: (Refusal) -> Unit = {}
   var ready = 0
 
   override fun ready() {
     ready++
     log += "ready"
+  }
+
+  override fun itemRefused(refusal: Refusal) {
+    refusals += refusal
+    log += "refused:${refusal.item.id}"
+    onRefused(refusal)
   }
 
   override fun closed(reason: CloseReason, itemId: String?) {
@@ -94,6 +104,13 @@ class FakePhoneRoutes : PhoneRouteStore {
     queued[offer.routeId] = offer
   }
 
+  /** Routes taken out of the queue by [setAside]: the fake keeps them, as the real store does, so a test can see none was deleted. */
+  val setAside = linkedMapOf<String, RouteOffer>()
+
+  fun setAside(routeId: String) {
+    queued.remove(routeId)?.let { setAside[routeId] = it }
+  }
+
   override fun nextQueued(): RouteOffer? = queued.values.firstOrNull()
 
   override fun markDelivered(routeId: String, revision: String): Boolean {
@@ -111,8 +128,10 @@ class FakeSink : ActivitySink {
   var writes = 0
   var fail = false
   val failIds = mutableSetOf<String>()
+  val refuseIds = mutableSetOf<String>()
 
   override fun store(offer: ActivityOffer): SaveResult {
+    if (offer.activityId in refuseIds) throw ItemRefusedException(RefusalReason.UNREADABLE)
     if (fail || offer.activityId in failIds) throw IllegalStateException("sink failed")
     if (offer.activityId in stored) return SaveResult.ALREADY_HELD
     writes++
@@ -126,8 +145,10 @@ class FakeWatchRoutes : WatchRouteStore {
   var writes = 0
   var fail = false
   val failIds = mutableSetOf<String>()
+  val refuseIds = mutableSetOf<String>()
 
   override fun save(offer: RouteOffer): SaveResult {
+    if (offer.routeId in refuseIds) throw ItemRefusedException(RefusalReason.UNREADABLE)
     if (fail || offer.routeId in failIds) throw IllegalStateException("store failed")
     val held = saved[offer.routeId]
     if (held != null && held.revision == offer.revision) return SaveResult.ALREADY_HELD
@@ -140,7 +161,12 @@ class FakeWatchRoutes : WatchRouteStore {
 class FakeOutbox : ActivityOutbox {
   val queued = linkedMapOf<String, ActivityOffer>()
   val deleted = mutableListOf<String>()
+  val setAside = linkedMapOf<String, ActivityOffer>()
   var failDelete = false
+
+  fun setAside(activityId: String) {
+    queued.remove(activityId)?.let { setAside[activityId] = it }
+  }
   var failNext = false
 
   fun queue(offer: ActivityOffer) {

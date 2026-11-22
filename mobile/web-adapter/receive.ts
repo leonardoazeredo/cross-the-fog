@@ -30,7 +30,9 @@ export function createReceiver(
       const assembled = new Uint8Array(receivedBytes);
       let offset = 0;
       for (let i = 0; i < total; i++) {
-        const part = chunks.get(i)!;
+        const part = chunks.get(i);
+        // total chunks are held but an index outside 0..total-1 took the place of one inside it
+        if (part === undefined) return { kind: "partial", receivedBytes };
         assembled.set(part, offset);
         offset += part.length;
       }

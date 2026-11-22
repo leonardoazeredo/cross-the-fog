@@ -27,6 +27,7 @@ import { StreetCache } from "./streetCache.ts";
 import { StreetMessages } from "./streetMessages.ts";
 import { StreetIndex } from "./streets.ts";
 import { bindSuggestHost, type SuggestHost, SuggestTool } from "./suggest.ts";
+import { createEngine } from "./suggestRun.ts";
 import { memory, open as openStore, type StoreOptions } from "./tileStore.ts";
 import { FogZip as zip } from "./unzip.ts";
 
@@ -102,13 +103,15 @@ export function pageGlobals(page: PageWindow) {
     StreetCache: { ...StreetCache },
     // the constructor itself, not a copy: other files construct it and call its statics
     StreetIndex,
-    // the constructors themselves, not copies: suggest.ts and the tests build them with `new` and patch prototypes
+    // the constructors themselves, not copies: suggestRun.ts and the tests build them with `new` and patch prototypes
     GraphPlanner,
     LocalRouter,
     // an object of functions, so a copy like the others
     RouteLocal: { ...RouteLocal },
     // the constructor itself, with its `_internals`: main.js and the tests build it with `new`
     SuggestTool,
+    // what main.js hands to the suggestion tool and the route editor, so both ask the same graph
+    SuggestEngine: { create: createEngine },
     StreetMessages: { ...StreetMessages },
     ImportMessages: { ...ImportMessages },
     Estimates: { ...Estimates },

@@ -40,6 +40,13 @@ function btn(label: string, action: () => void): HTMLButtonElement {
   return b;
 }
 
+// A container the page already holds may lack the children this function would have added.
+function present(doc: Document, id: string): HTMLElement {
+  const el = doc.getElementById(id);
+  if (el == null) throw new Error(`#${id} is missing from the status container`);
+  return el;
+}
+
 export function createStatus(doc: Document, actions: StatusActions, now: () => number): Status {
   let container = doc.getElementById("crossfogStatus");
   if (container == null) {
@@ -62,8 +69,8 @@ export function createStatus(doc: Document, actions: StatusActions, now: () => n
     loadStatus?.insertAdjacentElement("afterend", container);
   }
 
-  const lineEl = doc.getElementById("crossfogLine")!;
-  const noticeEl = doc.getElementById("crossfogNotice")!;
+  const lineEl = present(doc, "crossfogLine");
+  const noticeEl = present(doc, "crossfogNotice");
   const hintEl = doc.getElementById("hint");
   const hintText = hintEl?.textContent ?? "";
 

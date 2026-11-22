@@ -5,6 +5,8 @@ import codes.madera.crossfog.link.CloseReason
 import codes.madera.crossfog.link.ItemKind
 import codes.madera.crossfog.link.ItemLedger
 import codes.madera.crossfog.link.ItemRef
+import codes.madera.crossfog.link.Refusal
+import codes.madera.crossfog.link.RefusalReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -69,5 +71,26 @@ class WatchLinkEventsTest {
         val events = WatchLinkEvents(ledger, box())
         events.ready()
         events.closed(CloseReason.LOCAL, null)
+    }
+
+    @Test
+    fun anActivityThePhoneRefusedIsSetAsideAtOnceNotDeleted() {
+        val box = box()
+        val events = WatchLinkEvents(ledger, box)
+        box.add("<gpx>a</gpx>".toByteArray(), "v", newId = { ID_A })
+        box.add("<gpx>b</gpx>".toByteArray(), "v", newId = { ID_B })
+        events.itemRefused(Refusal(ItemRef(ItemKind.ACTIVITY, ID_A), RefusalReason.UNREADABLE, null))
+        assertEquals(ID_B, box.next()!!.activityId)
+        assertEquals(1, box.asideCount())
+    }
+
+    @Test
+    fun aRefusalOfARouteIsNotThisEndsToAct() {
+        val box = box()
+        val events = WatchLinkEvents(ledger, box)
+        box.add("<gpx>a</gpx>".toByteArray(), "v", newId = { ID_A })
+        events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, ID_A), RefusalReason.UNREADABLE, null))
+        assertEquals(0, box.asideCount())
+        assertEquals(ID_A, box.next()!!.activityId)
     }
 }

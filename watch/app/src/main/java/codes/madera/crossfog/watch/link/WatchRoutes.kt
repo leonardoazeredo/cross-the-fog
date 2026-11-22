@@ -1,5 +1,7 @@
 package codes.madera.crossfog.watch.link
 
+import codes.madera.crossfog.link.ItemRefusedException
+import codes.madera.crossfog.link.RefusalReason
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 import codes.madera.crossfog.link.WatchRouteStore
@@ -27,11 +29,15 @@ internal interface RouteIndex {
  * revision is answered without a write and a new revision replaces the file in place. [write] is the
  * repository's atomic write and returns the hash of what it wrote, which has to be the revision the
  * phone named, so a route is never confirmed on the strength of a file that differs from what was sent.
+ * A route [isReadable] says the watch cannot read is refused for its content ([ItemRefusedException]) before
+ * anything is written, so the phone sets it aside instead of resending it for ever; a check that cannot run
+ * throws as any store failure does and the route is kept and retried. A resend of the revision already held, with its file still there, is answered before the check runs.
  */
 internal class WatchRoutes(
     private val index: RouteIndex,
     private val write: (fileName: String, bytes: ByteArray) -> String?,
     private val fileExists: (fileName: String) -> Boolean,
+    private val isReadable: (gpx: ByteArray) -> Boolean,
 ) : WatchRouteStore {
     @Synchronized
     override fun save(offer: RouteOffer): SaveResult {
@@ -39,7 +45,9 @@ internal class WatchRoutes(
         if (held != null && held.revision == offer.revision && fileExists(held.file)) return SaveResult.ALREADY_HELD
         // The name comes from the id alone: the route's own name is the peer's text and stays inside the file.
         val fileName = "${WatchLinkNames.ROUTE_FILE_PREFIX}${offer.routeId}.gpx"
-        val hash = write(fileName, offer.gpx.toByteArray(Charsets.UTF_8))
+        val bytes = offer.gpx.toByteArray(Charsets.UTF_8)
+        if (!isReadable(bytes)) throw ItemRefusedException(RefusalReason.UNREADABLE)
+        val hash = write(fileName, bytes)
         if (hash == null || !hash.equals(offer.revision, ignoreCase = true)) throw IOException("route written does not match its revision")
         index.put(offer.routeId, RouteEntry(offer.revision, fileName))
         return SaveResult.SAVED

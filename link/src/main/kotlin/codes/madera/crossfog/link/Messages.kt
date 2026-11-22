@@ -95,6 +95,18 @@ data class RouteOffer(val routeId: String, val name: String, val createdAt: Stri
   override fun toString() = "RouteOffer"
 }
 
+/**
+ * The receiver will never take the item, for what it holds: `kind` is `route` or `activity`, `id` the UUID
+ * of the offer, `reason` one of [RefusalReason]. The session stays open.
+ */
+data class ItemRefused(val kind: ItemKind, val id: String, val reason: RefusalReason) : Message {
+  init {
+    Fields.uuid(id, "id")
+  }
+
+  override fun toString() = "ItemRefused"
+}
+
 /** The watch has stored the route: `routeId` UUID, `revision` the one of the offer it answers. */
 data class RouteSaved(val routeId: String, val revision: String) : Message {
   init {
@@ -144,6 +156,11 @@ object Messages {
       "routeSaved" -> RouteSaved(Fields.uuid(o.opt("routeId"), "routeId"), Fields.revision(o.opt("revision"), "revision"))
       "activityOffer" -> activityOffer(o)
       "activityStored" -> ActivityStored(Fields.uuid(o.opt("activityId"), "activityId"))
+      "itemRefused" -> ItemRefused(
+        kind = kindOf(Fields.text(o.opt("kind"), "kind", 32)),
+        id = Fields.uuid(o.opt("id"), "id"),
+        reason = RefusalReason.of(Fields.text(o.opt("reason"), "reason", 32)) ?: throw Fields.invalid("reason"),
+      )
       "pairRequest" -> PairRequest(Fields.revision(o.opt("proof"), "proof"))
       "pairAccepted" -> PairAccepted
       "pairRejected" -> PairRejected(PairRejection.of(Fields.text(o.opt("reason"), "reason", 32)) ?: throw Fields.invalid("reason"))
@@ -207,6 +224,7 @@ object Messages {
           (if (message.routeId != null) """"routeId":"${message.routeId}",""" else "") +
           """"encoderVersion":${q(message.encoderVersion)},"gpx":${q(message.gpx)}}"""
       is ActivityStored -> """$head"activityStored","activityId":"${message.activityId}"}"""
+      is ItemRefused -> """$head"itemRefused","kind":"${if (message.kind == ItemKind.ROUTE) "route" else "activity"}","id":"${message.id}","reason":"${message.reason.wire}"}"""
       is PairRequest -> """$head"pairRequest","proof":"${message.proof}"}"""
       is PairAccepted -> """$head"pairAccepted"}"""
       is PairRejected -> """$head"pairRejected","reason":"${message.reason.wire}"}"""
@@ -234,6 +252,12 @@ object Messages {
       }
     }
     return out.append('"').toString()
+  }
+
+  private fun kindOf(wire: String): ItemKind = when (wire) {
+    "route" -> ItemKind.ROUTE
+    "activity" -> ItemKind.ACTIVITY
+    else -> throw Fields.invalid("kind")
   }
 
   private fun versions(value: Any?): List<Int> {

@@ -79,8 +79,8 @@ plain files and happen only when you tap them, each after a warning you can canc
 nothing). **Export for Fog of World** (phone app) writes the cells you have explored, imported and
 from activities, in Fog of World's own format, which has no encryption and no times; the phone app
 zips the tiles under `Sync/` and asks where to save the zip. **GPX** writes the route you planned,
-point by point. The crash log and the page's log lines carry no positions: a decimal number with
-three or more places is replaced by `[n]` before the crash log is written. The site also counts
+point by point. The crash log and the page's log lines carry no positions: a crash-log line is a
+timestamp and the error's class, never its message. The site also counts
 visits with [GoatCounter](https://www.goatcounter.com/), a privacy-friendly, cookie-less counter
 (page views only; no personal data, no tracking across sites).
 
@@ -98,7 +98,8 @@ app/
   src/fogLayer.js   Leaflet GridLayer that paints the fog, with the look/blend/widen options
   src/route.js      draw-your-own route tool (GPX export)
   src/routeLocal.ts routes the tool's pins on the street map, with heights and estimates
-  src/suggest.ts    suggested routes: candidate generation, defog scoring, loop shaping
+  src/suggest.ts    the suggestion tool: pins, cards, drawing the routes on the map
+  src/suggestRun.ts the suggestion engine: candidate generation, defog scoring, loop shaping
   src/unzip.ts      minimal ZIP reader so a Fog of World backup .zip loads directly
   src/main.js       wiring: data loading, style controls, route/suggest UI, persistence
   vendor/           Leaflet + pako 2.1.0 (zlib, one build: pako.min.js), vendored so there's nothing to install

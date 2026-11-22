@@ -33,7 +33,7 @@ export function status(r: ImportResult): string {
     return `None of the fog tiles could be read: ${corrupt} damaged file${plural(corrupt, "", "s")}.${readErr > 0 ? ` Also ${cloudNote(readErr)}.` : ""} ${retry}`;
   }
   if (readErr > 0)
-    return "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to the phone. Download your backup and load the .zip instead.";
+    return "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to this device. Download your backup and load the .zip instead.";
   return source === "zip"
     ? "No fog tiles found in that .zip. Make sure it contains your Sync folder."
     : "No fog tiles found. Did you pick the Sync folder?";
@@ -72,7 +72,7 @@ export function isTileName(
 // Decodes one file into env.fogMap and counts it in t. A file whose name is no tile's is not a tile (a .DS_Store, a
 // plist, a file called "Snapshot") and is left alone, so it never counts as damage; a tile's own file that cannot be
 // inflated or parsed is counted as corrupt, and only its error's class is kept (a thrown string counts as "string"):
-// the parser's message names the tile. pako returns nothing, rather than throwing, for a stream cut short, which is
+// the error's message can hold detail of the file. pako returns nothing, rather than throwing, for a stream cut short, which is
 // the usual shape of a half-copied file, so no data is damage too.
 // env: {fogMap, inflate(bytes) -> Uint8Array | undefined, parseTileId(name) -> id | null, tileName(id) -> name}
 export function decode(t: Tally, name: string, bytes: Uint8Array, env: DecodeEnv): void {
