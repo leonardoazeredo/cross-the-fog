@@ -201,6 +201,7 @@ it("keeps the reload going when the flows' ready throws", async () => {
   await h.c.start();
   // The flow's failure reaches the caller; the reload the controller already sent is not undone by it.
   await expect(h.c.onWebMessage(ready)).rejects.toThrow("flow bug");
+  expect(h.sent.map((m) => m.type)).toContain("reload");
   h.sent.length = 0;
 
   await h.c.onWebMessage({ v: 1, type: "needBytes", fingerprint: sha(A) });

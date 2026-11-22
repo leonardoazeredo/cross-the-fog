@@ -36,7 +36,7 @@ class TraceGpxPhoneFixtureTest {
     }
 
     // Two segments, so the parser must not measure the jump across the gap; the points differ in which optional
-    // fields they carry (the first has them all, the later ones few or none), so a missing field is read as well.
+    // fields they carry (the first carries every field the phone reads, the later ones few or none), so a missing field is read as well.
     private fun walk(): List<RecordedTracePoint> =
         listOf(
             point(51.4769, 0.0005, 1_772_359_200_000L, elevation = 45.2, speed = 1.2f, heartRate = 96, steps = 0, cadence = 100),

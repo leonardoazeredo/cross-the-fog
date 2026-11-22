@@ -104,7 +104,7 @@ const sameBytes = (a, b) => assert.deepEqual(Array.from(a), Array.from(b));
   assert.equal(map.isVisitedCell(...cell), true);
   assert.equal(map.totalVisited(), 1);
 }
-{ // blocks(): an overlay cell beside an imported block keeps that block's extra bytes; a block only the overlay has gets null
+{ // blocks(): an overlay cell inside an imported block keeps that block's extra bytes; a block only the overlay has gets null
   const map = new FogMap();
   const region = [0xab, 0xcd, 0xef];
   map.addTile(nameOf(idOf(5, 6)), tileBytes([{ bx: 1, by: 2, cells: [[3, 4]], extra: region }]));
