@@ -7,6 +7,7 @@ export function transformIndexHtml(
   html: string,
   readLocal: (relPath: string) => string,
   adapterJs: string,
+  extraConnect: string[] = [],
 ): string {
   const { document } = parseHTML(html);
 
@@ -42,7 +43,7 @@ export function transformIndexHtml(
   const allHashes = [adapterJs, ...allScripts.map((s) => s.textContent ?? "")].map(scriptHash);
   const cspMeta = document.createElement("meta");
   cspMeta.setAttribute("http-equiv", "Content-Security-Policy");
-  cspMeta.setAttribute("content", buildCsp(allHashes));
+  cspMeta.setAttribute("content", buildCsp(allHashes, extraConnect));
 
   if (charset != null) {
     charset.after(cspMeta);

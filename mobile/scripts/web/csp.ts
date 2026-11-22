@@ -5,9 +5,9 @@ export function scriptHash(code: string): string {
   return `'sha256-${createHash("sha256").update(code).digest("base64")}'`;
 }
 
-export function buildCsp(scriptHashes: string[]): string {
+export function buildCsp(scriptHashes: string[], extraConnect: string[] = []): string {
   const imgs = ["data:", ...HOST_POLICY.img.map((h) => `https://${h}`)].join(" ");
-  const connects = HOST_POLICY.connect.map((h) => `https://${h}`).join(" ");
+  const connects = [...HOST_POLICY.connect.map((h) => `https://${h}`), ...extraConnect].join(" ");
   return [
     "default-src 'none'",
     `script-src ${scriptHashes.join(" ")}`,

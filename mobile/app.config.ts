@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { standInOrigin } from "./scripts/web/standIn";
 import shareMime from "./src/import/share-mime.json";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -68,11 +69,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/withReleaseBundleInputs.cjs",
     "./plugins/withLinkProject.cjs",
     "./plugins/withMinSdk.cjs",
+    "./plugins/withE2eStandIn.cjs",
     ["expo-share-intent", { disableIOS: true, androidIntentFilters: shareMime }],
   ],
   extra: {
     eas: { projectId: "caaa478d-1167-481c-bbb5-0339a7fbfadb" },
     e2e: process.env.CROSSFOG_E2E === "1",
+    // The e2e stand-in's origin, or null; only an e2e build can have one (see scripts/web/standIn.ts).
+    e2eStandIn: standInOrigin(process.env) ?? null,
     // Read at build time (with-secret NEXTGIS_OVERPASS_KEY -- ...) and handed to the page by WebShell;
     // it ships inside the app, so anyone holding the app can read it (README "Privacy").
     nextgisOverpassKey: process.env.NEXTGIS_OVERPASS_KEY || null,

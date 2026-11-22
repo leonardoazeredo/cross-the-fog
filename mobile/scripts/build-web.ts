@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { bundleAdapter } from "./web/bundleAdapter.js";
 import { bundleModule } from "./web/bundleModule.js";
 import { scanHosts, unknownHosts } from "./web/hosts.js";
+import { standInOrigin } from "./web/standIn.js";
 import { BuildError, transformIndexHtml } from "./web/transform.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -11,9 +12,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export async function buildWebHtml(opts: {
   appDir: string;
   devTools: boolean;
+  /** An extra origin the page may connect to; the e2e stand-in's, from CROSSFOG_E2E_STANDIN, and no other. */
+  standIn?: string | undefined;
   editIndex?: (html: string) => string;
 }): Promise<string> {
-  const { appDir, devTools, editIndex } = opts;
+  const { appDir, devTools, standIn, editIndex } = opts;
 
   let html = readFileSync(resolve(appDir, "index.html"), "utf-8");
   if (editIndex != null) html = editIndex(html);
@@ -39,13 +42,14 @@ export async function buildWebHtml(opts: {
         ? bundleModule(resolve(appDir, relPath), srcDir)
         : readFileSync(resolve(appDir, relPath), "utf-8"),
     adapterJs,
+    standIn ? [standIn] : [],
   );
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const appDir = resolve(ROOT, "app");
   const devTools = process.env.CROSSFOG_E2E === "1";
-  const out = await buildWebHtml({ appDir, devTools });
+  const out = await buildWebHtml({ appDir, devTools, standIn: standInOrigin(process.env) });
   const outDir = resolve(ROOT, "generated");
   const { mkdirSync } = await import("node:fs");
   mkdirSync(outDir, { recursive: true });

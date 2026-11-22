@@ -14,6 +14,8 @@ def crossfogRepo = file("$rootDir/../..")
 def crossfogPage = file("$crossfogRepo/generated/web.ts")
 // build-web.ts reads CROSSFOG_E2E to put the dev tools in the page
 def crossfogE2e = providers.environmentVariable("CROSSFOG_E2E").orElse("")
+// ... and CROSSFOG_E2E_STANDIN to add the stand-in's origin to the page's content security policy
+def crossfogStandIn = providers.environmentVariable("CROSSFOG_E2E_STANDIN").orElse("")
 
 tasks.register("generateCrossfogPage", Exec) {
     workingDir crossfogMobile
@@ -24,6 +26,7 @@ tasks.register("generateCrossfogPage", Exec) {
     inputs.file("$crossfogMobile/pnpm-lock.yaml")
     inputs.file("$crossfogRepo/LICENSE")
     inputs.property("crossfogE2e", crossfogE2e)
+    inputs.property("crossfogStandIn", crossfogStandIn)
     outputs.file(crossfogPage)
     outputs.file("$crossfogRepo/generated/licenses.json")
 }
@@ -32,6 +35,7 @@ tasks.matching { it.name ==~ /createBundle.*JsAndAssets/ }.configureEach {
     dependsOn("generateCrossfogPage")
     inputs.file(crossfogPage)
     inputs.property("crossfogE2e", crossfogE2e)
+    inputs.property("crossfogStandIn", crossfogStandIn)
 }
 `;
 

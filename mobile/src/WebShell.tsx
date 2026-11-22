@@ -11,7 +11,7 @@ import { createBackupFlow } from "./backup/backup.js";
 import { createRestoreFlow } from "./backup/restore.js";
 import { createSettingsChannel } from "./backup/settings.js";
 import { createLinkHandlers } from "./bridge/linkHandlers.js";
-import { pageConfigScript } from "./bridge/pageConfig.js";
+import { pageConfigScript, standInScript } from "./bridge/pageConfig.js";
 import { type NativeToWeb, ORIGIN } from "./bridge/protocol.js";
 import { createSend, scheduleTask } from "./bridge/send.js";
 import { createWebMessageHandler } from "./bridge/webMessage.js";
@@ -275,7 +275,10 @@ export function WebShell(): React.JSX.Element {
   });
 
   const userAgent = `CrossTheFog/${Constants.expoConfig?.version ?? "0"} (+https://madera.codes)`;
-  const pageConfig = pageConfigScript(Constants.expoConfig?.extra?.nextgisOverpassKey);
+  const standIn = standInScript(Constants.expoConfig?.extra?.e2eStandIn);
+  const pageConfig = [pageConfigScript(Constants.expoConfig?.extra?.nextgisOverpassKey), standIn]
+    .filter((s) => s !== undefined)
+    .join("");
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PAGE_BG }}>
@@ -284,6 +287,8 @@ export function WebShell(): React.JSX.Element {
         ref={webViewRef}
         source={{ html: WEB_HTML, baseUrl: ORIGIN }}
         {...(pageConfig ? { injectedJavaScriptBeforeContentLoaded: pageConfig } : {})}
+        // The stand-in is plain http, which a page served from an https origin may not fetch otherwise.
+        {...(standIn ? { mixedContentMode: "always" as const } : {})}
         originWhitelist={["*"]}
         applicationNameForUserAgent={userAgent}
         domStorageEnabled
