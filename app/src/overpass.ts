@@ -50,6 +50,9 @@ interface Failure {
 }
 export interface PostOptions {
   stale?: (() => boolean) | undefined;
+  // A caller that knows what its answer looks like says so here: a 200 object it refuses moves on to the
+  // next endpoint with no hold, like a body that is not JSON. Without it any object is an answer.
+  accept?: ((json: Answer) => boolean) | undefined;
 }
 interface Attempt {
   status?: number;
@@ -176,11 +179,24 @@ function retryAfterMs(res: Response): number {
   return Number.isFinite(secs) && secs > 0 ? secs * 1000 : 0;
 }
 
+// A throwing accept refuses the answer: it must not read as a stall of the endpoint.
+function usable(accept: (json: Answer) => boolean, json: Answer): boolean {
+  try {
+    return accept(json);
+  } catch {
+    return false;
+  }
+}
+
 // One request: the headers within FIRST_BYTE_MS, the whole body within REQUEST_TIMEOUT_MS of the
 // start, one AbortController for both. Resolves with {status, json} on success,
 // {status, error, retryAfter} on a non-2xx answer, or {error, kind: "stall" | "network" |
 // "notJson", status?} otherwise; never rejects.
-async function attempt(url: string, body: string): Promise<Attempt> {
+async function attempt(
+  url: string,
+  body: string,
+  accept?: (json: Answer) => boolean,
+): Promise<Attempt> {
   const ctrl = new AbortController();
   const started = Overpass._now();
   const stall = (what: string) => () => ctrl.abort(new Error("overpass: " + what));
@@ -229,6 +245,12 @@ async function attempt(url: string, body: string): Promise<Attempt> {
       return {
         status: res.status,
         error: new Error("overpass: the answer is not an object"),
+        kind: "notJson",
+      };
+    if (accept && !usable(accept, json))
+      return {
+        status: res.status,
+        error: new Error("overpass: the answer is not one the caller can use"),
         kind: "notJson",
       };
     return { status: res.status, json };
@@ -316,7 +338,7 @@ async function post(body: string, opts?: PostOptions): Promise<Answer> {
     const sent = Overpass._now();
     let r: Attempt;
     try {
-      r = await attempt(url as string, body);
+      r = await attempt(url as string, body, opts?.accept);
     } finally {
       release(name);
     }

@@ -9,8 +9,8 @@ package codes.madera.crossfog.link
  * runs it on its socket's executor, the watch from its own loop, and a TLS engine (which wraps and
  * unwraps without threads) feeds it the same way.
  *
- * A session is one stream. Whatever goes wrong, the endpoint closes the stream, reports one
- * [CloseReason] and does nothing more; the caller makes a new stream and a new endpoint, which
+ * A session is one stream. Whatever goes wrong (a refusal of an item is not one), the endpoint closes the
+ * stream, reports one [CloseReason] and does nothing more; the caller makes a new stream and a new endpoint, which
  * sends the items still queued again. What was in flight lives only in the endpoint, so a lost
  * session needs no recovery: the stores say what is queued, and a peer that already stored an item
  * answers a resend with the confirmation and no second write.
@@ -116,6 +116,9 @@ abstract class Endpoint(
   protected fun disarmConfirm() {
     confirmDeadline = null
   }
+
+  /** Tells the caller the peer refused one of this end's own items; the session is still open. */
+  protected fun report(refusal: Refusal) = events.itemRefused(refusal)
 
   /** This end's own item that is offered and not yet confirmed, or null. */
   protected open fun inFlight(): ItemRef? = null

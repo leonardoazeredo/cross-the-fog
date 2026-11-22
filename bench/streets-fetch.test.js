@@ -1628,6 +1628,22 @@ function inOrder(list, how) {
       assert.equal(heldAround(s, rect).length, 1, String(nothing));
     }
   });
+  await testCase(async () => { // overpassFetch hands Overpass.post the check that makes a bad 200 move on to the next endpoint
+    const realPost = global.Overpass.post;
+    let accept;
+    global.Overpass.post = async (body, opts) => { accept = opts.accept; return { elements: EMPTY }; };
+    try {
+      const s = new StreetIndex({ newFrac: () => 1 });
+      await s.ensureRects(rect);
+    } finally {
+      global.Overpass.post = realPost;
+    }
+    assert.equal(typeof accept, "function", "a street request carries accept");
+    assert.equal(accept({ elements: EMPTY }), true);
+    assert.equal(accept({ elements: [way(1), count] }), true);
+    for (const bad of [[], {}, { remark: "runtime error", elements: EMPTY }, { elements: [] }, { elements: [way(1)] }, { elements: null }])
+      assert.equal(accept(bad), false, JSON.stringify(bad));
+  });
   assert.ok(cases.length > 90, "the cases were collected: " + cases.length);
   for (const body of inOrder(cases, process.env.CASE_ORDER)) await runCase(body);
   console.log("streets-fetch.test.js ok");

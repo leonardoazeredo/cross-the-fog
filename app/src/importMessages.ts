@@ -33,7 +33,7 @@ export function status(r: ImportResult): string {
     return `None of the fog tiles could be read: ${corrupt} damaged file${plural(corrupt, "", "s")}.${readErr > 0 ? ` Also ${cloudNote(readErr)}.` : ""} ${retry}`;
   }
   if (readErr > 0)
-    return "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to the phone. Download your backup and load the .zip instead.";
+    return "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to this device. Download your backup and load the .zip instead.";
   return source === "zip"
     ? "No fog tiles found in that .zip. Make sure it contains your Sync folder."
     : "No fog tiles found. Did you pick the Sync folder?";

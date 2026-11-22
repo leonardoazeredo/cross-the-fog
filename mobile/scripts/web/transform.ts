@@ -15,7 +15,8 @@ export function transformIndexHtml(
   }
 
   for (const link of document.querySelectorAll<Element>("link[rel='stylesheet'][href]")) {
-    const href = link.getAttribute("href")!;
+    const href = link.getAttribute("href");
+    if (href === null) continue;
     if (/^https?:\/\/|^\/\//.test(href)) {
       throw new BuildError(`External stylesheet not allowed: ${href}`);
     }
@@ -25,7 +26,8 @@ export function transformIndexHtml(
   }
 
   for (const script of document.querySelectorAll<Element>("script[src]")) {
-    const src = script.getAttribute("src")!;
+    const src = script.getAttribute("src");
+    if (src === null) continue;
     if (/^https?:\/\/|^\/\//.test(src)) {
       throw new BuildError(`External script not allowed: ${src}`);
     }

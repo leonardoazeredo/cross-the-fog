@@ -1,11 +1,16 @@
 import { parseGpx } from "../history/gpx.js";
 import type { ActivityOffer } from "../link/types.js";
 
+/** What the dev action needs of the hand-off flow. */
+export interface HandOffRunner {
+  run(): Promise<unknown>;
+}
+
 export interface AddActivityDeps {
   /** The text of the GPX file the user picked, or null when they cancelled. */
   pick(): Promise<string | null>;
   stage(offer: ActivityOffer): Promise<void>;
-  handOff: { run(): Promise<unknown> };
+  handOff: HandOffRunner;
   newId(): string;
 }
 
