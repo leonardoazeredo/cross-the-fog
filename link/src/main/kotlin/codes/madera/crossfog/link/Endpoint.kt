@@ -117,7 +117,7 @@ abstract class Endpoint(
     confirmDeadline = null
   }
 
-  /** Tells the caller the peer refused one of this end's own items; the session is still open. */
+  /** Tells the caller the peer refused one of this end's own items. The session stays open unless the caller's `itemRefused` throws: then it closes `STORE_FAILED` naming the item. */
   protected fun report(refusal: Refusal) {
     try {
       events.itemRefused(refusal)

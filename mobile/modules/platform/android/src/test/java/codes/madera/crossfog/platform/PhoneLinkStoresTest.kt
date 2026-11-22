@@ -500,6 +500,18 @@ class PhoneLinkStoresTest {
   }
 
   @Test
+  fun aDiskErrorReadingTheQueuedCopyOfARefusedRouteIsNotSwallowed() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val events = LedgerEvents(l, r) { _, _ -> }
+    // a directory where the file should be: reading it fails for the disk's reason, not the item's
+    File(outboxDir, "$a.bin").mkdirs()
+    assertThrows(java.io.IOException::class.java) {
+      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
+    }
+  }
+
+  @Test
   fun aRefusalOfAnActivityIsNotThePhonesToAct() {
     val l = ledger()
     val r = routes(ledger = l)
