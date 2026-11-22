@@ -1,8 +1,10 @@
 // The suggestion engine: the held street graph, the wrapper around one run, its street download, the two runs
 // (A to B and loop) and the planning they share. Each function is a SuggestTool method, called with the tool as
-// `this`, except `fitLoopSize`, which takes what it needs as arguments; none draws on the map. The two touches
-// of the screen that remain are the runs' entries: they read the pin markers once (`getLatLng`) and start with
-// `clearResults`, which both stay on the tool until the engine is given plain points.
+// `this`, except `fitLoopSize`, which takes what it needs as arguments, and `createEngine`, which builds the
+// object that owns the graph state the five graph functions read; none draws on the map. The touches of the screen
+// that remain are the runs' entries and exits: they read the pin markers once (`getLatLng`), start with
+// `clearResults` and end in `_finish`, which draws; all three stay on the tool until the engine is given plain
+// points.
 import { createFogGain } from "./fogGain.ts";
 import { lngLatToCell, WORLD_CELLS } from "./parser.ts";
 import { GraphPlanner } from "./planner.ts";
