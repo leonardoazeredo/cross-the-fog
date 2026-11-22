@@ -180,6 +180,14 @@ it("does not give a message to a listener added while it is dispatched", () => {
   expect(late).not.toHaveBeenCalled();
 });
 
+it("does not replay a message to a listener that registers after it was dispatched", () => {
+  const { api, crossfog } = install();
+  api.dispatch({ v: 1, type: "linkStatus", paired: true, reachable: true });
+  const late = vi.fn();
+  crossfog.on("linkStatus", late);
+  expect(late).not.toHaveBeenCalled();
+});
+
 it("keeps dispatching when one listener throws", () => {
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const { api, crossfog } = install();
