@@ -7,7 +7,7 @@ import java.io.File
 /**
  * The phone's half of the link over its stores, built once per process: what the page asks of it
  * ([state]), the route queue and the activity sink a transport session will use ([routes], [sink]),
- * and the session's close handler ([events]). [emit] carries a named event to the page; an event holds
+ * and the session's close and refusal handler ([events]). [emit] carries a named event to the page; an event holds
  * only ids, a revision or the two link-status flags, never a scanned code, a key or a pin.
  */
 internal class PhoneLink(

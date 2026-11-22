@@ -47,6 +47,30 @@ class RouteReadabilityTest {
     }
 
     @Test
+    fun aFileCutShortIsAnIoErrorNotAVerdict() {
+        assertThrows(IOException::class.java) {
+            gpxIsReadable("<gpx><trk/></gpx>".toByteArray(), tmp.root) { file ->
+                java.io.RandomAccessFile(file, "rw").use { it.setLength(file.length() / 2) }
+                nothing()
+            }
+        }
+        assertEquals(emptyList<String>(), tmp.root.list()!!.toList())
+    }
+
+    @Test
+    fun aParserThatThrowsStillLeavesNoFileBehind() {
+        assertThrows(IllegalStateException::class.java) {
+            gpxIsReadable("<gpx/>".toByteArray(), tmp.root) { error("boom") }
+        }
+        assertEquals(emptyList<String>(), tmp.root.list()!!.toList())
+    }
+
+    @Test
+    fun emptyBytesAreAVerdictEvenWhenTheFileIsGone() {
+        assertFalse(gpxIsReadable(ByteArray(0), tmp.root) { file -> file.delete(); nothing() })
+    }
+
+    @Test
     fun aParserThatFindsNothingInAnIntactFileIsAVerdict() {
         assertFalse(gpxIsReadable("<gpx/>".toByteArray(), tmp.root) { nothing() })
     }

@@ -477,6 +477,26 @@ class PhoneLinkStoresTest {
   }
 
   @Test
+  fun aRefusalOfARouteWhoseQueuedCopyCannotBeReadAnnouncesNothingAndDoesNotThrow() {
+    for (damage in listOf("sealed under another key", "not json", "filed under another id")) {
+      val l = ledger()
+      val r = routes(ledger = l)
+      val asides = mutableListOf<Pair<String, String?>>()
+      val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+      outboxDir.deleteRecursively()
+      when (damage) {
+        "sealed under another key" -> StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+        "not json" -> outboxStore().stage(a, "not json".toByteArray())
+        else -> outboxStore().stage(a, routeJson(b))
+      }
+      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
+      assertTrue(damage, asides.isEmpty())
+      assertTrue(damage, File(outboxDir, "$a.bin").exists())
+      assertFalse(damage, File(outboxDir, "aside").exists())
+    }
+  }
+
+  @Test
   fun aRefusalOfAnActivityIsNotThePhonesToAct() {
     val l = ledger()
     val r = routes(ledger = l)

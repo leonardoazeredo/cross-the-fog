@@ -27,7 +27,7 @@ enum class SaveResult { SAVED, ALREADY_HELD }
 
 /** Why a receiver will never take an item. The wire names are fixed and nothing else is ever sent as a reason, so no peer text reaches a log. */
 enum class RefusalReason(val wire: String) {
-  /** The item's content cannot be read (a route's GPX that does not parse). */
+  /** The item's content cannot be read (a route's GPX that does not parse or holds no points). */
   UNREADABLE("unreadable");
 
   companion object {
