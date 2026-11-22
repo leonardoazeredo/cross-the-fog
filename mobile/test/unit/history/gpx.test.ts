@@ -89,11 +89,11 @@ describe("parseGpx edge cases", () => {
     expect(() => parseGpx("")).toThrow(GpxError);
   });
 
-  it("throws GpxError for a point without a time", () => {
+  it("throws GpxError when the only point has no time", () => {
     expect(() => parseGpx(wrap('<trkpt lat="1" lon="2"></trkpt>'))).toThrow(GpxError);
   });
 
-  it("throws GpxError for a position outside the globe", () => {
+  it("throws GpxError when the only point is outside the globe or has no number", () => {
     expect(() => parseGpx(wrap(pt("", "91")))).toThrow(GpxError);
     expect(() => parseGpx(wrap(pt("", "10", "181")))).toThrow(GpxError);
     expect(() => parseGpx(wrap(pt("", "x")))).toThrow(GpxError);
@@ -199,8 +199,36 @@ describe("parseGpx cases from the review", () => {
     expect(parseGpx(text).points).toHaveLength(2);
   });
 
+  it("throws GpxError for a file that ends right at <trkpt, after good points", () => {
+    expect(() =>
+      parseGpx(wrap(pt() + pt("", "10.001")).replace("</trkseg></trk></gpx>", "<trkpt")),
+    ).toThrow(GpxError);
+  });
+
+  it("keeps the first and last kept points as the start and end when the bad points lead and trail", () => {
+    const bad = '<trkpt lat="1" lon="2"></trkpt>';
+    const p = parseGpx(wrap(bad + pt() + pt("", "10.001", "20", "2026-03-01T10:00:09Z") + bad));
+    expect(p.skippedPoints).toBe(2);
+    expect(p.startedAt).toBe("2026-03-01T10:00:00.000Z");
+    expect(p.endedAt).toBe("2026-03-01T10:00:09.000Z");
+  });
+
+  it("does not measure the pause jump when the first point of a second segment is the bad one", () => {
+    const bad = '<trkpt lat="1" lon="2"></trkpt>';
+    const two = (middle: string) =>
+      `<gpx><trk><trkseg>${pt()}${pt("", "10.001")}</trkseg><trkseg>${middle}${pt("", "11", "20", "2026-03-01T11:00:00Z")}${pt("", "11.001", "20", "2026-03-01T11:00:09Z")}</trkseg></trk></gpx>`;
+    expect(parseGpx(two(bad)).trackDistanceM).toBeCloseTo(parseGpx(two("")).trackDistanceM, 6);
+  });
+
+  it("skips a point with a time before 1970", () => {
+    const early = '<trkpt lat="1" lon="2"><time>1969-12-31T23:59:59Z</time></trkpt>';
+    const p = parseGpx(wrap(early + pt() + pt("", "10.001")));
+    expect(p.skippedPoints).toBe(1);
+    expect(p.points).toHaveLength(2);
+  });
+
   it("does not take a <trkptExt> element for a track point", () => {
-    const p = parseGpx(wrap(pt() + "<trkptExt>x</trkptExt>" + pt("", "10.001")));
+    const p = parseGpx(wrap(`${pt()}<trkptExt>x</trkptExt>${pt("", "10.001")}`));
     expect(p.points).toHaveLength(2);
     expect(p.skippedPoints).toBe(0);
   });
