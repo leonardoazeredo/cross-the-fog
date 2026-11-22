@@ -282,6 +282,14 @@ export const PAGE_MESSAGES = {
       count: z.number().int().min(0),
     }),
   ],
+  // Walks the phone stored but whose staged copy it could not clear in several passes; nothing is lost, and it tries again each pass.
+  stuckReleases: [
+    z.object({
+      v: z.literal(1),
+      type: z.literal("stuckReleases"),
+      count: z.number().int().min(0),
+    }),
+  ],
   // Whether the history can be read: `keyLost` and `openFailed` say why the History tab is empty. Sent when it changes and to a page that has just loaded.
   historyState: [
     z.object({

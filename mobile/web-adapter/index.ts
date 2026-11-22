@@ -81,6 +81,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.crossfog?.on("unreadableActivities", ({ count }) =>
     window.CrossfogPage?.history?.setUnreadable?.(count),
   );
+  window.crossfog?.on("stuckReleases", ({ count }) =>
+    window.CrossfogPage?.history?.setStuck?.(count),
+  );
   window.crossfog?.on("historyState", ({ state }) =>
     window.CrossfogPage?.history?.setState?.(state),
   );

@@ -132,6 +132,7 @@ const NATIVE_TO_WEB: Record<string, Row> = {
     bad: { exportId: "e1", state: "done" },
   },
   unreadableActivities: { valid: { count: 1 }, bad: { count: -1 } },
+  stuckReleases: { valid: { count: 2 }, bad: { count: -1 } },
   historyState: { valid: { state: "keyLost" }, bad: { state: "gone" } },
   track: {
     valid: { activityId: uuid, index: 0, total: 1, points: [] },
@@ -149,7 +150,7 @@ it("lists every page-to-app type of the schema, and no other", () => {
 
 it("lists every app-to-page type of the schema, and no other", () => {
   expect(Object.keys(NATIVE_TO_WEB).sort()).toEqual([...NATIVE_TO_WEB_TYPES].sort());
-  expect(NATIVE_TO_WEB_TYPES).toHaveLength(16);
+  expect(NATIVE_TO_WEB_TYPES).toHaveLength(17);
 });
 
 it("has no type in both directions", () => {

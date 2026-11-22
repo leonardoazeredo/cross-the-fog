@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHandOffFlow } from "../../../src/flows/handOff.js";
+import { createReleaseFailures } from "../../../src/flows/releaseFailures.js";
 import { parseGpx } from "../../../src/history/gpx.js";
 import { createMemoryActivityStore } from "../../../src/history/memoryStores.js";
 import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
 import type { ActivityOffer } from "../../../src/link/types.js";
+import { createMemoryFileStore } from "../../support/memoryFileStore.js";
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -32,6 +34,111 @@ function setup() {
   const flow = createHandOffFlow({ link, activities, parseGpx, now: () => NOW });
   return { link, activities, flow };
 }
+
+// A hand-off whose release fails while `failing.on`, counting the failures in `fs`.
+function withFailures(fs = createMemoryFileStore()) {
+  const link = createFakeWatchLink();
+  const activities = createMemoryActivityStore();
+  const failing = { on: true };
+  const flow = createHandOffFlow({
+    link: {
+      ...link,
+      release: async (id: string) => {
+        if (failing.on) throw new Error("cannot delete the staged copy");
+        await link.release(id);
+      },
+    },
+    activities,
+    parseGpx,
+    now: () => NOW,
+    releaseFailures: createReleaseFailures(fs),
+  });
+  return { link, flow, failing, fs };
+}
+
+describe("hand-off release failures", () => {
+  it("reports a walk as stuck after the third pass whose release failed, and not before", async () => {
+    const { link, flow } = withFailures();
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    expect((await flow.run()).stuck).toBe(0);
+    expect((await flow.run()).stuck).toBe(0);
+    expect((await flow.run()).stuck).toBe(1);
+    expect((await flow.run()).stuck).toBe(1);
+  });
+
+  it("goes on counting from the file after a restart", async () => {
+    const first = withFailures();
+    first.link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    await first.flow.run();
+    await first.flow.run();
+
+    const second = withFailures(first.fs);
+    second.link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    expect((await second.flow.run()).stuck).toBe(1);
+  });
+
+  it("forgets the count when the release finally works", async () => {
+    const { link, flow, failing } = withFailures();
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    await flow.run();
+    await flow.run();
+    await flow.run();
+    failing.on = false;
+    expect(await flow.run()).toMatchObject({ released: 1, stuck: 0 });
+    failing.on = true;
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    expect((await flow.run()).stuck).toBe(0);
+  });
+
+  it("drops the count of a staged copy that is gone", async () => {
+    const { link, flow } = withFailures();
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    await flow.run();
+    await flow.run();
+    await link.release(A);
+    await flow.run();
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    expect((await flow.run()).stuck).toBe(0);
+  });
+
+  it("counts nothing for a pass a restore held, since no release was tried", async () => {
+    const { link, flow } = withFailures();
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    await flow.run();
+    await flow.run();
+    await flow.hold(() => flow.run());
+    expect((await flow.run()).stuck).toBe(1);
+  });
+
+  it("gives no stuck count when the counts cannot be read, and the walk is still stored", async () => {
+    const link = createFakeWatchLink();
+    const activities = createMemoryActivityStore();
+    const flow = createHandOffFlow({
+      link,
+      activities,
+      parseGpx,
+      now: () => NOW,
+      releaseFailures: {
+        record: async () => {
+          throw new Error("disk full");
+        },
+        forget: async () => {
+          throw new Error("disk full");
+        },
+        prune: async () => {
+          throw new Error("disk full");
+        },
+        stuck: async () => {
+          throw new Error("disk full");
+        },
+      },
+    });
+    link.stage(offer(A, "2026-03-01T10:00:00Z"));
+    const result = await flow.run();
+    expect(result).toEqual({ stored: 1, released: 1, unreadable: 0 });
+    expect(result).not.toHaveProperty("stuck");
+  });
+});
 
 describe("hand-off", () => {
   it("stores a staged offer, then releases it", async () => {

@@ -21,6 +21,7 @@ import { pickE2eFixture } from "./e2e/fixturePicker.js";
 import { createBackupFlows } from "./flows/backup.js";
 import { type ComposedFlows, createFlows } from "./flows/compose.js";
 import { createExportFlow, type ExportFlow } from "./flows/exportFlow.js";
+import { createReleaseFailures } from "./flows/releaseFailures.js";
 import { createReloadGuard } from "./fog/reloadGuard.js";
 import { createFogStore } from "./fog/store.js";
 import { CHUNK_BYTES } from "./fog/transfer.js";
@@ -158,6 +159,10 @@ function buildController(
     link: createNativeWatchLink(),
     ...createHistoryStores(),
     send,
+    // Its own folder: the fog folder's listing is read as the saved fog's files.
+    releaseFailures: createReleaseFailures(
+      createExpoFileStore(new Directory(Paths.document, "hand-off")),
+    ),
     backup: backupFlows,
     exportFlow,
     settings,

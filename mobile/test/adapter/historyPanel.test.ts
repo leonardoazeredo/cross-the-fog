@@ -40,6 +40,7 @@ interface Panel {
   setTrack(id: string, points: unknown[], route?: { coords: number[][] }): void;
   trackUnavailable(id: string, reason: TrackUnavailableReason): void;
   setUnreadable(count: number): void;
+  setStuck(count: number): void;
   setState(state: "ready" | "keyLost" | "openFailed"): void;
   refresh(): void;
 }
@@ -162,6 +163,20 @@ describe("History tab", () => {
     expect($("historyState").style.display).toBe("none");
     click(button("←"));
     expect($("historyState").style.display).toBe("");
+  });
+
+  it("says a stored walk's waiting copy could not be cleared, and that nothing is lost", () => {
+    expect($("historyStuck").style.display).toBe("none");
+    panel.setStuck(1);
+    expect($("historyStuck").textContent).toBe(
+      "1 walk is saved, but the phone could not clear its waiting copy. Nothing is lost; it tries again each time.",
+    );
+    expect($("historyStuck").style.display).toBe("");
+    panel.setStuck(3);
+    expect($("historyStuck").textContent).toContain("3 walks are saved");
+    expect($("historyStuck").textContent).toContain("their waiting copy");
+    panel.setStuck(0);
+    expect($("historyStuck").style.display).toBe("none");
   });
 
   it("says how many walks could not be read, above the list", () => {

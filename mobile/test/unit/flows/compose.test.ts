@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { NativeToWeb } from "../../../src/bridge/protocol.js";
 import { HistoryOpenFailedError } from "../../../src/db/openHistory.js";
 import { createFlows } from "../../../src/flows/compose.js";
+import { createReleaseFailures } from "../../../src/flows/releaseFailures.js";
 import {
   createMemoryActivityStore,
   createMemoryRouteStore,
 } from "../../../src/history/memoryStores.js";
 import type { ActivityStore } from "../../../src/history/types.js";
 import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
+import { createMemoryFileStore } from "../../support/memoryFileStore.js";
 import { route } from "../history/fixtures.js";
 
 const revisionOf = async (gpx: string) => createHash("sha256").update(gpx, "utf8").digest("hex");
@@ -76,6 +78,37 @@ function setupWithRestore(restore: (swap: () => void) => Promise<boolean>) {
 }
 
 describe("composed flows", () => {
+  it("tells the page how many stored walks will not release, once per change and again to a page that loads", async () => {
+    const link = createFakeWatchLink();
+    const sent: NativeToWeb[] = [];
+    const flows = createFlows({
+      revisionOf,
+      link: {
+        ...link,
+        release: async () => {
+          throw new Error("cannot delete the staged copy");
+        },
+      },
+      activities: createMemoryActivityStore(),
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+      releaseFailures: createReleaseFailures(createMemoryFileStore()),
+      now: () => 0,
+    });
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
+    const stuck = () => sent.filter((m) => m.type === "stuckReleases");
+
+    await flows.handOffNow();
+    await flows.handOffNow();
+    expect(stuck()).toEqual([]);
+    await flows.handOffNow();
+    await flows.handOffNow();
+    expect(stuck()).toEqual([{ v: 1, type: "stuckReleases", count: 1 }]);
+
+    await flows.ready();
+    expect(stuck()).toHaveLength(2);
+  });
+
   it("tells the page the history could not be opened, then retries the open, the hand-off and the list", async () => {
     const link = createFakeWatchLink();
     const memory = createMemoryActivityStore();

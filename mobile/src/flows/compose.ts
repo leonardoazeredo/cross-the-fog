@@ -7,6 +7,7 @@ import type { BackupFlows } from "./backup.js";
 import type { ExportFlow } from "./exportFlow.js";
 import { createHandOffFlow } from "./handOff.js";
 import { createHistoryFlow } from "./history.js";
+import type { ReleaseFailures } from "./releaseFailures.js";
 import { createSendFlow } from "./send.js";
 import type { Flows } from "./types.js";
 import { warnClass } from "./warn.js";
@@ -28,6 +29,8 @@ export interface ComposeDeps {
   settings?: SettingsChannel;
   /** The Fog of World export; absent where the platform has none. */
   exportFlow?: ExportFlow;
+  /** Counts failed releases of staged walks across restarts; absent, a release that keeps failing is not reported. */
+  releaseFailures?: ReleaseFailures;
   /** `gpxRevision` where there is a native digest. */
   revisionOf(gpx: string): Promise<string>;
   now(): number;
@@ -59,6 +62,7 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
     activities: deps.activities,
     parseGpx,
     now: deps.now,
+    ...(deps.releaseFailures && { releaseFailures: deps.releaseFailures }),
   });
   // Only a change is sent, since the page keeps the last count it was told; `ready` sends a count
   // above zero again because a reloaded page starts at zero. A pass with no count to give leaves
@@ -71,6 +75,16 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
     }
   }
 
+  // Walks that are stored but whose staged copy will not release, told the same way as the unreadable count.
+  let stuck = 0;
+  function sendStuck(): void {
+    try {
+      deps.send({ v: 1, type: "stuckReleases", count: stuck });
+    } catch (e) {
+      warnClass("hand-off", "could not send the stuck release count", e);
+    }
+  }
+
   // The page shows what the store holds, so it hears about every activity the hand-off adds.
   async function handOffAndPublish(): Promise<void> {
     const result = await handOff.run();
@@ -78,6 +92,10 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
     if (result.unreadable !== null && result.unreadable !== unreadable) {
       unreadable = result.unreadable;
       sendUnreadable();
+    }
+    if (result.stuck !== undefined && result.stuck !== stuck) {
+      stuck = result.stuck;
+      sendStuck();
     }
   }
 
@@ -103,6 +121,7 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
       history.pageLoaded();
       await history.publish();
       if (unreadable + corrupt > 0) sendUnreadable();
+      if (stuck > 0) sendStuck();
       await sendFlow.sendStatus();
     },
     handOffNow: handOffAndPublish,

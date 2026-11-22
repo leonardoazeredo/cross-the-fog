@@ -223,6 +223,8 @@ const nativeSamples = [
   { v: 1 as const, type: "trackUnavailable" as const, activityId, reason: "readFailed" as const },
   { v: 1 as const, type: "unreadableActivities" as const, count: 0 },
   { v: 1 as const, type: "unreadableActivities" as const, count: 3 },
+  { v: 1 as const, type: "stuckReleases" as const, count: 0 },
+  { v: 1 as const, type: "stuckReleases" as const, count: 2 },
   { v: 1 as const, type: "historyState" as const, state: "ready" as const },
   { v: 1 as const, type: "historyState" as const, state: "keyLost" as const },
   { v: 1 as const, type: "historyState" as const, state: "openFailed" as const },
@@ -596,6 +598,7 @@ describe("protocol", () => {
       { v: 1, type: "track", activityId, index: 0, total: 1, points: [{ t: 1, lat: 0, lon: 181 }] },
     ],
     ["a history state that is none of the three", { v: 1, type: "historyState", state: "gone" }],
+    ["a negative stuck count", { v: 1, type: "stuckReleases", count: -1 }],
     ["a negative unreadable count", { v: 1, type: "unreadableActivities", count: -1 }],
     ["a fractional unreadable count", { v: 1, type: "unreadableActivities", count: 1.5 }],
   ])("drops %s from native", (_, msg) => expect(parseNativeToWeb(JSON.stringify(msg))).toBeNull());

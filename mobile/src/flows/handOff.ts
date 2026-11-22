@@ -1,6 +1,7 @@
 import { activityStats, type ParsedGpx } from "../history/gpx.js";
 import type { Activity, ActivityStore } from "../history/types.js";
 import type { WatchLink } from "../link/types.js";
+import type { ReleaseFailures } from "./releaseFailures.js";
 import { warnClass } from "./warn.js";
 
 interface HandOffResult {
@@ -14,6 +15,11 @@ interface HandOffResult {
    * to give: listing or counting failed, or a restore's hold stopped it early.
    */
   unreadable: number | null;
+  /**
+   * Walks that are stored but whose staged copy could not be released in several passes. Absent without
+   * `releaseFailures` or when the counts could not be read or kept.
+   */
+  stuck?: number;
 }
 
 export interface HandOffDeps {
@@ -21,6 +27,8 @@ export interface HandOffDeps {
   activities: Pick<ActivityStore, "add">;
   parseGpx(text: string): ParsedGpx;
   now(): number;
+  /** Where failed releases are counted; without it a release that keeps failing is retried unseen. */
+  releaseFailures?: ReleaseFailures;
 }
 
 export interface HandOffFlow {
@@ -38,6 +46,17 @@ const warn = (what: string, e: unknown) => warnClass("hand-off", what, e);
 export function createHandOffFlow(deps: HandOffDeps): HandOffFlow {
   const { link, activities } = deps;
   let held = 0;
+
+  // The count is bookkeeping for a line on the page; its failure must not undo or stop the hand-off.
+  let countsOk = true;
+  async function counted(what: string, fn: () => Promise<unknown> | undefined): Promise<void> {
+    try {
+      await fn();
+    } catch (e) {
+      countsOk = false;
+      warn(`could not ${what} a release failure`, e);
+    }
+  }
 
   async function handle(
     activityId: string,
@@ -90,13 +109,16 @@ export function createHandOffFlow(deps: HandOffDeps): HandOffFlow {
       await link.release(activityId);
     } catch (e) {
       warn("could not release an activity", e);
+      await counted("record", () => deps.releaseFailures?.record(activityId));
       return { stored, released: false };
     }
+    await counted("forget", () => deps.releaseFailures?.forget(activityId));
     return { stored, released: true };
   }
 
   async function pass(): Promise<HandOffResult> {
     const result: HandOffResult = { stored: 0, released: 0, unreadable: null };
+    countsOk = true;
     let pending: Awaited<ReturnType<typeof link.pendingActivities>>;
     try {
       pending = await link.pendingActivities();
@@ -124,6 +146,18 @@ export function createHandOffFlow(deps: HandOffDeps): HandOffFlow {
       if (outcome.released) result.released++;
     }
     result.unreadable = unreadable;
+    const failures = deps.releaseFailures;
+    if (failures) {
+      let stuck: number | undefined;
+      try {
+        await failures.prune(new Set(pending.map((p) => p.activityId)));
+        stuck = await failures.stuck();
+      } catch (e) {
+        countsOk = false;
+        warn("could not read the release failures", e);
+      }
+      if (countsOk && stuck !== undefined) result.stuck = stuck;
+    }
     return result;
   }
 

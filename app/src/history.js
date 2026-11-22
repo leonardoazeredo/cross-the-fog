@@ -70,10 +70,11 @@
   function create(opts) {
     const root = opts.root, doc = root.ownerDocument, map = opts.map;
     const listEl = root.querySelector("#historyList"), detailEl = root.querySelector("#historyDetail"), emptyEl = root.querySelector("#historyEmpty");
-    const unreadableEl = root.querySelector("#historyUnreadable"), stateEl = root.querySelector("#historyState");
+    const unreadableEl = root.querySelector("#historyUnreadable"), stateEl = root.querySelector("#historyState"), stuckEl = root.querySelector("#historyStuck");
     const units = () => (opts.getUnits ? opts.getUnits() : "metric");
     let items = [];
     let unreadable = 0;
+    let stuck = 0; // walks stored whose staged copy the phone could not clear
     let state = "ready"; // "keyLost" and "openFailed" say why the list is empty
     let open = null; // { id, points, route, trackNote, deleteNote } while a card is open
     let overlay = null; // the lines "Show on map" drew
@@ -202,6 +203,10 @@
         unreadableEl.style.display = !inDetail && unreadable > 0 ? "" : "none";
         unreadableEl.textContent = unreadable === 1 ? "1 walk could not be read." : unreadable + " walks could not be read.";
       }
+      if (stuckEl) {
+        stuckEl.style.display = !inDetail && stuck > 0 ? "" : "none";
+        stuckEl.textContent = (stuck === 1 ? "1 walk is" : stuck + " walks are") + " saved, but the phone could not clear " + (stuck === 1 ? "its" : "their") + " waiting copy. Nothing is lost; it tries again each time.";
+      }
       if (inDetail) { renderDetail(); return; }
       listEl.textContent = "";
       items.forEach((s) => {
@@ -263,6 +268,7 @@
       trackUnavailable(activityId, reason) { noteTrack(activityId, TRACK_NOTES[reason] || TRACK_NOTES.readFailed); },
       // Walks the watch handed over that the phone keeps but cannot read; 0 hides the line.
       setUnreadable(count) { unreadable = count; render(); },
+      setStuck(count) { stuck = count; render(); },
       setState(next) { state = next; render(); },
       // Card text formats distances and paces in the chosen units, so a toggle needs a re-render.
       refresh() { render(); },

@@ -120,6 +120,14 @@ it("hands an unreadableActivities count to its listener without the envelope", (
   expect(fn).toHaveBeenCalledExactlyOnceWith({ count: 2 });
 });
 
+it("hands a stuckReleases count to its listener without the envelope", () => {
+  const { api, crossfog } = install();
+  const fn = vi.fn();
+  crossfog.on("stuckReleases", fn);
+  api.dispatch({ v: 1, type: "stuckReleases", count: 2 });
+  expect(fn).toHaveBeenCalledExactlyOnceWith({ count: 2 });
+});
+
 it("hands a historyState message to its listener without the envelope", () => {
   const { api, crossfog } = install();
   const fn = vi.fn();
