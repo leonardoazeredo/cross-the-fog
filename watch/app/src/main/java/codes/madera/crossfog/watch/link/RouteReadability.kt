@@ -10,8 +10,9 @@ import java.io.IOException
  * accepts. That parser reads a file and answers one it cannot read with no points rather than an error, so the
  * bytes go through a temporary file in [tempDir] that is removed again, and nothing unreadable is ever filed
  * in the GPX directory. For the same reason an empty answer proves the route unreadable only if the temporary
- * file was still there to be read: one that vanished meanwhile (the system clearing its cache) is an
- * [IOException], not a verdict, because a verdict sets the route aside for good.
+ * file still has the length of the bytes written: one that vanished or was cut meanwhile (the system clearing
+ * its cache) is an [IOException], not a verdict, because a verdict sets the route aside for good. Empty [bytes]
+ * have nothing to lose that way, so they are a verdict.
  */
 internal fun gpxIsReadable(
     bytes: ByteArray,

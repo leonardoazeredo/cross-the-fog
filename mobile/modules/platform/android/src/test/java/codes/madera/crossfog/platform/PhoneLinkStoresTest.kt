@@ -9,6 +9,7 @@ import codes.madera.crossfog.link.ItemRef
 import codes.madera.crossfog.link.LedgerStore
 import codes.madera.crossfog.link.Refusal
 import codes.madera.crossfog.link.RefusalReason
+import codes.madera.crossfog.link.Revision
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 import java.io.File
@@ -474,6 +475,40 @@ class PhoneLinkStoresTest {
     val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
     events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
     assertTrue(asides.isEmpty())
+  }
+
+  @Test
+  fun aRefusalOfARouteWhoseQueuedCopyCannotBeReadAnnouncesNothingAndDoesNotThrow() {
+    for (damage in listOf("sealed under another key", "not json", "filed under another id")) {
+      val l = ledger()
+      val r = routes(ledger = l)
+      val asides = mutableListOf<Pair<String, String?>>()
+      val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
+      outboxDir.deleteRecursively()
+      when (damage) {
+        "sealed under another key" -> StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+        "not json" -> outboxStore().stage(a, "not json".toByteArray())
+        else -> outboxStore().stage(a, routeJson(b))
+      }
+      // the misfiled copy's own revision, so only the id check keeps it from being set aside
+      val revision = if (damage == "filed under another id") Revision.of("<gpx/>") else "0".repeat(64)
+      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, revision))
+      assertTrue(damage, asides.isEmpty())
+      assertTrue(damage, File(outboxDir, "$a.bin").exists())
+      assertFalse(damage, File(outboxDir, "aside").exists())
+    }
+  }
+
+  @Test
+  fun aDiskErrorReadingTheQueuedCopyOfARefusedRouteIsNotSwallowed() {
+    val l = ledger()
+    val r = routes(ledger = l)
+    val events = LedgerEvents(l, r) { _, _ -> }
+    // a directory where the file should be: reading it fails for the disk's reason, not the item's
+    File(outboxDir, "$a.bin").mkdirs()
+    assertThrows(java.io.IOException::class.java) {
+      events.itemRefused(Refusal(ItemRef(ItemKind.ROUTE, a), RefusalReason.UNREADABLE, "0".repeat(64)))
+    }
   }
 
   @Test

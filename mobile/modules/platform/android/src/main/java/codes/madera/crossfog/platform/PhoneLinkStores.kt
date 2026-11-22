@@ -93,7 +93,9 @@ internal class OutboxRoutes(
   /**
    * [setAside] for a route the watch refused, only if the queued copy still has the [offered] revision: a route
    * edited since is a different revision the watch has not seen, and stays queued. Returns the revision of the
-   * route that left, or null when nothing left (gone, cannot be opened, or edited meanwhile).
+   * route that left, or null when nothing left (gone, never readable, or edited meanwhile). A read that fails
+   * for a reason of the disk throws, so the endpoint closes the session instead of leaving the route queued
+   * behind a refusal.
    */
   fun setAsideIfOffered(id: String, offered: String?): String? =
     synchronized(store) {
@@ -102,8 +104,6 @@ internal class OutboxRoutes(
       } catch (e: UnreadableItemException) {
         null
       } catch (e: FrameException) {
-        null
-      } catch (e: java.io.IOException) {
         null
       }
       if (current == null || current != offered) return@synchronized null

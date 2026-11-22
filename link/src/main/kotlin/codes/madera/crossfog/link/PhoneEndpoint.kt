@@ -6,7 +6,8 @@ package codes.madera.crossfog.link
  * A route is delivered only when the watch answers `routeSaved` for the id and revision that is
  * outstanding, and [PhoneRouteStore.markDelivered] marks it only if the queued copy still has that
  * revision. An activity is confirmed (`activityStored`) only after [ActivitySink.store] reports it
- * kept, so a sink that throws sends no confirmation and the watch keeps the activity.
+ * kept, so a sink that throws anything but [ItemRefusedException] sends no confirmation and the watch keeps
+ * the activity; one that throws it answers `itemRefused`.
  */
 class PhoneEndpoint(
   stream: ByteStream,
@@ -72,7 +73,9 @@ class PhoneEndpoint(
     refused = key
     offered = null
     disarmConfirm()
-    // The app sets the route aside inside this call, so the next route is the one pump finds.
+    // A caller that sets the route aside inside this call lets pump find the next one; one that leaves it queued
+    // has pump send nothing while that route is first in the queue.
+    // One that throws closes the session instead (`report`).
     report(Refusal(ItemRef(ItemKind.ROUTE, key.routeId), refusal.reason, key.revision))
     if (!isClosed) pump()
   }

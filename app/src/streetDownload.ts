@@ -285,7 +285,7 @@ export const overpassFetch = (
       // leaves a counted request that no answer closes
       const request = Overpass.post(
         "data=" + encodeURIComponent(statics.rectQuery(requestBoxes(asked))),
-        { stale: opts.stale },
+        { stale: opts.stale, accept: (json) => answerProblem(json) === null },
       );
       open++;
       // a throw from a handler (a bug) must still end the run: nothing else catches it
@@ -457,6 +457,19 @@ function segmentTouches(a: Vertex, b: Vertex, r: Rect) {
   return true;
 }
 
+// Why an Overpass answer to a rectQuery is not the whole of one, or null when it is: the text is
+// fixed, never the server's. Overpass.post asks it of each 200 (as its accept), so a bad answer moves
+// on to the next endpoint, and splitAnswer asks it again before reading.
+function answerProblem(gj: any): string | null {
+  if (!gj || typeof gj !== "object") return "the answer is not an object";
+  // a timeout or out-of-memory still answers 200, with whatever it had by then
+  if (gj.remark) return "the server remarked on the answer";
+  if (!Array.isArray(gj.elements)) return "the answer has no elements";
+  // a cut answer would store its tiles as covered with only some of their ways
+  if (!gj.elements.some((el: any) => el && el.type === "count")) return "the answer is incomplete";
+  return null;
+}
+
 // Reads an Overpass answer to a rectQuery and hands each requested tile its share. An answer that is
 // not the whole of one (not an object, a remark, no elements, no count marker
 // rectQuery ends the geometry with) throws with reason "server" and a fixed message: server text never
@@ -464,10 +477,8 @@ function segmentTouches(a: Vertex, b: Vertex, r: Rect) {
 export const splitAnswer = (gj: any, tiles: Tile[]) => {
   const unusable = (what: string) =>
     Object.assign(new Error("overpass: " + what), { reason: "server" });
-  if (!gj || typeof gj !== "object") throw unusable("the answer is not an object");
-  // a timeout or out-of-memory still answers 200, with whatever it had by then
-  if (gj.remark) throw unusable("the server remarked on the answer");
-  if (!Array.isArray(gj.elements)) throw unusable("the answer has no elements");
+  const problem = answerProblem(gj);
+  if (problem !== null) throw unusable(problem);
   const ways = [];
   let closed = false; // the count after the geometry has been read
   for (const el of gj.elements) {
@@ -479,8 +490,6 @@ export const splitAnswer = (gj: any, tiles: Tile[]) => {
     if (el.type !== "way" || closed) continue;
     ways.push({ id: el.id, nodes: el.nodes, geometry: el.geometry });
   }
-  // a cut answer would store its tiles as covered with only some of their ways
-  if (!closed) throw unusable("the answer is incomplete");
   // a way goes to every requested tile one of its segments touches (a long segment can cross a tile
   // with no vertex in it), to the first when none does
   const answers = new Map<string, TileAnswer>(

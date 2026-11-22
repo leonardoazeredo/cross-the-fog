@@ -36,6 +36,20 @@ it("reassembles chunks in order", async () => {
   expect(await r.accept(c2)).toEqual({ kind: "complete", bytes: bytes9 });
 });
 
+it("stays partial when the indexes seen do not cover 0 to total-1, even with total chunks held", async () => {
+  const [c0, c1] = chunksOf(bytes9, 3) as [ChunkMessage, ChunkMessage];
+  const r = createReceiver(fp9, sha256Hex);
+  await r.accept(c0);
+  await r.accept(c1);
+  // the third chunk names index 7: three chunks are held, but index 2 never arrived
+  expect(
+    await r.accept({ ...c0, index: 7, data: encodeBase64(new Uint8Array([1, 2, 3])) }),
+  ).toEqual({
+    kind: "partial",
+    receivedBytes: 9,
+  });
+});
+
 it("reassembles chunks out of order", async () => {
   const [c0, c1, c2] = chunksOf(bytes9, 3) as [ChunkMessage, ChunkMessage, ChunkMessage];
   const r = createReceiver(fp9, sha256Hex);

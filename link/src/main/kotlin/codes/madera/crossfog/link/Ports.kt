@@ -27,7 +27,7 @@ enum class SaveResult { SAVED, ALREADY_HELD }
 
 /** Why a receiver will never take an item. The wire names are fixed and nothing else is ever sent as a reason, so no peer text reaches a log. */
 enum class RefusalReason(val wire: String) {
-  /** The item's content cannot be read (a route's GPX that does not parse). */
+  /** The item's content cannot be read (a route's GPX that does not parse or holds no points). */
   UNREADABLE("unreadable");
 
   companion object {
@@ -55,12 +55,12 @@ interface PhoneRouteStore {
   fun markDelivered(routeId: String, revision: String): Boolean
 }
 
-/** Where the phone keeps an activity the watch sent. Storing the same activity again is [SaveResult.ALREADY_HELD] and writes nothing. */
+/** Where the phone keeps an activity the watch sent. Storing the same activity again is [SaveResult.ALREADY_HELD] and writes nothing; throwing [ItemRefusedException] refuses the item for good. */
 interface ActivitySink {
   fun store(offer: ActivityOffer): SaveResult
 }
 
-/** Where the watch keeps a route the phone sent; the same route id and revision again is [SaveResult.ALREADY_HELD], a new revision replaces. */
+/** Where the watch keeps a route the phone sent; the same route id and revision again is [SaveResult.ALREADY_HELD], a new revision replaces; throwing [ItemRefusedException] refuses the route for good. */
 interface WatchRouteStore {
   fun save(offer: RouteOffer): SaveResult
 }
@@ -90,7 +90,7 @@ enum class CloseReason {
   BAD_FRAME,
   /** A valid message that does not belong here: wrong direction, out of order, for an id never offered, repeated, or a second hello. */
   UNEXPECTED_MESSAGE,
-  /** A store or sink threw; nothing was confirmed and the item stays queued. */
+  /** A store or sink threw something other than [ItemRefusedException], or the app's [LinkEvents.itemRefused] threw; nothing was confirmed and the item stays queued. */
   STORE_FAILED,
   /** An item whose frame would be over the frame cap, so it can never be sent. */
   UNSENDABLE_ITEM,
@@ -119,10 +119,11 @@ enum class ItemKind { ROUTE, ACTIVITY }
 data class ItemRef(val kind: ItemKind, val id: String)
 
 /**
- * Everything an endpoint knows when it stops. [failed] is the item a store or sink threw on, or that
- * could not be framed ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM]); it may be the
+ * Everything an endpoint knows when it stops. [failed] is the item a store or sink threw on (anything but
+ * [ItemRefusedException], which does not close), the item whose [LinkEvents.itemRefused] threw, or the item
+ * that could not be framed ([CloseReason.STORE_FAILED], [CloseReason.UNSENDABLE_ITEM]); it may be the
  * peer's item (a sink that cannot keep an activity) or this end's own (a route that cannot be marked
- * delivered). [inFlight] is this end's own item that was offered and not yet confirmed when the
+ * delivered, one the peer refused and the app could not set aside). [inFlight] is this end's own item that was offered and not yet confirmed when the
  * session ended, for any reason, so a caller can count sessions that ended on the same item.
  */
 data class CloseInfo(val reason: CloseReason, val failed: ItemRef?, val inFlight: ItemRef?)
@@ -142,7 +143,7 @@ interface LinkEvents {
   /**
    * Called once, when the endpoint stops for any reason; the caller opens a new stream and a new
    * endpoint to try again. [itemId] is the route or activity id the endpoint was working on when a
-   * store or sink threw ([CloseReason.STORE_FAILED]) or the item could not be put on the wire
+   * store or sink threw anything but [ItemRefusedException], or [itemRefused] threw ([CloseReason.STORE_FAILED]), or the item could not be put on the wire
    * ([CloseReason.UNSENDABLE_ITEM]); null when no item was in hand (a read of the queue that threw, a
    * timeout, a message out of turn). The same item is first in the queue next session, so a
    * caller that sees the same id fail every time must set it aside, or nothing behind it is ever sent.
@@ -159,7 +160,7 @@ interface LinkEvents {
   /**
    * The peer will never take an item this end offered, and the session is still open. The caller sets the
    * item aside (never deletes it) before this returns, so the next item can go out in this session; the
-   * endpoint does not offer the same id and revision again in this session either way. The default does nothing.
+   * endpoint does not offer the same id and revision again in this session either way. A throw from here closes the session with [CloseReason.STORE_FAILED] naming the item, which stays queued and is offered again next session. The default does nothing.
    */
   fun itemRefused(refusal: Refusal) {}
 }
