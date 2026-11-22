@@ -30,7 +30,6 @@
     "licenses": "tsx scripts/licenses.ts"
   },
   "dependencies": {
-    "@noble/hashes": "^2.4.0",
     "expo": "~58.0.11",
     "expo-asset": "~58.0.16",
     "expo-constants": "~58.0.12",
