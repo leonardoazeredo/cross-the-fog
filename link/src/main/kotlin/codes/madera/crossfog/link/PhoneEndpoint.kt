@@ -72,7 +72,8 @@ class PhoneEndpoint(
     refused = key
     offered = null
     disarmConfirm()
-    // The app sets the route aside inside this call, so the next route is the one pump finds.
+    // A caller that sets the route aside inside this call lets pump find the next one; one that leaves it queued
+    // has pump send nothing while that route is first in the queue.
     report(Refusal(ItemRef(ItemKind.ROUTE, key.routeId), refusal.reason, key.revision))
     if (!isClosed) pump()
   }

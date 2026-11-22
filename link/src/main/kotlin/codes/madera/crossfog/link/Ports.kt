@@ -55,12 +55,12 @@ interface PhoneRouteStore {
   fun markDelivered(routeId: String, revision: String): Boolean
 }
 
-/** Where the phone keeps an activity the watch sent. Storing the same activity again is [SaveResult.ALREADY_HELD] and writes nothing. */
+/** Where the phone keeps an activity the watch sent. Storing the same activity again is [SaveResult.ALREADY_HELD] and writes nothing; throwing [ItemRefusedException] refuses the item for good. */
 interface ActivitySink {
   fun store(offer: ActivityOffer): SaveResult
 }
 
-/** Where the watch keeps a route the phone sent; the same route id and revision again is [SaveResult.ALREADY_HELD], a new revision replaces. */
+/** Where the watch keeps a route the phone sent; the same route id and revision again is [SaveResult.ALREADY_HELD], a new revision replaces; throwing [ItemRefusedException] refuses the route for good. */
 interface WatchRouteStore {
   fun save(offer: RouteOffer): SaveResult
 }
@@ -90,7 +90,7 @@ enum class CloseReason {
   BAD_FRAME,
   /** A valid message that does not belong here: wrong direction, out of order, for an id never offered, repeated, or a second hello. */
   UNEXPECTED_MESSAGE,
-  /** A store or sink threw; nothing was confirmed and the item stays queued. */
+  /** A store or sink threw something other than [ItemRefusedException]; nothing was confirmed and the item stays queued. */
   STORE_FAILED,
   /** An item whose frame would be over the frame cap, so it can never be sent. */
   UNSENDABLE_ITEM,

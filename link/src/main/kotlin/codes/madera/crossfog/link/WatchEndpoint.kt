@@ -55,7 +55,8 @@ class WatchEndpoint(
     refusedActivityId = id
     offeredActivityId = null
     disarmConfirm()
-    // The app sets the activity aside inside this call, so the next one is what pump finds.
+    // A caller that sets the activity aside inside this call lets pump find the next one; one that leaves it in
+    // the outbox has pump send nothing while it is first there (refusedActivityId).
     report(Refusal(ItemRef(ItemKind.ACTIVITY, id), refusal.reason, null))
     if (!isClosed) pump()
   }
