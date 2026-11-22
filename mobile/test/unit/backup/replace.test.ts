@@ -198,6 +198,34 @@ describe("database replacer", () => {
     expect((error as Error).cause).toBe(broken);
   });
 
+  it("keeps the key error's own cause when the state call fails too", async () => {
+    await createActivityStore(target.db).add(
+      activity({ id: "44444444-4444-4444-8444-444444444444" }),
+    );
+    const original = new Error("unwrap failed");
+    const keyError = Object.assign(new Error("the database key is lost"), {
+      name: "KeyLostError",
+      cause: original,
+    });
+    const broken = new Error("keystore busy");
+    const { deps } = lostKeyDeps({
+      databaseKeyHex: async () => {
+        throw keyError;
+      },
+      isKeyLost: (e) => e === keyError,
+      keyState: async () => {
+        throw broken;
+      },
+    });
+    const error = await createDatabaseReplacer(deps)(await openedBackup()).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBe(keyError);
+    expect((error as Error).cause).toBe(original);
+    expect(error).toMatchObject({ keyStateError: broken });
+  });
+
   it("replaces no key that reads as fresh", async () => {
     const { deps, kept } = lostKeyDeps({ keyState: async () => "fresh" as const });
     const backup = await openedBackup();
