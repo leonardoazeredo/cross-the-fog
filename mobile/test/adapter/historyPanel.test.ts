@@ -63,6 +63,24 @@ function summary(id: string, startedAt: string, over: Partial<ActivitySummary> =
   } satisfies ActivitySummary;
 }
 
+// Typed so the calls into the page's scripts are checked instead of reaching through any.
+interface PageGlobals {
+  L: { map(holder: HTMLElement): LeafletMap };
+  RouteTool: new (map: LeafletMap, opts: { onChange: () => void }) => Route;
+  HistoryPanel: {
+    install(opts: {
+      doc: Document;
+      map: LeafletMap;
+      getUnits(): string;
+      getRecord(): { id: string; gpx: string } | null;
+      hasRoute(): boolean;
+      revision(): number;
+      phone(): unknown;
+      onShown: unknown;
+    }): { panel: Panel; send: SendControl };
+  };
+}
+
 let sent: WebToNative[];
 let panel: Panel;
 let send: SendControl;
@@ -99,7 +117,7 @@ beforeEach(() => {
   (window as unknown as { Sha256: { hex: typeof hex } }).Sha256 = { hex };
   evalApp("src/history.js");
   evalApp("src/route.js");
-  const w = window as unknown as Record<string, any>;
+  const w = window as unknown as PageGlobals;
   const holder = document.createElement("div");
   document.body.appendChild(holder);
   map = w.L.map(holder);

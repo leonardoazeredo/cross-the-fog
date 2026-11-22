@@ -365,8 +365,10 @@
 
   BackupButtons.install({ doc: document, win: window });
 
+  // the street graph both the suggestions and the route editor plan on
+  const engine = SuggestEngine.create({ streets, fogMap });
   const route = new RouteTool(map, {
-    routeWaypoints: RouteLocal.create({ streets, streetGraph: () => suggest.streetGraph(), elevation, estimates: Estimates }),
+    routeWaypoints: RouteLocal.create({ streets, streetGraph: () => engine.streetGraph(), elevation, estimates: Estimates }),
     isNew: cellIsNew,                       // colour the path: new ground vs already defogged
     fogReady: () => fogMap.hasFog(),
     onWaypoints: renderWps,
@@ -400,6 +402,7 @@
   let loopKm = parseFloat(localStorage.getItem("f2m_loopkm") || "10");
 
   const suggest = new SuggestTool(map, {
+    engine,
     fogMap,
     computeGain,
     newness,

@@ -79,9 +79,9 @@ export class Tile {
   header: Uint16Array;
   _tv: number | null | undefined;
 
-  // Throws an error that names the tile when the data is too short for the header or a header index points past the blocks:
-  // read on, a cut file would hand out short bitmaps, and the error would surface far from the bad file (NaN counts,
-  // a RangeError in the writer).
+  // Throws an error (naming no tile: an id is a rough location) when the data is too short for the header or a
+  // header index points past the blocks: read on, a cut file would hand out short bitmaps, and the error would
+  // surface far from the bad file (NaN counts, a RangeError in the writer).
   constructor(id: number, data: Uint8Array) {
     this.id = id;
     this.x = tileX(id);

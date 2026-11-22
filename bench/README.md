@@ -11,7 +11,7 @@ node bench/overpass.js [filter]     # street-network context (total vs undefogge
 node bench/identical.js ref.json cand.json [--exclude=ms] [--subset]   # exact diff of two run.js outputs
 ```
 
-- A bench test requires `lib/host.js` (the Node global as `window`, a Leaflet stub as `L`) and then `app/src/engine.ts`,
+- A bench test requires `lib/host.js` (the Node global as `window`, no Leaflet; a test that draws on a map or builds the route editor also requires `lib/leaflet-stub.js`) and then `app/src/engine.ts`,
   so benchmarks exercise the exact shipping algorithm.
 - The fog gain (`computeGain`, `cellIsNew`, `corridorNewFrac`, `SuggestTool`'s `newness`) is `app/src/fogGain.ts`, the module `main.js` uses too; `lib/fog.js`'s `gainOver(fogMap)` builds it over a loaded fog map, and its `loadSync(dir)` reads a Sync folder.
 - Overpass responses are disk-cached in `bench/cache/` (gitignored): re-runs are free,

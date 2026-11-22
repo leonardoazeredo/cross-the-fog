@@ -99,6 +99,14 @@ describe("scripts/android-test.ts", () => {
     }
   });
 
+  it("refuses a missing or unknown mode with one condition that joins every plan's check by &&", () => {
+    const guard = Object.keys(PLANS)
+      .map((name) => `mode !== "${name}"`)
+      .join(" && ");
+    expect(script).toContain(`if (${guard}) {`);
+    expect(script).toContain("process.exit(2)");
+  });
+
   it("runs Gradle in the directory the plan names, and treats only the phone project as generated", () => {
     expect(script).toContain('run("./gradlew", plan.gradleTasks, gradleDirFor(plan, mobile), env)');
     expect(script).toContain('const phone = plan.project === "phone";');

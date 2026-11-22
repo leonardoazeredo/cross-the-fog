@@ -52,6 +52,14 @@ it.each([
   [50_000_000, "50"],
 ])("formatMb(%i) is %s", (bytes, text) => expect(formatMb(bytes)).toBe(text));
 
+it("fails with the missing element's id when an existing status container lacks its line", () => {
+  document.getElementById("crossfogStatus")?.remove();
+  const bare = document.createElement("div");
+  bare.id = "crossfogStatus";
+  document.body.appendChild(bare);
+  expect(() => createStatus(document, actions, now)).toThrow("crossfogLine");
+});
+
 it("shows the saved line right under #loadStatus", () => {
   status.showSaved({ name: "fog.zip", savedAt: "2026-09-28T12:00:00.000Z" });
   expect(document.getElementById("loadStatus")!.nextElementSibling!.id).toBe("crossfogStatus");
