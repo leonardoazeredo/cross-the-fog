@@ -263,6 +263,7 @@ describe("reportDropped", () => {
     "exportBinary",
     "backup",
     "restore",
+    "retryHistory",
     "settings",
     "settingsApplied",
     "devAddActivity",

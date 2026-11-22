@@ -8,6 +8,8 @@ export interface Flows {
   sendRoute(route: RouteRecord): Promise<void>;
   needTrack(activityId: string): Promise<void>;
   deleteActivity(activityId: string): Promise<void>;
+  /** The History tab's Try again: opens the history again and publishes its state and list. */
+  retryHistory(): Promise<void>;
   // The five below are absent where the platform has no export, backup or settings (the controller ignores the message then).
   exportBinary?(chunk: ExportChunk): Promise<void>;
   backup?(): Promise<void>;

@@ -31,6 +31,7 @@ export function encode(msg: WebToNative | NativeToWeb): string {
 }
 
 export type TrackUnavailableReason = Extract<NativeToWeb, { type: "trackUnavailable" }>["reason"];
+export type HistoryState = Extract<NativeToWeb, { type: "historyState" }>["state"];
 
 /** Why a message with no known type was dropped. A tag only, never a value from the message. */
 type DropReason = "json" | "not-object" | "unknown-type";

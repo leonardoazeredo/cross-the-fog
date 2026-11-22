@@ -1,4 +1,9 @@
-import { type NativeToWeb, type RouteRecord, TRACK_CHUNK_POINTS } from "../bridge/protocol.js";
+import {
+  type HistoryState,
+  type NativeToWeb,
+  type RouteRecord,
+  TRACK_CHUNK_POINTS,
+} from "../bridge/protocol.js";
 import { COPY } from "../copy.js";
 import { HistoryKeyLostError, HistoryOpenFailedError } from "../db/openHistory.js";
 import type { ActivityStore, RouteStore } from "../history/types.js";
@@ -14,10 +19,12 @@ export interface HistoryDeps {
 
 export interface HistoryFlow {
   /**
-   * Sends the activity summaries, newest first, or a notice that the page's list is out of date (nothing while
-   * the key is lost: the startup alert already says so). Never rejects.
+   * Sends the activity summaries, newest first, or a notice that the page's list is out of date. A lost key and a
+   * database that did not open are not a list failure: they go as a `historyState`, once per change. Never rejects.
    */
   publish(): Promise<void>;
+  /** The page has just loaded and knows nothing: the next publish tells it the state again. */
+  pageLoaded(): void;
   /** Sends one activity's track in chunks, or `trackUnavailable` when the activity is gone or cannot be read. Never rejects. */
   needTrack(id: string): Promise<void>;
   /** Deletes the activity, then publishes the rest. Never rejects. */
@@ -28,6 +35,14 @@ const warn = (what: string, e: unknown) => warnClass("history", what, e);
 
 export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
   const { activities, routes, send } = deps;
+  // What the page was last told; a page that loads starts at "ready" (no line in the History tab).
+  let told: HistoryState = "ready";
+
+  function tellState(state: HistoryState): void {
+    if (state === told) return;
+    told = state;
+    trySend({ v: 1, type: "historyState", state });
+  }
 
   async function publish(): Promise<void> {
     let items: Awaited<ReturnType<typeof activities.listReadable>>["items"];
@@ -38,14 +53,15 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
       unreadable = read.unreadable;
     } catch (e) {
       warn("could not list the activities", e);
-      // The page keeps the last list it was sent, which after a delete still shows the deleted row.
-      // A lost key and a database that did not open were already announced by the startup alert, and every page
-      // load would repeat the notice. A list that fails on an open database still gets it.
-      if (!(e instanceof HistoryKeyLostError || e instanceof HistoryOpenFailedError)) {
-        trySend({ v: 1, type: "notice", text: COPY.historyListFailed });
-      }
+      // A lost key and a database that did not open are the page's lasting line, not a notice that every page
+      // load would repeat. A list that fails on an open database still gets the notice: the page keeps the last
+      // list it was sent, which after a delete still shows the deleted row.
+      if (e instanceof HistoryKeyLostError) tellState("keyLost");
+      else if (e instanceof HistoryOpenFailedError) tellState("openFailed");
+      else trySend({ v: 1, type: "notice", text: COPY.historyListFailed });
       return;
     }
+    tellState("ready");
     trySend({ v: 1, type: "activities", items });
     try {
       deps.onUnreadable?.(unreadable);
@@ -97,6 +113,10 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
 
   return {
     publish,
+
+    pageLoaded() {
+      told = "ready";
+    },
 
     async needTrack(id) {
       let messages: NativeToWeb[];

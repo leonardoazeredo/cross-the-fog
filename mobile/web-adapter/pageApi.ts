@@ -21,6 +21,7 @@ interface CrossfogApi {
   sendRoute(route: RouteRecord): void;
   needTrack(activityId: string): void;
   deleteActivity(activityId: string): void;
+  retryHistory(): void;
   exportBinary(chunk: ExportChunk): void;
   backup(): void;
   restore(): void;
@@ -56,6 +57,7 @@ export function installPageApi(win: Window, send: Send): PageApi {
     sendRoute: (route) => send({ v: 1, type: "sendRoute", route }),
     needTrack: (activityId) => send({ v: 1, type: "needTrack", activityId }),
     deleteActivity: (activityId) => send({ v: 1, type: "deleteActivity", activityId }),
+    retryHistory: () => send({ v: 1, type: "retryHistory" }),
     exportBinary: (chunk) => send({ ...chunk, v: 1, type: "exportBinary" }),
     backup: () => send({ v: 1, type: "backup" }),
     restore: () => send({ v: 1, type: "restore" }),

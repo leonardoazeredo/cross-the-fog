@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { NativeToWeb } from "../../../src/bridge/protocol.js";
+import { HistoryOpenFailedError } from "../../../src/db/openHistory.js";
 import { createFlows } from "../../../src/flows/compose.js";
 import {
   createMemoryActivityStore,
@@ -75,6 +76,39 @@ function setupWithRestore(restore: (swap: () => void) => Promise<boolean>) {
 }
 
 describe("composed flows", () => {
+  it("tells the page the history could not be opened, then retries the open, the hand-off and the list", async () => {
+    const link = createFakeWatchLink();
+    const memory = createMemoryActivityStore();
+    let failing = true;
+    const sent: NativeToWeb[] = [];
+    const flows = createFlows({
+      revisionOf,
+      link,
+      activities: {
+        ...memory,
+        listReadable: async () => {
+          if (failing) throw new HistoryOpenFailedError(new Error("locked"));
+          return memory.listReadable();
+        },
+      },
+      routes: createMemoryRouteStore(),
+      send: (m) => sent.push(m),
+      now: () => 0,
+    });
+    await flows.ready();
+    expect(sent).toContainEqual({ v: 1, type: "historyState", state: "openFailed" });
+    sent.length = 0;
+    link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });
+
+    failing = false;
+    await flows.retryHistory();
+    await settle();
+
+    expect(sent[0]).toEqual({ v: 1, type: "historyState", state: "ready" });
+    expect(sent.map((m) => m.type)).toContain("activities");
+    expect(await link.pendingActivities()).toEqual([]);
+  });
+
   it("hands off what is already staged when started and publishes the history", async () => {
     const { link, sent, flows } = setup();
     link.stage({ activityId: A, encoderVersion: "e", gpx: GPX });

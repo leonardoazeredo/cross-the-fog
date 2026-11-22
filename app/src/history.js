@@ -66,13 +66,15 @@
   // ----- the panel -----------------------------------------------------------------
   // opts: { root, onNeedTrack(id), onDelete(id), onShown(), map, getUnits() }; onShown runs after a track is drawn, so the page can drop the bottom sheet that would hide it.
   // onNeedTrack and onDelete return false when there is no phone to ask; anything else counts as asked.
+  // onRetry asks the phone to open the history again (the Try again of a history that could not be opened).
   function create(opts) {
     const root = opts.root, doc = root.ownerDocument, map = opts.map;
     const listEl = root.querySelector("#historyList"), detailEl = root.querySelector("#historyDetail"), emptyEl = root.querySelector("#historyEmpty");
-    const unreadableEl = root.querySelector("#historyUnreadable");
+    const unreadableEl = root.querySelector("#historyUnreadable"), stateEl = root.querySelector("#historyState");
     const units = () => (opts.getUnits ? opts.getUnits() : "metric");
     let items = [];
     let unreadable = 0;
+    let state = "ready"; // "keyLost" and "openFailed" say why the list is empty
     let open = null; // { id, points, route, trackNote, deleteNote } while a card is open
     let overlay = null; // the lines "Show on map" drew
     let armTimer = null;
@@ -176,11 +178,26 @@
       detailEl.appendChild(card);
     }
 
+    // The line is rebuilt each time so Try again never keeps a handler from an earlier state.
+    function renderState(inDetail) {
+      stateEl.textContent = "";
+      stateEl.style.display = !inDetail && state !== "ready" ? "" : "none";
+      if (state === "keyLost") {
+        stateEl.textContent = "Your history is locked: its key on this phone is gone. Restore a backup to get your walks back.";
+      } else if (state === "openFailed") {
+        stateEl.appendChild(el("div", null, "Your history could not be opened."));
+        stateEl.appendChild(button("Try again", "ghost", () => {
+          opts.onRetry();
+        }));
+      }
+    }
+
     function render() {
       const inDetail = open != null;
       listEl.style.display = inDetail ? "none" : "";
       detailEl.style.display = inDetail ? "" : "none";
-      emptyEl.style.display = !inDetail && items.length === 0 ? "" : "none";
+      emptyEl.style.display = !inDetail && items.length === 0 && state === "ready" ? "" : "none";
+      if (stateEl) renderState(inDetail);
       if (unreadableEl) {
         unreadableEl.style.display = !inDetail && unreadable > 0 ? "" : "none";
         unreadableEl.textContent = unreadable === 1 ? "1 walk could not be read." : unreadable + " walks could not be read.";
@@ -246,6 +263,7 @@
       trackUnavailable(activityId, reason) { noteTrack(activityId, TRACK_NOTES[reason] || TRACK_NOTES.readFailed); },
       // Walks the watch handed over that the phone keeps but cannot read; 0 hides the line.
       setUnreadable(count) { unreadable = count; render(); },
+      setState(next) { state = next; render(); },
       // Card text formats distances and paces in the chosen units, so a toggle needs a re-render.
       refresh() { render(); },
     };
@@ -351,7 +369,8 @@
     const panel = create({
       root: doc.getElementById("historyPane"), map: opts.map, getUnits: opts.getUnits, onShown: opts.onShown,
       onNeedTrack: (id) => { const p = phone(); if (!p) return false; p.needTrack(id); return true; },
-      onDelete: (id) => { const p = phone(); if (!p) return false; p.deleteActivity(id); return true; }
+      onDelete: (id) => { const p = phone(); if (!p) return false; p.deleteActivity(id); return true; },
+      onRetry: () => { const p = phone(); if (p && p.retryHistory) p.retryHistory(); }
     });
     const send = createSendControl({
       button: doc.getElementById("sendWatch"), chip: doc.getElementById("sendStatus"),

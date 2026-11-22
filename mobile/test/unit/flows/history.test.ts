@@ -81,6 +81,31 @@ describe("history with walks that cannot be read", () => {
   });
 });
 
+// A flow whose list fails with the given error until failWith(null) makes it work.
+function failing(error: Error | null) {
+  let current = error;
+  const activities = createMemoryActivityStore();
+  const sent: NativeToWeb[] = [];
+  const flow = createHistoryFlow({
+    routes: createMemoryRouteStore(),
+    activities: {
+      ...activities,
+      listReadable: async () => {
+        if (current) throw current;
+        return activities.listReadable();
+      },
+    },
+    send: (m) => sent.push(m),
+  });
+  return {
+    flow,
+    sent,
+    failWith: (e: Error | null) => {
+      current = e;
+    },
+  };
+}
+
 describe("history", () => {
   it("publishes the summaries newest first, without the track or the file", async () => {
     const { activities, sent, flow } = setup();
@@ -272,36 +297,52 @@ describe("history", () => {
     expect(sent).toEqual([{ v: 1, type: "notice", text: COPY.historyListFailed }]);
   });
 
-  it("adds no notice when the history database did not open, which the app said at start", async () => {
-    const { activities, sent } = setup();
-    const flow = createHistoryFlow({
-      routes: createMemoryRouteStore(),
-      activities: {
-        ...activities,
-        listReadable: async () => {
-          throw new HistoryOpenFailedError(new Error("disk at /data/user/0 is full"));
-        },
-      },
-      send: (m) => sent.push(m),
-    });
+  it("tells the page the key is lost, with no notice beside it", async () => {
+    const { flow, sent } = failing(new HistoryKeyLostError());
     await flow.publish();
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ v: 1, type: "historyState", state: "keyLost" }]);
+    valid(sent);
   });
 
-  it("adds no notice when the history key is lost, which the app said at start", async () => {
-    const { activities, sent } = setup();
-    const flow = createHistoryFlow({
-      routes: createMemoryRouteStore(),
-      activities: {
-        ...activities,
-        listReadable: async () => {
-          throw new HistoryKeyLostError();
-        },
-      },
-      send: (m) => sent.push(m),
-    });
+  it("tells the page the history could not be opened, without the error's text", async () => {
+    const { flow, sent } = failing(
+      new HistoryOpenFailedError(new Error("disk at /data/user/0 is full")),
+    );
     await flow.publish();
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ v: 1, type: "historyState", state: "openFailed" }]);
+  });
+
+  it("says a state once, then again when it changes", async () => {
+    const { flow, sent, failWith } = failing(new HistoryKeyLostError());
+    await flow.publish();
+    await flow.publish();
+    expect(sent).toHaveLength(1);
+    failWith(null);
+    await flow.publish();
+    await flow.publish();
+    expect(sent).toEqual([
+      { v: 1, type: "historyState", state: "keyLost" },
+      { v: 1, type: "historyState", state: "ready" },
+      { v: 1, type: "activities", items: [] },
+      { v: 1, type: "activities", items: [] },
+    ]);
+  });
+
+  it("says the state again to a page that loaded after it", async () => {
+    const { flow, sent } = failing(new HistoryKeyLostError());
+    await flow.publish();
+    flow.pageLoaded();
+    await flow.publish();
+    expect(sent).toEqual([
+      { v: 1, type: "historyState", state: "keyLost" },
+      { v: 1, type: "historyState", state: "keyLost" },
+    ]);
+  });
+
+  it("adds the list notice, not a state, when the list fails on an open database", async () => {
+    const { flow, sent } = failing(new Error("database is locked"));
+    await flow.publish();
+    expect(sent).toEqual([{ v: 1, type: "notice", text: COPY.historyListFailed }]);
   });
 
   it("does not reject when sending fails midway through a track's chunks", async () => {

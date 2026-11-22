@@ -150,6 +150,7 @@ const webSamples = [
   },
   { v: 1 as const, type: "backup" as const },
   { v: 1 as const, type: "restore" as const },
+  { v: 1 as const, type: "retryHistory" as const },
   { v: 1 as const, type: "settings" as const, json: '{"f2m_units":"metric"}' },
   { v: 1 as const, type: "settingsApplied" as const },
   { v: 1 as const, type: "devAddActivity" as const },
@@ -222,6 +223,9 @@ const nativeSamples = [
   { v: 1 as const, type: "trackUnavailable" as const, activityId, reason: "readFailed" as const },
   { v: 1 as const, type: "unreadableActivities" as const, count: 0 },
   { v: 1 as const, type: "unreadableActivities" as const, count: 3 },
+  { v: 1 as const, type: "historyState" as const, state: "ready" as const },
+  { v: 1 as const, type: "historyState" as const, state: "keyLost" as const },
+  { v: 1 as const, type: "historyState" as const, state: "openFailed" as const },
   { v: 1 as const, type: "activities" as const, items: [] },
   { v: 1 as const, type: "activities" as const, items: [activity] },
   {
@@ -591,6 +595,7 @@ describe("protocol", () => {
       "a track point with a longitude off the globe",
       { v: 1, type: "track", activityId, index: 0, total: 1, points: [{ t: 1, lat: 0, lon: 181 }] },
     ],
+    ["a history state that is none of the three", { v: 1, type: "historyState", state: "gone" }],
     ["a negative unreadable count", { v: 1, type: "unreadableActivities", count: -1 }],
     ["a fractional unreadable count", { v: 1, type: "unreadableActivities", count: 1.5 }],
   ])("drops %s from native", (_, msg) => expect(parseNativeToWeb(JSON.stringify(msg))).toBeNull());

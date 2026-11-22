@@ -56,6 +56,7 @@ const CROSSFOG_PAGE_FIELDS: Record<LeafPaths<CrossfogPageApi>, FieldKind> &
   "history.setTrack": "function",
   "history.trackUnavailable": "function",
   "history.setUnreadable": "function",
+  "history.setState": "function",
   routeStatus: "function",
   linkStatus: "function",
   exportStatus: "function",

@@ -395,6 +395,7 @@ it.each<NativeToWeb>([
   { v: 1, type: "track", activityId, index: 0, total: 1, points: [] },
   { v: 1, type: "trackUnavailable", activityId, reason: "notFound" },
   { v: 1, type: "unreadableActivities", count: 1 },
+  { v: 1, type: "historyState", state: "keyLost" },
 ])("dispatches a native $type message to the page API", async (msg) => {
   const sess = makeSession();
   await sess.onMessage(msg);

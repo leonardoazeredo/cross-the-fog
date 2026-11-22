@@ -172,6 +172,8 @@ export const WEB_TO_NATIVE_MESSAGES = {
   ],
   backup: [z.object({ v: z.literal(1), type: z.literal("backup") })],
   restore: [z.object({ v: z.literal(1), type: z.literal("restore") })],
+  // The History tab's Try again after a history that could not be opened.
+  retryHistory: [z.object({ v: z.literal(1), type: z.literal("retryHistory") })],
   settings: [z.object({ v: z.literal(1), type: z.literal("settings"), json: settingsJson })],
   settingsApplied: [z.object({ v: z.literal(1), type: z.literal("settingsApplied") })],
   // Only the e2e page sends it and only a debug app acts on it; the schema is harmless in release.
@@ -278,6 +280,14 @@ export const PAGE_MESSAGES = {
       v: z.literal(1),
       type: z.literal("unreadableActivities"),
       count: z.number().int().min(0),
+    }),
+  ],
+  // Whether the history can be read: `keyLost` and `openFailed` say why the History tab is empty. Sent when it changes and to a page that has just loaded.
+  historyState: [
+    z.object({
+      v: z.literal(1),
+      type: z.literal("historyState"),
+      state: z.enum(["ready", "keyLost", "openFailed"]),
     }),
   ],
   // How a Fog of World export went: `saving` just before the picker opens, then one of the other three.

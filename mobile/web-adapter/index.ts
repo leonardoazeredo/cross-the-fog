@@ -81,6 +81,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.crossfog?.on("unreadableActivities", ({ count }) =>
     window.CrossfogPage?.history?.setUnreadable?.(count),
   );
+  window.crossfog?.on("historyState", ({ state }) =>
+    window.CrossfogPage?.history?.setState?.(state),
+  );
 
   const zipInput = document.getElementById("zip") as HTMLInputElement;
   const load = (bytes: Uint8Array, name: string) =>

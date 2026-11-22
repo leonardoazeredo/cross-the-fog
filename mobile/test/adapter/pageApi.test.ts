@@ -67,6 +67,7 @@ it("installs window.crossfog", () => {
     "needTrack",
     "on",
     "restore",
+    "retryHistory",
     "sendRoute",
   ]);
 });
@@ -117,6 +118,20 @@ it("hands an unreadableActivities count to its listener without the envelope", (
   crossfog.on("unreadableActivities", fn);
   api.dispatch({ v: 1, type: "unreadableActivities", count: 2 });
   expect(fn).toHaveBeenCalledExactlyOnceWith({ count: 2 });
+});
+
+it("hands a historyState message to its listener without the envelope", () => {
+  const { api, crossfog } = install();
+  const fn = vi.fn();
+  crossfog.on("historyState", fn);
+  api.dispatch({ v: 1, type: "historyState", state: "openFailed" });
+  expect(fn).toHaveBeenCalledExactlyOnceWith({ state: "openFailed" });
+});
+
+it("sends retryHistory when the page asks", () => {
+  const { crossfog } = install();
+  crossfog.retryHistory();
+  expect(sent).toEqual([{ v: 1, type: "retryHistory" }]);
 });
 
 it("hands an exportStatus message to its listener without the envelope", () => {

@@ -34,6 +34,7 @@ export interface CrossfogPageApi {
     ): void;
     trackUnavailable(activityId: string, reason: TrackUnavailableReason): void;
     setUnreadable?(count: number): void;
+    setState?(state: "ready" | "keyLost" | "openFailed"): void;
   };
   /** The Send button's answers from the phone. */
   routeStatus?(msg: {

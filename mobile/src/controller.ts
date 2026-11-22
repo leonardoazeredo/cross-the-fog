@@ -244,6 +244,7 @@ export function createController(deps: ControllerDeps): Controller {
     sendRoute: (msg) => deps.flows.sendRoute(msg.route),
     needTrack: (msg) => deps.flows.needTrack(msg.activityId),
     deleteActivity: (msg) => deps.flows.deleteActivity(msg.activityId),
+    retryHistory: () => deps.flows.retryHistory(),
     exportBinary: async (msg) => {
       const { v: _v, type: _type, ...exportChunk } = msg;
       await deps.flows.exportBinary?.(exportChunk);

@@ -91,6 +91,7 @@ function createHarness(
     sendRoute: vi.fn(done),
     needTrack: vi.fn(done),
     deleteActivity: vi.fn(done),
+    retryHistory: vi.fn(done),
     exportBinary: vi.fn(done),
     backup: vi.fn(done),
     restore: vi.fn(() => Promise.resolve(false)),
@@ -131,6 +132,7 @@ function createHarness(
           sendRoute: flows.sendRoute,
           needTrack: flows.needTrack,
           deleteActivity: flows.deleteActivity,
+          retryHistory: flows.retryHistory,
         }
       : flows,
     ...(opts.devHandler === false ? {} : { devAddActivity }),
@@ -724,6 +726,7 @@ it.each<[string, WebToNative, keyof Flows, unknown[]]>([
   ["exportBinary", { v: 1, type: "exportBinary", ...chunk }, "exportBinary", [chunk]],
   ["backup", { v: 1, type: "backup" }, "backup", []],
   ["restore", { v: 1, type: "restore" }, "restore", []],
+  ["retryHistory", { v: 1, type: "retryHistory" }, "retryHistory", []],
   ["settings", { v: 1, type: "settings", json: "{}" }, "settings", ["{}"]],
   ["settingsApplied", { v: 1, type: "settingsApplied" }, "settingsApplied", []],
 ])("routes %s to its flow once and to no other", async (_, msg, flow, args) => {

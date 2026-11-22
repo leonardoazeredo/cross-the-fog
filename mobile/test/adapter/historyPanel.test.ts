@@ -40,6 +40,7 @@ interface Panel {
   setTrack(id: string, points: unknown[], route?: { coords: number[][] }): void;
   trackUnavailable(id: string, reason: TrackUnavailableReason): void;
   setUnreadable(count: number): void;
+  setState(state: "ready" | "keyLost" | "openFailed"): void;
   refresh(): void;
 }
 interface SendControl {
@@ -129,6 +130,38 @@ describe("History tab", () => {
     expect($("historyEmpty").style.display).toBe("");
     panel.setActivities([summary(A, "2026-03-01T10:00:00Z")]);
     expect($("historyEmpty").style.display).toBe("none");
+  });
+
+  it("says why the list is empty while the history key is lost, with no button", () => {
+    expect($("historyState").style.display).toBe("none");
+    panel.setState("keyLost");
+    expect($("historyState").style.display).toBe("");
+    expect($("historyState").textContent).toContain("key");
+    expect($("historyState").querySelector("button")).toBeNull();
+    expect($("historyEmpty").style.display).toBe("none");
+  });
+
+  it("offers Try again when the history could not be opened, and asks the phone to try", () => {
+    panel.setState("openFailed");
+    expect($("historyState").textContent).toContain("could not be opened");
+    click($("historyState").querySelector("button"));
+    expect(sent).toEqual([{ v: 1, type: "retryHistory" }]);
+  });
+
+  it("takes the line away and brings the empty note back when the history is ready", () => {
+    panel.setState("keyLost");
+    panel.setState("ready");
+    expect($("historyState").style.display).toBe("none");
+    expect($("historyEmpty").style.display).toBe("");
+  });
+
+  it("hides the line while a card is open and shows it again on the list", () => {
+    panel.setActivities([summary(A, "2026-03-01T10:00:00Z")]);
+    click(cards()[0] ?? null);
+    panel.setState("openFailed");
+    expect($("historyState").style.display).toBe("none");
+    click(button("←"));
+    expect($("historyState").style.display).toBe("");
   });
 
   it("says how many walks could not be read, above the list", () => {

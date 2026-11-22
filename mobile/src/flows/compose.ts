@@ -100,11 +100,18 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
   const { backup } = deps;
   return {
     async ready() {
+      history.pageLoaded();
       await history.publish();
       if (unreadable + corrupt > 0) sendUnreadable();
       await sendFlow.sendStatus();
     },
     handOffNow: handOffAndPublish,
+    async retryHistory() {
+      // The next store call opens the database again; the list then says whether it did, and the hand-off
+      // takes what the watch kept staged meanwhile.
+      await history.publish();
+      runHandOff();
+    },
     sendRoute: sendFlow.sendRoute,
     needTrack: history.needTrack,
     deleteActivity: history.deleteActivity,
