@@ -42,6 +42,7 @@ import {
   _suggestP2P,
   _viaCandidates,
   _viaPoint,
+  createEngine,
   FIT_ROUTES,
   fitLoopSize,
   type Self,
@@ -86,11 +87,10 @@ function pinIcon(cls: any, label: any) {
 
 function SuggestTool(this: Self, map: any, opts: any) {
   this.map = map;
-  this.fogMap = opts.fogMap;
+  this.engine = opts.engine || createEngine(opts);
   this.computeGain = opts.computeGain; // (coords) -> { area, newPct } | null
   this.newness = opts.newness || null; // ({lat, lng}) -> share of never-visited cells within ~100 m; FogGain's, over this.fogMap, when not given
   this.isNew = opts.isNew || null; // (lon,lat) -> true if the point is new ground
-  this.streets = opts.streets || null; // StreetIndex; candidates chase undefogged streets
   this.onPoints = opts.onPoints || null; // (count) -> UI update
   this.onResults = opts.onResults || null; // (state|null) -> render progress/cards
   this.mode = "p2p"; // "p2p" | "loop"
@@ -100,11 +100,19 @@ function SuggestTool(this: Self, map: any, opts: any) {
   this.results = []; // top candidates of the last run
   this.lines = []; // their preview polylines
   this.selected = -1;
-  this._runId = 0;
-  this._planner = null; // GraphPlanner over the walkable streets
-  this._hold = null; // {runId, planner}: the graph the running suggestion plans on
   this._onClick = (e: any) => this._place(e.latlng);
 }
+
+// The run state lives on the engine; the tool's own functions still read it as fields of `this`.
+for (const field of ["streets", "fogMap", "_runId", "_planner", "_hold"])
+  Object.defineProperty(SuggestTool.prototype, field, {
+    get(this: Self) {
+      return this.engine[field];
+    },
+    set(this: Self, v: any) {
+      this.engine[field] = v;
+    },
+  });
 
 SuggestTool.prototype.streetGraph = streetGraph;
 SuggestTool.prototype._holdGraph = _holdGraph;
