@@ -486,7 +486,7 @@ class PhoneLinkStoresTest {
       val events = LedgerEvents(l, r) { id, revision -> asides += id to revision }
       outboxDir.deleteRecursively()
       when (damage) {
-        "sealed under another key" -> StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), {}).stage(a, routeJson(a))
+        "sealed under another key" -> StagingStore(outboxDir, SecretKeySpec(ByteArray(32) { 9 }, "AES"), StoreKind.OUTBOX, {}).stage(a, routeJson(a))
         "not json" -> outboxStore().stage(a, "not json".toByteArray())
         else -> outboxStore().stage(a, routeJson(b))
       }
