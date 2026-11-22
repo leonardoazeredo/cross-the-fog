@@ -64,6 +64,27 @@ const unb64 = (s) => Uint8Array.from(Buffer.from(s, "base64"));
   assert.deepEqual(logged, ["[export] Fog of World export failed RangeError"], "the class only");
 }
 
+// a failure carries the writer's fixed reason into the log beside the class, and nothing else it says
+{
+  const warn = console.warn;
+  const logged = [];
+  console.warn = (...a) => logged.push(a.join(" "));
+  const phone = { exportBinary() {} };
+  const fails = (e) => ({ REASONS: ["verify-name"], writeSync: () => { throw e; } });
+  global.FogWriter = fails(Object.assign(new Error("its file name reads back as another tile"), { reason: "verify-name" }));
+  assert.equal(FowExport.run({ fogMap: {}, phone, exportId: "x" }), null);
+  global.FogWriter = fails(Object.assign(new Error("boom"), { reason: "tile 48:12 at 51.5,13.7" })); // not one the writer has
+  assert.equal(FowExport.run({ fogMap: {}, phone, exportId: "x" }), null);
+  global.FogWriter = { writeSync: () => { throw new RangeError("no REASONS on this writer"); } };
+  assert.equal(FowExport.run({ fogMap: {}, phone, exportId: "x" }), null);
+  console.warn = warn;
+  assert.deepEqual(logged, [
+    "[export] Fog of World export failed Error verify-name",
+    "[export] Fog of World export failed Error",
+    "[export] Fog of World export failed RangeError",
+  ]);
+}
+
 // a file of exactly CHUNK_BYTES is one chunk, one byte more is two
 {
   assert.equal(FowExport.chunksOf([{ name: "dddd", bytes: new Uint8Array(FowExport.CHUNK_BYTES) }], "e").length, 1);

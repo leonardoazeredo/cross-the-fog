@@ -82,7 +82,7 @@ it("gives the page's engine script its window globals, and takes nothing from ou
     ),
   ).toBe("2,2,true,true");
   expect(vm.runInContext("Object.keys(window.FogWriter).join()", context)).toBe(
-    "tileName,writeTile,writeSync",
+    "tileName,writeTile,writeSync,REASONS",
   );
   expect(vm.runInContext("Object.keys(window.FogZip).join()", context)).toBe("unzip");
   expect(vm.runInContext("Object.keys(window.Reveal).join()", context)).toBe("RULES,reveal");

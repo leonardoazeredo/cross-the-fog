@@ -18,12 +18,27 @@ const FILENAME_MASK2 = "eizxdwknmo";
 // pako at level 5 reproduces Fog of World's files byte for byte; Node's zlib at level 5 does not (bench/fog-writer.test.js)
 export const DEFLATE_LEVEL = 5;
 
+// What a failure of this module says about itself: one of these fixed words, never a position. An export that
+// fails logs it beside the error's class.
+export const REASONS = [
+  "bad-id",
+  "bad-block",
+  "no-bytes",
+  "verify-inflate",
+  "verify-bytes",
+  "verify-name",
+  "verify-checksum",
+] as const;
+export type Reason = (typeof REASONS)[number];
+
+const failure = <E extends Error>(error: E, reason: Reason): E => Object.assign(error, { reason });
+
 const mapDigits = (digits: string, mask: string) =>
   Array.from(digits, (d) => mask[Number(d)]).join("");
 
 export function tileName(id: number): string {
   if (!Number.isInteger(id) || id < 0 || id >= MAP_WIDTH * MAP_WIDTH)
-    throw new RangeError("not a tile id");
+    throw failure(new RangeError("not a tile id"), "bad-id");
   const digits = String(id);
   return (
     hex(digits).slice(0, 4) +
@@ -56,12 +71,16 @@ export function writeTile(blocks: WriterBlock[]): Uint8Array {
   const seen = new Set<number>();
   for (const b of blocks) {
     if (!b.bitmap || b.bitmap.length !== BLOCK_BITMAP_SIZE)
-      throw new RangeError(`a block's bitmap is not ${BLOCK_BITMAP_SIZE} bytes`);
-    if (!inTile(b.bx) || !inTile(b.by)) throw new RangeError("a block lies outside the tile");
+      throw failure(
+        new RangeError(`a block's bitmap is not ${BLOCK_BITMAP_SIZE} bytes`),
+        "bad-block",
+      );
+    if (!inTile(b.bx) || !inTile(b.by))
+      throw failure(new RangeError("a block lies outside the tile"), "bad-block");
     if (b.extra != null && b.extra.length !== 3)
-      throw new RangeError("a block's extra is not 3 bytes");
+      throw failure(new RangeError("a block's extra is not 3 bytes"), "bad-block");
     const key = blockKey(b.bx, b.by);
-    if (seen.has(key)) throw new RangeError("a block is given twice");
+    if (seen.has(key)) throw failure(new RangeError("a block is given twice"), "bad-block");
     seen.add(key);
   }
   const kept = blocks
@@ -93,16 +112,18 @@ function verify(
   try {
     back = inflate(file.bytes);
   } catch (e) {
-    throw new Error("the written file does not inflate", { cause: e });
+    throw failure(new Error("the written file does not inflate", { cause: e }), "verify-inflate");
   }
-  if (!back || !sameBytes(back, raw)) throw new Error("the written file inflates to other bytes");
-  if (parseTileId(file.name) !== id) throw new Error("its file name reads back as another tile");
+  if (!back || !sameBytes(back, raw))
+    throw failure(new Error("the written file inflates to other bytes"), "verify-bytes");
+  if (parseTileId(file.name) !== id)
+    throw failure(new Error("its file name reads back as another tile"), "verify-name");
   const map = new FogMap();
   map.addTile(file.name, raw);
   for (const b of map.blocks()) {
     const e = (b.extra![0]! << 16) | (b.extra![1]! << 8) | b.extra![2]!;
     if ((e & 0x3fff) !== 2 * popcount(b.bitmap) + 1)
-      throw new Error("a written block has a bad checksum");
+      throw failure(new Error("a written block has a bad checksum"), "verify-checksum");
   }
 }
 
@@ -129,7 +150,7 @@ export function writeSync(fogMap: FogMap, opts: WriteOptions): WrittenFile[] {
     const raw = writeTile(blocks);
     const bytes = deflate(raw);
     if (!(bytes instanceof Uint8Array) || bytes.length === 0)
-      throw new Error("deflate returned no bytes for a tile");
+      throw failure(new Error("deflate returned no bytes for a tile"), "no-bytes");
     const file = { name: tileName(tid), bytes };
     verify(file, tid, raw, inflate);
     files.push(file);
@@ -149,4 +170,4 @@ export function writeSync(fogMap: FogMap, opts: WriteOptions): WrittenFile[] {
 }
 
 // What the page's `window.FogWriter` is made of; pageGlobals.ts gives `writeSync` the page's pako defaults.
-export const FogWriter = { tileName, writeTile, writeSync };
+export const FogWriter = { tileName, writeTile, writeSync, verify, REASONS };
