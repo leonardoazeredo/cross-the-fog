@@ -54,7 +54,7 @@ const { status } = ImportMessages;
   assert.equal(status({ source: "folder", tiles: 0, added: 0, corrupt: 0, readErr: 0 }), "No fog tiles found. Did you pick the Sync folder?");
   assert.equal(status({ source: "zip", tiles: 0, added: 0, corrupt: 0, readErr: 0 }), "No fog tiles found in that .zip. Make sure it contains your Sync folder.");
   assert.equal(status({ source: "folder", tiles: 0, added: 0, corrupt: 0, readErr: 3 }),
-    "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to the phone. Download your backup and load the .zip instead.");
+    "Couldn't read the files. If this folder lives in Google Drive or iCloud, it may not be downloaded to this device. Download your backup and load the .zip instead.");
 }
 
 // ---- the counting

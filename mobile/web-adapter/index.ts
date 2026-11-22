@@ -27,16 +27,10 @@ async function toHex(buf: ArrayBuffer): Promise<string> {
     .join("");
 }
 
+// The page is served from an https origin to a WebView that Android 10 or later ships, so SubtleCrypto is there.
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  if (CRYPTO_SUBTLE) {
-    const buf = await crypto.subtle.digest("SHA-256", bytes as unknown as Uint8Array<ArrayBuffer>);
-    return toHex(buf);
-  }
-  // Fallback for platforms without crypto.subtle (old Android WebView).
-  // @noble/hashes is a build-time optional dep; if CRYPTO_SUBTLE is false it must be installed.
-  const { sha256 } = await import("@noble/hashes/sha256");
-  const { bytesToHex } = await import("@noble/hashes/utils");
-  return bytesToHex(sha256(bytes));
+  const buf = await crypto.subtle.digest("SHA-256", bytes as unknown as Uint8Array<ArrayBuffer>);
+  return toHex(buf);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

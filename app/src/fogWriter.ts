@@ -23,7 +23,7 @@ const mapDigits = (digits: string, mask: string) =>
 
 export function tileName(id: number): string {
   if (!Number.isInteger(id) || id < 0 || id >= MAP_WIDTH * MAP_WIDTH)
-    throw new RangeError("not a tile id: " + id);
+    throw new RangeError("not a tile id");
   const digits = String(id);
   return (
     hex(digits).slice(0, 4) +
@@ -56,13 +56,12 @@ export function writeTile(blocks: WriterBlock[]): Uint8Array {
   const seen = new Set<number>();
   for (const b of blocks) {
     if (!b.bitmap || b.bitmap.length !== BLOCK_BITMAP_SIZE)
-      throw new RangeError(`block ${b.bx},${b.by}: bitmap is not ${BLOCK_BITMAP_SIZE} bytes`);
-    if (!inTile(b.bx) || !inTile(b.by))
-      throw new RangeError(`block ${b.bx},${b.by}: outside the tile`);
+      throw new RangeError(`a block's bitmap is not ${BLOCK_BITMAP_SIZE} bytes`);
+    if (!inTile(b.bx) || !inTile(b.by)) throw new RangeError("a block lies outside the tile");
     if (b.extra != null && b.extra.length !== 3)
-      throw new RangeError(`block ${b.bx},${b.by}: extra is not 3 bytes`);
+      throw new RangeError("a block's extra is not 3 bytes");
     const key = blockKey(b.bx, b.by);
-    if (seen.has(key)) throw new RangeError(`block ${b.bx},${b.by}: given twice`);
+    if (seen.has(key)) throw new RangeError("a block is given twice");
     seen.add(key);
   }
   const kept = blocks
@@ -94,18 +93,16 @@ function verify(
   try {
     back = inflate(file.bytes);
   } catch (e) {
-    throw new Error(`tile ${id}: the written file does not inflate`, { cause: e });
+    throw new Error("the written file does not inflate", { cause: e });
   }
-  if (!back || !sameBytes(back, raw))
-    throw new Error(`tile ${id}: the written file inflates to other bytes`);
-  if (parseTileId(file.name) !== id)
-    throw new Error(`tile ${id}: its file name reads back as another tile`);
+  if (!back || !sameBytes(back, raw)) throw new Error("the written file inflates to other bytes");
+  if (parseTileId(file.name) !== id) throw new Error("its file name reads back as another tile");
   const map = new FogMap();
   map.addTile(file.name, raw);
   for (const b of map.blocks()) {
     const e = (b.extra![0]! << 16) | (b.extra![1]! << 8) | b.extra![2]!;
     if ((e & 0x3fff) !== 2 * popcount(b.bitmap) + 1)
-      throw new Error(`tile ${id}: block ${b.bx},${b.by} has a bad checksum`);
+      throw new Error("a written block has a bad checksum");
   }
 }
 
@@ -132,7 +129,7 @@ export function writeSync(fogMap: FogMap, opts: WriteOptions): WrittenFile[] {
     const raw = writeTile(blocks);
     const bytes = deflate(raw);
     if (!(bytes instanceof Uint8Array) || bytes.length === 0)
-      throw new Error(`deflate returned no bytes for tile ${tid}`);
+      throw new Error("deflate returned no bytes for a tile");
     const file = { name: tileName(tid), bytes };
     verify(file, tid, raw, inflate);
     files.push(file);

@@ -33,7 +33,6 @@ const fromNative = (msg: NativeToWeb) =>
 
 beforeAll(async () => {
   vi.stubGlobal("indexedDB", new IDBFactory());
-  vi.stubGlobal("CRYPTO_SUBTLE", true);
   vi.stubGlobal("CACHE_ENABLED", false);
   vi.stubGlobal("__CROSSFOG_DEV_TOOLS__", false);
   loadUpstreamDom(document);

@@ -29,6 +29,7 @@ const { statsFromCoords, joinPins } = SuggestTool._internals;
 { // Use hands the editor the pins and the exact geometry, and clears the previews
   const removed = [];
   const tool = Object.create(SuggestTool.prototype);
+  tool.engine = global.SuggestEngine.create({}); // a tool built without its constructor still needs its run state
   const a = { lat: 51, lng: 13.7 }, b = { lat: 51, lng: 13.71 };
   const C = [[13.7, 51], [13.705, 51.001], [13.71, 51]];
   tool.map = { removeLayer: (l) => removed.push(l) };

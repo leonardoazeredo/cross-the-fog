@@ -7,7 +7,13 @@ import { warnClass } from "./warn.js";
 export interface BackupFlowsDeps {
   backup: { run(): Promise<BackupResult> };
   restore: { run(): Promise<RestoreResult> };
+  /** A short result: backup outcomes and the "already running" refusal. */
   notify(text: string): void;
+  /**
+   * A restore's result, which the owner may want to read twice and which a toast would cut off or let vanish.
+   * Must not wait for the user: the flow does not hold its lock on an alert being dismissed.
+   */
+  alert(text: string): void;
 }
 
 export interface BackupFlows {
@@ -56,22 +62,22 @@ export function createBackupFlows(deps: BackupFlowsDeps): BackupFlows {
           const result = await deps.restore.run();
           switch (result) {
             case "restored":
-              deps.notify(COPY.restoreDone);
+              deps.alert(COPY.restoreDone);
               return true;
             case "fogNotReplaced":
-              deps.notify(COPY.restoreFogNotReplaced);
+              deps.alert(COPY.restoreFogNotReplaced);
               return true;
             case "settingsNotApplied":
-              deps.notify(COPY.restoreSettingsNotApplied);
+              deps.alert(COPY.restoreSettingsNotApplied);
               return true;
             case "noSpace":
-              deps.notify(COPY.restoreNoSpace);
+              deps.alert(COPY.restoreNoSpace);
               return false;
             case "wrongPassphrase":
-              deps.notify(COPY.restoreWrongPassphrase);
+              deps.alert(COPY.restoreWrongPassphrase);
               return false;
             case "notABackup":
-              deps.notify(COPY.restoreNotABackup);
+              deps.alert(COPY.restoreNotABackup);
               return false;
             case "cancelled":
               return false;
@@ -81,7 +87,7 @@ export function createBackupFlows(deps: BackupFlowsDeps): BackupFlows {
           // still shows it, so the page reloads onto the previous fog. It is told once, here.
           const staged = e instanceof RestoreFailedAfterStagingError;
           warnClass("restore", "failed", staged ? e.cause : e);
-          deps.notify(COPY.restoreFailed);
+          deps.alert(COPY.restoreFailed);
           return staged;
         }
       }),

@@ -34,6 +34,7 @@ export interface ComposeDeps {
 }
 
 export function createFlows(deps: ComposeDeps): ComposedFlows {
+  let running: (() => void) | undefined;
   const history = createHistoryFlow({
     activities: deps.activities,
     routes: deps.routes,
@@ -110,13 +111,19 @@ export function createFlows(deps: ComposeDeps): ComposedFlows {
       settingsApplied: async () => deps.settings?.onApplied(),
     }),
     start() {
+      // A second call while running would listen twice; it hands back the stop of the run that is going.
+      if (running) return running;
       const offSend = sendFlow.start();
       const offStaged = deps.link.on("activityStaged", runHandOff);
       runHandOff();
-      return () => {
+      const stopRun = () => {
+        if (running !== stopRun) return;
+        running = undefined;
         offSend();
         offStaged();
       };
+      running = stopRun;
+      return stopRun;
     },
   };
 }

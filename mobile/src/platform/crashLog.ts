@@ -1,20 +1,16 @@
 import { File, Paths } from "expo-file-system";
 
-// A decimal with three or more places is treated as a position (about 100 m at three), so it never reaches a log.
-const POSITION_LIKE = /-?\d*\.\d{3,}/g;
+// Only the error's class is written: a message can hold a position, an export id or a path, and no pattern
+// catches every shape of those. A name that is no plain identifier is as free-form as a message.
+const CLASS_NAME = /^[A-Za-z_$][\w$]{0,63}$/;
 
-// Native file errors name the cache path, which holds an export id.
-const PATH_LIKE = /(?:file:\/\/)?\/(?:data|storage|sdcard|mnt)\/[^\s,;:)"']*/g;
-
-export function scrubCoordinates(message: string): string {
-  return message.replace(PATH_LIKE, "[path]").replace(POSITION_LIKE, "[n]");
+function errorClass(error: unknown): string {
+  return error instanceof Error && CLASS_NAME.test(error.name) ? error.name : "unknown";
 }
 
 export async function logCrash(error: unknown): Promise<void> {
   try {
-    const msg = scrubCoordinates(error instanceof Error ? error.message : String(error));
-    // The timestamp has three decimals too, so it is added after the message is scrubbed.
-    const line = `${new Date().toISOString()}\t${msg}\n`;
+    const line = `${new Date().toISOString()}\t${errorClass(error)}\n`;
     await new File(Paths.document, "crash.log").write(line, { append: true });
   } catch {
     // swallow — throwing here would recurse back into the global error handler

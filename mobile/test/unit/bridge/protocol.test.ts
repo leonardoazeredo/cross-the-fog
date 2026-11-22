@@ -56,6 +56,7 @@ const activity = {
     calories: 300,
     heartRateAvg: 110,
     heartRateMax: 140,
+    skippedPoints: 2,
   },
 };
 

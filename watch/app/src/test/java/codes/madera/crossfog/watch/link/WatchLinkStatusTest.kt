@@ -23,7 +23,7 @@ class WatchLinkStatusTest {
         WatchLink(
             outbox = box,
             ledger = ledger,
-            routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }),
+            routes = WatchRoutes(MemoryIndex(), { _, _ -> "" }, { false }, { true }),
             pins = pins,
             identityPresent = identityPresent,
         )

@@ -40,36 +40,42 @@ export function createSettingsChannel(deps: {
   let waitingApplied: ((ok: true | Error) => void) | null = null;
   const failure = () => new Error("the page settings did not arrive");
 
+  // One question to the page: `park` stores the callback that takes its answer, and a timeout settles it with a failure.
+  function ask<R>(
+    park: (settle: ((answer: R | Error) => void) | null) => void,
+    send: () => void,
+  ): Promise<R> {
+    return new Promise<R>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        park(null);
+        reject(failure());
+      }, deps.timeoutMs);
+      park((answer) => {
+        clearTimeout(timer);
+        park(null);
+        if (answer instanceof Error) reject(answer);
+        else resolve(answer);
+      });
+      send();
+    });
+  }
+
   return {
     request() {
-      return new Promise<string>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          waitingSettings = null;
-          reject(failure());
-        }, deps.timeoutMs);
-        waitingSettings = (answer) => {
-          clearTimeout(timer);
-          waitingSettings = null;
-          if (typeof answer === "string") resolve(answer);
-          else reject(answer);
-        };
-        deps.send({ v: 1, type: "needSettings" });
-      });
+      return ask<string>(
+        (settle) => {
+          waitingSettings = settle;
+        },
+        () => deps.send({ v: 1, type: "needSettings" }),
+      );
     },
     apply(json) {
-      return new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          waitingApplied = null;
-          reject(failure());
-        }, deps.timeoutMs);
-        waitingApplied = (answer) => {
-          clearTimeout(timer);
-          waitingApplied = null;
-          if (answer === true) resolve();
-          else reject(answer);
-        };
-        deps.send({ v: 1, type: "applySettings", json });
-      });
+      return ask<true>(
+        (settle) => {
+          waitingApplied = settle;
+        },
+        () => deps.send({ v: 1, type: "applySettings", json }),
+      ).then(() => undefined);
     },
     onSettings(json) {
       waitingSettings?.(parseSettings(json) === null ? failure() : json);

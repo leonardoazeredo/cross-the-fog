@@ -6,14 +6,16 @@ import { createBackupFlows } from "../../../src/flows/backup.js";
 
 function setup(over: { backup?: () => Promise<never>; restore?: () => Promise<never> } = {}) {
   const notify = vi.fn();
+  const alert = vi.fn();
   const backupRun = vi.fn(async () => ({ status: "saved" as const, name: "b.db" }));
   const restoreRun = vi.fn(async () => "restored" as const);
   const flows = createBackupFlows({
     backup: { run: (over.backup ?? backupRun) as typeof backupRun },
     restore: { run: (over.restore ?? restoreRun) as typeof restoreRun },
     notify,
+    alert,
   });
-  return { flows, notify, backupRun, restoreRun };
+  return { flows, notify, alert, backupRun, restoreRun };
 }
 
 describe("backup flows", () => {
@@ -29,6 +31,7 @@ describe("backup flows", () => {
       backup: { run: async () => ({ status: "cancelled" }) },
       restore: { run: async () => "cancelled" },
       notify,
+      alert: vi.fn(),
     });
     await flows.backup();
     expect(await flows.restore()).toBe(false);
@@ -70,24 +73,27 @@ describe("backup flows", () => {
     ["noSpace", false, COPY.restoreNoSpace],
   ] as const)("restore %s reports %s", async (result, reload, text) => {
     const notify = vi.fn();
+    const alert = vi.fn();
     const flows = createBackupFlows({
       backup: { run: async () => ({ status: "cancelled" }) },
       restore: { run: async () => result },
       notify,
+      alert,
     });
     expect(await flows.restore()).toBe(reload);
-    expect(notify).toHaveBeenCalledWith(text);
+    expect(alert.mock.calls).toEqual([[text]]);
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("does not reject when the restore throws", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { flows, notify } = setup({
+    const { flows, alert } = setup({
       restore: async () => {
         throw new Error("x");
       },
     });
     expect(await flows.restore()).toBe(false);
-    expect(notify).toHaveBeenCalledWith(COPY.restoreFailed);
+    expect(alert).toHaveBeenCalledWith(COPY.restoreFailed);
   });
 
   it("ignores a second request while one is running", async () => {
@@ -102,6 +108,7 @@ describe("backup flows", () => {
       },
       restore: { run: async () => "restored" },
       notify,
+      alert: vi.fn(),
     });
     const first = flows.backup();
     expect(await flows.restore()).toBe(false);
@@ -115,24 +122,25 @@ describe("backup flows", () => {
 describe("a restore that throws", () => {
   it("says it failed and leaves the page alone when nothing was staged", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const { flows, notify } = setup({
+    const { flows, alert, notify } = setup({
       restore: async () => {
         throw new Error("disk at /data/user/0 is full");
       },
     });
     expect(await flows.restore()).toBe(false);
-    expect(notify.mock.calls).toEqual([[COPY.restoreFailed]]);
+    expect(alert.mock.calls).toEqual([[COPY.restoreFailed]]);
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("says it failed once and has the page reload when the import was already staged", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const { flows, notify } = setup({
+    const { flows, alert } = setup({
       restore: async () => {
         throw new RestoreFailedAfterStagingError(new RangeError("disk at /data/user/0 is full"));
       },
     });
     expect(await flows.restore()).toBe(true);
-    expect(notify.mock.calls).toEqual([[COPY.restoreFailed]]);
+    expect(alert.mock.calls).toEqual([[COPY.restoreFailed]]);
     expect(warn).toHaveBeenCalledWith("crossfog: restore failed", "RangeError");
   });
 });
