@@ -23,7 +23,7 @@ class StagedActivitiesTest {
   private val b = "0b6b7a6e-4a53-4d6e-9a53-1f3f1d3a0002"
   private val dir get() = File(tmp.root, "staging")
 
-  private fun store(key: SecretKeySpec = sealing) = StagingStore(dir, key, {})
+  private fun store(key: SecretKeySpec = sealing) = StagingStore(dir, key, StoreKind.STAGING, {})
 
   private fun offer(id: String) =
     """{"activityId":"$id","encoderVersion":"1","gpx":"<gpx/>"}""".toByteArray()

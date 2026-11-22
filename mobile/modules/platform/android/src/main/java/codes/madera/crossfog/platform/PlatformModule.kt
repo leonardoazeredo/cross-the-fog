@@ -24,8 +24,8 @@ class PlatformModule : Module() {
   private val stagingKey by lazy { keys.stagingKey(listOf(stagingDir, outboxDir)) }
   // One instance per directory for the process, so a transport service writing these directories
   // shares the module's lock instead of racing it.
-  private val staging by lazy { processStagingStores.forDir(stagingDir, { stagingKey }, ::fsyncDirectory) }
-  private val outbox by lazy { processStagingStores.forDir(outboxDir, { stagingKey }, ::fsyncDirectory) }
+  private val staging by lazy { processStagingStores.forDir(stagingDir, StoreKind.STAGING, { stagingKey }, ::fsyncDirectory) }
+  private val outbox by lazy { processStagingStores.forDir(outboxDir, StoreKind.OUTBOX, { stagingKey }, ::fsyncDirectory) }
 
   private val link by lazy {
     // sendEvent is a no-op while no JS runtime is attached; JS then finds the item through the stores on start.

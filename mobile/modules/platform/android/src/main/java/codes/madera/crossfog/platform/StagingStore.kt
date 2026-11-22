@@ -10,7 +10,8 @@ import javax.crypto.SecretKey
 
 /**
  * Encrypted files that survive while JS is not running: one `<id>.bin` per item, AES-GCM under [key]
- * with the id as AAD (so a file renamed to another id fails to authenticate). Nothing here touches
+ * with the store's [kind] and the id as AAD (so a file renamed to another id, or moved to the other
+ * store, fails to authenticate). Nothing here touches
  * Android APIs, so it runs in JVM tests; the directory sync is injected for that reason.
  *
  * One instance per directory: [Synchronized] only serializes callers of the same instance.
@@ -18,6 +19,7 @@ import javax.crypto.SecretKey
 class StagingStore(
   private val dir: File,
   private val key: SecretKey,
+  private val kind: StoreKind,
   private val syncDir: (File) -> Unit,
   private val beforeRename: (String) -> Unit = {},
 ) {
@@ -31,7 +33,7 @@ class StagingStore(
       // first stage can take the whole directory, and the watch has already deleted its copy.
       syncDir(dir.parentFile!!)
     }
-    val blob = KeyWrap(key, id).wrap(bytes)
+    val blob = KeyWrap(key, aadOf(id)).wrap(bytes)
     val tmp = File(dir, "$id.tmp")
     // A failure leaves the .tmp behind, as a crash would: the next stage of this id overwrites it
     // and release removes it, and list never reports it.
@@ -80,7 +82,7 @@ class StagingStore(
     if (!file.exists()) return null
     if (file.length() > Framing.MAX_FRAME_BYTES + OVERHEAD_BYTES) throw UnreadableItemException()
     return try {
-      KeyWrap(key, id).unwrap(file.readBytes())
+      KeyWrap(key, aadOf(id)).unwrap(file.readBytes())
     } catch (e: AEADBadTagException) {
       throw UnreadableItemException(e)
     }
@@ -97,7 +99,7 @@ class StagingStore(
     if (!file.exists()) return null
     if (file.length() > Framing.MAX_FRAME_BYTES + OVERHEAD_BYTES) throw UnreadableItemException()
     return try {
-      KeyWrap(key, id).unwrap(file.readBytes())
+      KeyWrap(key, aadOf(id)).unwrap(file.readBytes())
     } catch (e: AEADBadTagException) {
       throw UnreadableItemException(e)
     }
@@ -113,6 +115,8 @@ class StagingStore(
     }
   }
 
+  private fun aadOf(id: String) = "${kind.aad}:$id"
+
   private fun requireId(id: String) = require(UUID_ID.matches(id)) { "invalid staging id" }
 
   private companion object {
@@ -121,6 +125,9 @@ class StagingStore(
     const val OVERHEAD_BYTES = 28
   }
 }
+
+/** Which directory a [StagingStore] serves; the name is part of every item's authenticated data. */
+enum class StoreKind(val aad: String) { STAGING("staging"), OUTBOX("outbox") }
 
 /** The ids of the `<id>.bin` items in `dir`, with no key: the same listing `list` returns. */
 internal fun stagedIds(dir: File): List<String> =

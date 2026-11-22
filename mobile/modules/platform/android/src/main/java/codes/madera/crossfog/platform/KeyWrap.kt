@@ -7,10 +7,11 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Wraps a data key under a key-encryption key as `IV (12 bytes) || AES-GCM ciphertext and tag`.
- * The alias is bound in as AAD so a blob cannot be unwrapped under a different key's name.
+ * [aad] is bound in as authenticated data so a blob cannot be unwrapped under another name: a key's alias,
+ * or the place and id of a staged item.
  */
-class KeyWrap(private val kek: SecretKey, alias: String) {
-  private val aad = alias.toByteArray(Charsets.UTF_8)
+class KeyWrap(private val kek: SecretKey, aad: String) {
+  private val aad = aad.toByteArray(Charsets.UTF_8)
 
   fun wrap(dek: ByteArray): ByteArray {
     val cipher = Cipher.getInstance(TRANSFORMATION)
