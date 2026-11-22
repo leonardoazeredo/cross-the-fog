@@ -90,6 +90,7 @@ export const activitySummary = z.object({
     calories: nonNegative.optional(),
     heartRateAvg: nonNegative.optional(),
     heartRateMax: nonNegative.optional(),
+    skippedPoints: nonNegative.optional(),
   }),
 });
 

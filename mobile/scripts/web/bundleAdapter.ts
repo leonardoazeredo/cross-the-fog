@@ -15,9 +15,7 @@ export async function bundleAdapter(opts: { devTools: boolean }): Promise<string
     define: {
       __CROSSFOG_DEV_TOOLS__: String(opts.devTools),
       CACHE_ENABLED: "true",
-      CRYPTO_SUBTLE: "true",
     },
-    external: ["@noble/hashes/sha256", "@noble/hashes/utils"],
   });
   const output = result.outputFiles[0];
   if (output === undefined) throw new Error("esbuild produced no output for the adapter");
