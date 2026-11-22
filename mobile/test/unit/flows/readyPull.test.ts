@@ -10,7 +10,7 @@ import { createFakeWatchLink } from "../../../src/link/fakeWatchLink.js";
 import { activity } from "../history/fixtures.js";
 
 // The page learns the activity list and the link status by asking: its "ready" is answered by flows.ready(), and
-// nothing is replayed to a listener that registers late (pageApi.test.ts pins that half). A message sent while
+// nothing is replayed to a listener that registers late (test/adapter/pageApi.test.ts pins that half: a message dispatched before a listener registers is not replayed to it). A message sent while
 // nobody listened is lost; the answer to the next ready brings the list and the status back.
 it("answers every ready with the list and the link status again, whatever was sent before", async () => {
   const activities = createMemoryActivityStore();
