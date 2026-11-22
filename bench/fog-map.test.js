@@ -104,6 +104,17 @@ const sameBytes = (a, b) => assert.deepEqual(Array.from(a), Array.from(b));
   assert.equal(map.isVisitedCell(...cell), true);
   assert.equal(map.totalVisited(), 1);
 }
+{ // blocks(): an overlay cell inside an imported block keeps that block's extra bytes; a block only the overlay has gets null
+  const map = new FogMap();
+  const region = [0xab, 0xcd, 0xef];
+  map.addTile(nameOf(idOf(5, 6)), tileBytes([{ bx: 1, by: 2, cells: [[3, 4]], extra: region }]));
+  map.addCells(pairs([cellOf(5, 6, 1, 2, 9, 9), cellOf(5, 6, 7, 7, 0, 0)]));
+  const got = Array.from(map.blocks()).map((b) => ({ bx: b.bx, by: b.by, extra: b.extra === null ? null : Array.from(b.extra), cells: Array.from(b.bitmap).reduce((n, v) => n + v.toString(2).replace(/0/g, "").length, 0) }));
+  assert.deepEqual(got, [
+    { bx: 1, by: 2, extra: region, cells: 2 },
+    { bx: 7, by: 7, extra: null, cells: 1 },
+  ]);
+}
 { // countVisitedInCellRect and latLngBounds include the overlay
   const map = new FogMap();
   map.addTile(nameOf(idOf(5, 6)), tileBytes([{ bx: 1, by: 2, cells: [[3, 4]] }]));

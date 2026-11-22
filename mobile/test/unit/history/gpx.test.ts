@@ -271,6 +271,65 @@ describe("parseGpx cases from the review", () => {
   });
 });
 
+// The fixture is the encoder's own output: TraceGpxPhoneFixtureTest in watch/ compares what the encoder writes with it byte for byte.
+describe("parseGpx on what the watch's encoder writes", () => {
+  const encoded = readFileSync(
+    new URL("../../fixtures/watch-encoded-walk.gpx", import.meta.url),
+    "utf8",
+  );
+  const parsed = parseGpx(encoded);
+
+  it("reads the four points of its two segments in order, with elevation, speed, heart rate and cadence where it wrote them", () => {
+    expect(parsed.skippedPoints).toBe(0);
+    expect(parsed.points.map((p) => p.t)).toEqual([
+      START,
+      START + 3000,
+      START + 6500,
+      START + 60000,
+    ]);
+    expect(parsed.points[0]).toMatchObject({
+      lat: 51.4769,
+      lon: 0.0005,
+      accuracy: 6,
+      elevation: 45.2,
+      speed: 1.2,
+      heartRate: 96,
+      steps: 0,
+      cadence: 100,
+    });
+    // Exactly the fields each point wrote: point 1 has no steps or cadence although point 0 has them, so a point
+    // that kept the previous one's values would fail here.
+    expect(parsed.points[1]).toEqual({
+      t: START + 3000,
+      lat: 51.477,
+      lon: 0.0006,
+      accuracy: 6,
+      elevation: 45.4,
+      speed: 1.3,
+      heartRate: 98,
+    });
+    expect(parsed.points[2]).toEqual({ t: START + 6500, lat: 51.4771, lon: 0.0007, accuracy: 9 });
+    expect(parsed.points[3]).toEqual({ t: START + 60000, lat: 51.4775, lon: 0.001, accuracy: 6 });
+  });
+
+  it("reads the summary the encoder wrote", () => {
+    expect(parsed.summary).toEqual({
+      steps: 47,
+      calories: 210,
+      heartRateAvg: 98,
+      heartRateMax: 104,
+      durationS: 33,
+      distanceM: 71.5,
+    });
+  });
+
+  it("measures the track without the jump across the gap between the segments", () => {
+    // Two steps of about 13 m; the jump to the second segment's point would add about 50 m.
+    expect(parsed.trackDistanceM).toBeGreaterThan(25);
+    expect(parsed.trackDistanceM).toBeLessThan(28);
+  });
+});
+
 describe("activityStats", () => {
   it("prefers the watch's duration and distance and adds the pace", () => {
     expect(activityStats(parseGpx(fixture))).toEqual({

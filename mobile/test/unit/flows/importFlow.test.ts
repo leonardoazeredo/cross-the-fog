@@ -26,6 +26,11 @@ function setup(
   store: Partial<FogStore>,
   remount: () => Promise<void> = async () => undefined,
   releaseSource?: (uri: string) => Promise<void>,
+  pickFile: () => Promise<SourceFile | null> = async () => ({
+    uri: "file:///cache/a.zip",
+    name: "a.zip",
+  }),
+  confirmReplace?: (name: string) => Promise<boolean>,
 ) {
   let remounts = 0;
   const full: FogStore = {
@@ -45,11 +50,13 @@ function setup(
   const confirms: string[] = [];
   const flow = createImportFlow({
     store: full,
-    pickFile: async () => ({ uri: "file:///cache/a.zip", name: "a.zip" }),
-    confirmReplace: async (name) => {
-      confirms.push(name);
-      return true;
-    },
+    pickFile,
+    confirmReplace:
+      confirmReplace ??
+      (async (name) => {
+        confirms.push(name);
+        return true;
+      }),
     notify: (t) => notified.push(t),
     releaseSource:
       releaseSource ??
@@ -328,24 +335,15 @@ describe("import flow failures", () => {
   it("drops a leftover copy's verdict while the picker is open and keeps that import going", async () => {
     const calls: string[] = [];
     let chosen: (f: SourceFile | null) => void = () => undefined;
-    const flow = createImportFlow({
-      store: {
-        recover: async () => ({ discardedPending: false }),
-        current: async () => null,
-        pending: async () => META,
-        beginImport: async () => META,
+    const { flow } = setup(
+      {
         promotePending: async () => void calls.push("promote"),
         discardPending: async () => void calls.push("discard"),
-        clear: async () => undefined,
       },
-      pickFile: () => new Promise((r) => (chosen = r)),
-      confirmReplace: async () => true,
-      notify: () => undefined,
-      releaseSource: async () => undefined,
-      setBusy: () => undefined,
-      queueNotice: () => undefined,
-      remount: async () => undefined,
-    });
+      undefined,
+      undefined,
+      () => new Promise((r) => (chosen = r)),
+    );
     const picking = flow.pick();
 
     await flow.loaded(LOADED_OK);
@@ -474,25 +472,7 @@ describe("import flow failures", () => {
 
   it("keeps a running import when a refused share cannot be released", async () => {
     let choose: (f: SourceFile | null) => void = () => undefined;
-    const busy: boolean[] = [];
-    const flow = createImportFlow({
-      store: {
-        recover: async () => ({ discardedPending: false }),
-        current: async () => null,
-        pending: async () => META,
-        beginImport: async () => META,
-        promotePending: async () => undefined,
-        discardPending: async () => undefined,
-        clear: async () => undefined,
-      },
-      pickFile: () => new Promise((r) => (choose = r)),
-      confirmReplace: async () => true,
-      notify: () => undefined,
-      releaseSource: fail,
-      setBusy: (on) => busy.push(on),
-      queueNotice: () => undefined,
-      remount: async () => undefined,
-    });
+    const { flow, busy } = setup({}, undefined, fail, () => new Promise((r) => (choose = r)));
     const picking = flow.pick();
 
     await expect(
@@ -508,29 +488,20 @@ describe("import flow failures", () => {
   it("keeps a pick that started while a share waited on its replace question", async () => {
     let choose: (f: SourceFile | null) => void = () => undefined;
     let refuse: (e: Error) => void = () => undefined;
-    const flow = createImportFlow({
-      store: {
-        recover: async () => ({ discardedPending: false }),
-        current: async () => META,
-        pending: async () => META,
-        beginImport: async () => META,
-        promotePending: async () => undefined,
-        discardPending: async () => undefined,
-        clear: async () => undefined,
-      },
-      pickFile: () => new Promise((r) => (choose = r)),
-      confirmReplace: () =>
+    let asked = false;
+    const { flow } = setup(
+      { current: async () => META },
+      undefined,
+      undefined,
+      () => new Promise((r) => (choose = r)),
+      () =>
         new Promise<boolean>((_, j) => {
+          asked = true;
           refuse = j;
         }),
-      notify: () => undefined,
-      releaseSource: async () => undefined,
-      setBusy: () => undefined,
-      queueNotice: () => undefined,
-      remount: async () => undefined,
-    });
+    );
     const sharing = flow.incoming({ uri: "file:///cache/b.zip", name: "b.zip" });
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(asked).toBe(true));
     const picking = flow.pick();
     refuse(new Error("dialog gone"));
     await sharing;
