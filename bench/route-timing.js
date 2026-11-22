@@ -6,6 +6,7 @@
 // fetches from the network; the page logs the real timing on a device.
 "use strict";
 require("./lib/host.js");
+require("./lib/leaflet-stub.js"); // this test draws on a fake map or builds the route editor
 require("../app/src/engine.ts");
 const { SuggestTool, StreetIndex, FogParser } = global;
 const cache = require("./lib/fetch-cache.js");

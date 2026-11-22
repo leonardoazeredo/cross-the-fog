@@ -234,12 +234,34 @@ SuggestTool.prototype.adopt = function (this: Self, i: any) {
   return out;
 };
 
-// The screen half, apart from _rank so ranking needs no map. The best option is selected before the
-// cards are emitted because the page reads `selected` when it renders them.
+// The screen half, apart from _rank so ranking needs no map: draws the results (_draw), then emits the cards.
+// The best option is selected before they are emitted because the page reads `selected` when it renders them.
 SuggestTool.prototype._show = function (this: Self, extra: any) {
+  this._draw();
   const emit = (s: any) => {
     if (this.onResults) this.onResults(s);
   };
+  const refKm = extra.baseKm != null ? extra.baseKm : extra.targetKm;
+  emit(
+    Object.assign({}, extra, {
+      list: this.results.map((c: any, i: any) => ({
+        color: COLORS[i],
+        km: c.r.lenM / 1000,
+        deltaKm: c.r.lenM / 1000 - refKm,
+        ascent: c.r.ascent,
+        descent: c.r.descent,
+        area: c.gain.area,
+        newPct: c.gain.newPct,
+        retracePct: c.retrace != null ? Math.round(c.retrace * 100) : undefined,
+        isBase: !!c.isBase,
+      })),
+    }),
+  );
+};
+
+// What a shown result needs a map for: its preview lines, the fit of the view and the selection. Apart from
+// _show so a run with no map (the bench) overrides only this and still emits the same cards.
+SuggestTool.prototype._draw = function (this: Self) {
   this.lines = this.results.map((c: any, i: any) => {
     const runs = splitRuns(c.r.coords, this.isNew);
     return {
@@ -269,22 +291,6 @@ SuggestTool.prototype._show = function (this: Self, extra: any) {
     this.map.fitBounds(bounds, { padding: [30, 30] });
     this.select(0); // best option pre-selected before the cards render
   }
-  const refKm = extra.baseKm != null ? extra.baseKm : extra.targetKm;
-  emit(
-    Object.assign({}, extra, {
-      list: this.results.map((c: any, i: any) => ({
-        color: COLORS[i],
-        km: c.r.lenM / 1000,
-        deltaKm: c.r.lenM / 1000 - refKm,
-        ascent: c.r.ascent,
-        descent: c.r.descent,
-        area: c.gain.area,
-        newPct: c.gain.newPct,
-        retracePct: c.retrace != null ? Math.round(c.retrace * 100) : undefined,
-        isBase: !!c.isBase,
-      })),
-    }),
-  );
 };
 
 // Ends a run: ranks its candidates, then draws and presents them unless the run was replaced.

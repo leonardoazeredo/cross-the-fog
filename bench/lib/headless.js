@@ -1,14 +1,14 @@
-// Run the app's SuggestTool headless: fake map, pinned markers, cached fetch.
+// Run the app's SuggestTool headless: no map and no Leaflet (plain pins, nothing drawn), cached fetch.
 // Resolves with the tool's final results plus request/timing counters.
 "use strict";
 require("./host.js");
 require("../../app/src/engine.ts");
-const { SuggestTool, StreetIndex, L } = global;
+const { SuggestTool, StreetIndex } = global;
 const { overlapFrac } = SuggestTool._internals;
 const cache = require("./fetch-cache.js");
 const { installTileFetch } = require("./tileFetch.js");
 
-function pin(lat, lng) { const ll = L.latLng(lat, lng); return { getLatLng: () => ll }; }
+function pin(lat, lng) { const ll = { lat, lng }; return { getLatLng: () => ll }; }
 
 // scenario: { mode, a:[lat,lng], b?, distM?, targetM? (p2p wanted distance), buffer, noStreets? }
 function runSuggest(fogMap, gain, scenario) {
@@ -19,7 +19,7 @@ function runSuggest(fogMap, gain, scenario) {
     const t0 = Date.now();
     const emits = []; // every state the run handed the page, in order: the progress phases and the final card list
     cache.resetCounters();
-    const tool = new SuggestTool(global.fakeMap(), {
+    const tool = new SuggestTool({}, {
       fogMap,
       computeGain: gain.computeGain,
       newness: gain.newness,
@@ -42,6 +42,7 @@ function runSuggest(fogMap, gain, scenario) {
         });
       }
     });
+    tool._draw = () => {}; // the run's cards are emitted as always; only the preview lines and the fit need a map
     tool.mode = scenario.mode;
     tool.a = pin(scenario.a[0], scenario.a[1]);
     if (scenario.b) tool.b = pin(scenario.b[0], scenario.b[1]);
