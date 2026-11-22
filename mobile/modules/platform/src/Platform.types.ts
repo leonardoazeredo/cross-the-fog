@@ -2,6 +2,9 @@
 // (it may still fail on a read); "unreadable": both are present but unwrapping fails for good.
 export type KeyState = "fresh" | "existing" | "lost" | "unreadable";
 
+/** What `keyPresence` reports: it reads no key, so it never says `unreadable`. */
+export type KeyPresence = Exclude<KeyState, "unreadable">;
+
 export type PlatformNativeEvents = {
   activityStaged(event: { activityId: string }): void;
   linkStatus(event: { paired: boolean; reachable: boolean }): void;

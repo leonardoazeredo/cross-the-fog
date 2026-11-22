@@ -5,9 +5,7 @@ import java.security.UnrecoverableKeyException
 import javax.crypto.spec.SecretKeySpec
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KeyStateTest {
@@ -23,7 +21,7 @@ class KeyStateTest {
   fun aKeyThatFailsForGoodIsUnreadable() {
     assertEquals(
       KeyState.UNREADABLE,
-      stateOfPresentKey { throw KeyLostException("no match", permanent = true) },
+      stateOfPresentKey { throw KeyLostException("no match", loss = KeyLoss.PERMANENT) },
     )
   }
 
@@ -56,7 +54,7 @@ class KeyStateTest {
     val blob = KeyWrap(kek, "alias").wrap(dek)
     blob[blob.size - 1] = (blob[blob.size - 1].toInt() xor 1).toByte()
     val e = assertThrows(KeyLostException::class.java) { unwrapDatabaseKey(kek, "alias", blob) }
-    assertTrue(e.permanent)
+    assertEquals(KeyLoss.PERMANENT, e.loss)
   }
 
   @Test
@@ -64,21 +62,20 @@ class KeyStateTest {
     val e = assertThrows(KeyLostException::class.java) {
       unwrapDatabaseKey(kek, "alias", ByteArray(10))
     }
-    assertTrue(e.permanent)
+    assertEquals(KeyLoss.PERMANENT, e.loss)
   }
 
   @Test
   fun aKeyOfTheWrongLengthFailsForGood() {
     val blob = KeyWrap(kek, "alias").wrap(ByteArray(16))
     val e = assertThrows(KeyLostException::class.java) { unwrapDatabaseKey(kek, "alias", blob) }
-    assertTrue(e.permanent)
+    assertEquals(KeyLoss.PERMANENT, e.loss)
   }
 
   @Test
   fun aLostKeystoreKeyIsNotPermanent() {
     val e = assertThrows(KeyLostException::class.java) { readKekOrLost({}) { null } }
-    assertFalse(e.permanent)
-    assertTrue(e.absent)
+    assertEquals(KeyLoss.ABSENT, e.loss)
   }
 
   @Test
@@ -86,6 +83,6 @@ class KeyStateTest {
     val e = assertThrows(KeyLostException::class.java) {
       readKekOrLost({}) { throw UnrecoverableKeyException("key damaged") }
     }
-    assertFalse(e.absent)
+    assertEquals(KeyLoss.MAY_RECOVER, e.loss)
   }
 }

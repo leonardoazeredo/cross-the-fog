@@ -17,17 +17,19 @@ import javax.crypto.SecretKey
 
 /**
  * The database key was created once but its wrapped file or Keystore key is gone or unreadable.
- * `permanent` is set only for a failure no later read can fix (a bad tag, an invalidated Keystore
- * key, a key of the wrong length), and `keyState()` reads it as unreadable. `absent` is set when the
- * alias is there but the Keystore holds no key under it, which `keyState()` reads as lost. A restore
- * or a reset may replace a key in either state, never one that only failed to read this time.
+ * `loss` says which: PERMANENT is a failure no later read can fix (a bad tag, an invalidated Keystore
+ * key, a key of the wrong length), which `keyState()` reads as unreadable; ABSENT is an alias with no
+ * Keystore key under it, which `keyState()` reads as lost; MAY_RECOVER is a failure that may pass on a
+ * later read. A restore or a reset may replace a key in the first two states, never one that only
+ * failed to read this time. One field, so a loss cannot be both permanent and absent.
  */
 class KeyLostException(
   message: String,
   cause: Throwable? = null,
-  val permanent: Boolean = false,
-  val absent: Boolean = false,
+  val loss: KeyLoss = KeyLoss.MAY_RECOVER,
 ) : Exception(message, cause)
+
+enum class KeyLoss { MAY_RECOVER, ABSENT, PERMANENT }
 
 /**
  * The key's state forbids the call (a key that works or may on a later read, no key to
@@ -113,8 +115,14 @@ class Keys(
   fun replaceLostDatabaseKey(dek: ByteArray): Unit = synchronized(LOCK) {
     require(dek.size == DATABASE_KEY_BYTES) { "database key has the wrong length" }
     refuseUnless(keyState().replaceable) { "the database key is neither lost nor unreadable" }
-    discardDatabaseKey()
-    storeDatabaseKey(dek)
+    val dropFailure = discardDatabaseKey()
+    try {
+      storeDatabaseKey(dek)
+    } catch (e: Exception) {
+      // The old entry's failure to go may be why the new one could not be stored.
+      if (dropFailure != null) e.addSuppressed(dropFailure)
+      throw e
+    }
   }
 
   /**
@@ -265,17 +273,17 @@ internal fun stateOfPresentKey(read: () -> Unit): KeyState =
     read()
     KeyState.EXISTING
   } catch (e: KeyLostException) {
-    when {
-      e.permanent -> KeyState.UNREADABLE
-      e.absent -> KeyState.LOST
-      else -> KeyState.EXISTING
+    when (e.loss) {
+      KeyLoss.PERMANENT -> KeyState.UNREADABLE
+      KeyLoss.ABSENT -> KeyState.LOST
+      KeyLoss.MAY_RECOVER -> KeyState.EXISTING
     }
   } catch (e: Exception) {
     KeyState.EXISTING
   }
 
 /**
- * The database key in `blob`, or a permanent KeyLostException when it can never unwrap under `kek`.
+ * The database key in `blob`, or a KeyLostException with loss PERMANENT when it can never unwrap under `kek`.
  * Only the failures caught below and the length check mean the key can never unwrap; anything else
  * (a busy Keystore) propagates because it may succeed on retry.
  */
@@ -283,13 +291,13 @@ internal fun unwrapDatabaseKey(kek: SecretKey, alias: String, blob: ByteArray): 
   val dek = try {
     KeyWrap(kek, alias).unwrap(blob)
   } catch (e: AEADBadTagException) {
-    throw KeyLostException("database key file does not match the Keystore key", e, permanent = true)
+    throw KeyLostException("database key file does not match the Keystore key", e, loss = KeyLoss.PERMANENT)
   } catch (e: KeyPermanentlyInvalidatedException) {
-    throw KeyLostException("Keystore key was invalidated", e, permanent = true)
+    throw KeyLostException("Keystore key was invalidated", e, loss = KeyLoss.PERMANENT)
   }
   if (dek.size != Keys.DATABASE_KEY_BYTES) {
     dek.fill(0)
-    throw KeyLostException("database key has the wrong length", permanent = true)
+    throw KeyLostException("database key has the wrong length", loss = KeyLoss.PERMANENT)
   }
   return dek
 }
@@ -299,10 +307,10 @@ private const val KEK_RETRY_PAUSE_MS = 200L
 /**
  * The key-encryption key `read` returns, or KeyLostException. UnrecoverableKeyException may also
  * be transient, so that failure is read once more after `pause` before it is reported as
- * KeyLostException. That exception is never permanent, so `keyState()` still reads EXISTING and
+ * KeyLostException. That exception's loss is MAY_RECOVER, so `keyState()` still reads EXISTING and
  * nothing replaces the key: replacing one that still works would make the database unreadable.
- * A null from `read` (an alias with no Keystore key behind it) is KeyLostException with `absent`
- * set, which `keyState()` reads as LOST.
+ * A null from `read` (an alias with no Keystore key behind it) is KeyLostException with loss
+ * ABSENT, which `keyState()` reads as LOST.
  * Only `unwrapDatabaseKey` marks a failure permanent. Any other failure propagates unchanged; one
  * on the retry carries the first UnrecoverableKeyException as suppressed.
  */
@@ -324,5 +332,5 @@ internal fun readKekOrLost(
       throw e
     }
   }
-  return kek ?: throw KeyLostException("Keystore key is missing", absent = true)
+  return kek ?: throw KeyLostException("Keystore key is missing", loss = KeyLoss.ABSENT)
 }

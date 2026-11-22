@@ -1,9 +1,12 @@
-import Platform, { type KeyState, type PlatformNativeEvents } from "../../modules/platform";
+import Platform, {
+  type KeyPresence,
+  type KeyState,
+  type PlatformNativeEvents,
+} from "../../modules/platform";
 import { checkedKeyHex, type DatabaseKeyHex } from "../db/keyHex.js";
-import type { KeyPresence } from "../db/keyState.js";
 import { StagingKeyUnusableError } from "../link/stagingKeyError.js";
 
-export type { KeyState, PlatformNativeEvents };
+export type { KeyPresence, KeyState, PlatformNativeEvents };
 
 /** The native side found no usable database key although one was created before. */
 export class KeyLostError extends Error {
@@ -22,12 +25,15 @@ export class KeyUnavailableError extends Error {
 const ERR_KEY_LOST = "ERR_KEY_LOST";
 const ERR_KEY_UNAVAILABLE = "ERR_KEY_UNAVAILABLE";
 
-const KEY_STATES = [
-  "fresh",
-  "existing",
-  "lost",
-  "unreadable",
-] as const satisfies readonly KeyState[];
+// A Record over KeyState, so a state added to the type is a compile error here until it is listed (a list
+// checked with `satisfies` would only reject a wrong member, not a missing one).
+const KEY_STATE_NAMES: Record<KeyState, true> = {
+  fresh: true,
+  existing: true,
+  lost: true,
+  unreadable: true,
+};
+const KEY_STATES = Object.keys(KEY_STATE_NAMES);
 
 async function keyCall<T>(call: () => Promise<T>): Promise<T> {
   try {

@@ -115,8 +115,14 @@ export function createDatabaseReplacer(
       // (both there, unwrapping fails for good) is replaced: the current file cannot be read by
       // anyone, so a new key costs nothing more. A key that failed in a way that may pass (`existing`)
       // is not replaced, so a file built for a new one would be thrown away after the swap.
-      const state = await deps.keyState().catch(() => {
-        throw e;
+      // The state call's own failure rides along, so a broken call is not read as a key that exists: as the cause
+      // when the key error has none, else on `keyStateError`, so the key error's own cause is never overwritten.
+      const state = await deps.keyState().catch((stateError: unknown) => {
+        const keyError = e instanceof Error ? e : new Error("the database key is lost");
+        throw Object.assign(
+          keyError,
+          keyError.cause === undefined ? { cause: stateError } : { keyStateError: stateError },
+        );
       });
       if (!keyIsLostOrUnreadable(state)) throw e;
       return { kind: "replacement", hex: deps.newDatabaseKeyHex() };
