@@ -2,11 +2,11 @@ import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import Platform from "../../modules/platform";
-import { addActivityFromGpx } from "./addActivity.js";
+import { addActivityFromGpx, type HandOffRunner } from "./addActivity.js";
 
 // Reached only through the `require` in WebShell's `devAddActivity`; import it nowhere else.
 export function createDevAddActivity(
-  handOff: { run(): Promise<unknown> },
+  handOff: HandOffRunner,
   notify: (text: string) => void,
 ): () => Promise<void> {
   return async () => {

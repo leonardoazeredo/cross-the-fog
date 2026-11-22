@@ -103,8 +103,18 @@ export interface TrackPoint {
   accuracy?: number | string | undefined;
 }
 
+// Test hooks: flushAt replaces FLUSH_AT, onCompact hears each compaction made inside the loop (not the last one, after it).
+export interface RevealOptions {
+  flushAt?: number;
+  onCompact?: () => void;
+}
+
 // track: [{t (ms), lat, lon, accuracy?}] in recorded order -> Int32Array of [cx, cy] pairs, sorted by cx then cy, unique
-export function reveal(track: Iterable<TrackPoint>, rules?: RevealRules | null): Int32Array {
+export function reveal(
+  track: Iterable<TrackPoint>,
+  rules?: RevealRules | null,
+  opts?: RevealOptions,
+): Int32Array {
   rules = rules || RULES;
   checkRules(rules);
   const pts: Point[] = [];
@@ -115,7 +125,8 @@ export function reveal(track: Iterable<TrackPoint>, rules?: RevealRules | null):
   }
 
   let keys: number[] = [];
-  let flushAt = FLUSH_AT; // doubles past the unique cells so a big track is not re-sorted at every point
+  const floor = opts?.flushAt ?? FLUSH_AT;
+  let flushAt = floor; // doubles past the unique cells so a big track is not re-sorted at every point
   let joinedBefore = false;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i]!,
@@ -126,7 +137,8 @@ export function reveal(track: Iterable<TrackPoint>, rules?: RevealRules | null):
     joinedBefore = joined;
     if (keys.length > flushAt) {
       keys = compact(keys);
-      flushAt = Math.max(FLUSH_AT, keys.length * 2);
+      opts?.onCompact?.();
+      flushAt = Math.max(floor, keys.length * 2);
     }
   }
 

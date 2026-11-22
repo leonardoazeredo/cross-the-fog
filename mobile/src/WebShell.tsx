@@ -72,6 +72,11 @@ function confirmAlert(
   });
 }
 
+// An alert with an OK button, not a toast: a restore result is read more than once and a toast cuts off past two lines.
+function alertResult(text: string): void {
+  Alert.alert(text);
+}
+
 function notify(text: string): void {
   if (Platform.OS === "android") {
     ToastAndroid.show(text, ToastAndroid.SHORT);
@@ -116,6 +121,7 @@ function buildController(
   scratch.clear();
   const openBackup = createOpenBackup();
   const backupFlows = createBackupFlows({
+    alert: alertResult,
     backup: createBackupFlow({
       withDb: withHistoryDb,
       openBackup,

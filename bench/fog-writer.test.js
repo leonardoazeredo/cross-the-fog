@@ -44,7 +44,7 @@ const sameBytes = (a, b, msg) => assert.ok(Buffer.compare(Buffer.from(a), Buffer
   for (const id of [0, 7, 9, 10, 11, 99, 100, 512 * 512 - 1]) assert.equal(parseTileId(FogWriter.tileName(id)), id, `id ${id}`);
   assert.equal(FogWriter.tileName(0), MD5.hex("0").slice(0, 4) + "o" + "e");
   assert.equal(FogWriter.tileName(10), MD5.hex("10").slice(0, 4) + "lo" + "ie");
-  for (const bad of [-1, 512 * 512, 1.5, NaN, "12"]) assert.throws(() => FogWriter.tileName(bad), RangeError, String(bad));
+  for (const bad of [-1, 512 * 512, 1.5, NaN, "12"]) assert.throws(() => FogWriter.tileName(bad), (e) => e instanceof RangeError && !e.message.includes(String(bad)), String(bad));
   // too short to hold one digit, or a number outside the world: not a tile
   for (const name of ["", "abcd", "abcdx", "abcdl"]) assert.equal(parseTileId(name), null, JSON.stringify(name));
   assert.equal(parseTileId("0000" + "hkhljj" + "xx"), null, "262144 is past the last tile");
@@ -186,9 +186,9 @@ function cellsOf(files) {
     ["fractional bx", { ...ok, bx: 1.5 }],
     ["empty extra", { ...ok, extra: new Uint8Array(0) }],
     ["short extra", { ...ok, extra: Uint8Array.of(1, 2) }],
-  ]) assert.throws(() => FogWriter.writeTile([block]), RangeError, label);
+  ]) assert.throws(() => FogWriter.writeTile([block]), (e) => e instanceof RangeError && !/\d,\d|128/.test(e.message), label + ": the message names no block position");
   assert.throws(() => FogWriter.writeTile([{ ...ok, by: -1 }]), /outside the tile/, "a negative by is refused by the check, not by DataView");
-  assert.throws(() => FogWriter.writeTile([ok, { ...ok }]), RangeError, "the same block twice");
+  assert.throws(() => FogWriter.writeTile([ok, { ...ok }]), (e) => e instanceof RangeError && !/\d,\d/.test(e.message), "the same block twice");
 }
 { // a tile stored out of header order is written in header order, every cell and region bit in place
   const data = new Uint8Array(HEADER + 2 * BLOCK);
@@ -213,11 +213,11 @@ function cellsOf(files) {
   const back = cellsOf([file]);
   assert.equal(back.totalVisited(), 2);
 }
-{ // writeSync reads back what it wrote: a deflate that loses, changes or garbles bytes fails the export, naming the tile
+{ // writeSync reads back what it wrote: a deflate that loses, changes or garbles bytes fails the export, without naming the tile
   const map = new FogMap();
   map.addCells(pairs([cellOf(1, 1, 0, 0, 0, 0)]));
   const id = String(idOf(1, 1));
-  const named = (e) => e instanceof Error && e.message.includes(`tile ${id}`);
+  const named = (e) => e instanceof Error && /the written file|its file name|bad checksum/.test(e.message) && !e.message.includes(id);
   assert.throws(() => FogWriter.writeSync(map, { deflate: (b) => deflate5(b.subarray(0, b.length - 1)) }), named, "a byte lost");
   assert.throws(() => FogWriter.writeSync(map, { deflate: (b) => { const c = b.slice(); c[HEADER] ^= 1; return deflate5(c); } }), named, "a bit flipped");
   assert.throws(() => FogWriter.writeSync(map, { deflate: () => Uint8Array.of(1, 2, 3) }), named, "not zlib at all");
@@ -247,7 +247,7 @@ function cellsOf(files) {
     assert.equal(seen.length, 1, "the page's pako reads each file back once");
     sameBytes(seen[0], f.bytes, "what it read back is what it hands out");
     global.pako = { deflate: pako.deflate, inflate: () => new Uint8Array(HEADER) }; // a read-back that is not the tile written
-    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && e.message.includes(`tile ${id}`), "a read-back of something else");
+    assert.throws(() => FogWriter.writeSync(map), (e) => e instanceof Error && /the written file/.test(e.message) && !e.message.includes(String(id)), "a read-back of something else");
   } finally { global.pako = parked; }
 }
 { // the MD5 constants are written out, so an engine whose Math.sin rounds differently still names tiles right

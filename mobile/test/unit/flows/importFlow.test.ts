@@ -1151,7 +1151,13 @@ describe("one file shared twice", () => {
 
   it("keeps the file a running import is still reading when the page dies with the same file queued", async () => {
     const held = gate();
-    const t = racing({ current: "none", begin: async () => (await held.promise, META) });
+    const t = racing({
+      current: "none",
+      begin: async () => {
+        await held.promise;
+        return META;
+      },
+    });
     const first = t.share("b.zip");
     await t.tick();
     t.reads.shift()?.();

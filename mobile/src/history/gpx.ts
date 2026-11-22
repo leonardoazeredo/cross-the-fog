@@ -145,7 +145,9 @@ export function parseGpx(text: string): ParsedGpx {
   let previous: TrackPoint | undefined;
   for (let at = text.indexOf("<trkpt"); at >= 0; at = text.indexOf("<trkpt", at + 6)) {
     // <trkptExt> and the like share the prefix but are not points
-    if (!/[\s>/]/.test(text.charAt(at + 6))) continue;
+    // (a file that ends right at `<trkpt` is an unclosed point, which the next check throws on)
+    const next = text.charAt(at + 6);
+    if (next !== "" && !/[\s>/]/.test(next)) continue;
     const tagEnd = text.indexOf(">", at);
     if (tagEnd < 0) throw new GpxError("a track point is not closed");
     const tag = text.slice(at, tagEnd);

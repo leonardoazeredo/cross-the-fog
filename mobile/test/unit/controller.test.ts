@@ -1350,6 +1350,7 @@ function realRestoreFlow(h: Harness, run: () => Promise<"restored">) {
     backup: { run: async () => ({ status: "cancelled" }) },
     restore: { run },
     notify: (text) => h.notified.push(text),
+    alert: (text) => h.notified.push(text),
   });
   h.flows.restore.mockImplementation(flows.restore);
 }

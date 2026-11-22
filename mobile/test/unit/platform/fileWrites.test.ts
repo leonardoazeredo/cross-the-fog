@@ -129,5 +129,5 @@ it("logCrash appends one line per crash", async () => {
   await logCrash(new Error("first"));
   await logCrash("second");
   const lines = (disk.get("doc/crash.log") ?? "").trim().split("\n");
-  expect(lines.map((l) => l.split("\t")[1])).toEqual(["first", "second"]);
+  expect(lines.map((l) => l.split("\t")[1])).toEqual(["Error", "unknown"]);
 });

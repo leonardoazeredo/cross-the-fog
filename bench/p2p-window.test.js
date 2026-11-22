@@ -56,3 +56,5 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 0.01, `${a} != ${b}`);
   assert.deepEqual(r.list.map((c) => c.r.lenM), [BASE, 7000]);
   assert.equal(r.fallback, false);
 }
+
+console.log("p2p-window.test.js ok");

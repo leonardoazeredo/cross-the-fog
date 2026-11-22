@@ -10,6 +10,7 @@ import codes.madera.crossfog.link.LedgerAction
 import codes.madera.crossfog.link.LinkEvents
 import codes.madera.crossfog.link.Messages
 import codes.madera.crossfog.link.PhoneRouteStore
+import codes.madera.crossfog.link.Refusal
 import codes.madera.crossfog.link.RouteOffer
 import codes.madera.crossfog.link.SaveResult
 
@@ -88,6 +89,28 @@ internal class OutboxRoutes(
       ledger.forget(id)
       revision
     }
+
+  /**
+   * [setAside] for a route the watch refused, only if the queued copy still has the [offered] revision: a route
+   * edited since is a different revision the watch has not seen, and stays queued. Returns the revision of the
+   * route that left, or null when nothing left (gone, never readable, or edited meanwhile). A read that fails
+   * for a reason of the disk throws, so the endpoint closes the session instead of leaving the route queued
+   * behind a refusal.
+   */
+  fun setAsideIfOffered(id: String, offered: String?): String? =
+    synchronized(store) {
+      val current = try {
+        store.read(id)?.let { Frames.parseRouteOffer(it) }?.takeIf { it.routeId == id }?.revision
+      } catch (e: UnreadableItemException) {
+        null
+      } catch (e: FrameException) {
+        null
+      }
+      if (current == null || current != offered) return@synchronized null
+      store.setAside(id)
+      ledger.forget(id)
+      current
+    }
 }
 
 /**
@@ -118,8 +141,9 @@ internal class StagingSink(
 
 /**
  * Applies what the ledger decides when a session ends: a route that failed locally every time is set
- * aside and announced, so the page can tell the user to send it again. A demotion changes only the
- * order [OutboxRoutes] offers its routes in, so nothing is done for one here.
+ * aside and announced, so the page can tell the user to send it again. A route the watch refused for
+ * its content is set aside and announced at once, if the queued copy is still the revision that was
+ * refused. A demotion changes only the order [OutboxRoutes] offers its routes in, so nothing is done for one here.
  */
 internal class LedgerEvents(
   private val ledger: ItemLedger,
@@ -129,6 +153,15 @@ internal class LedgerEvents(
   override fun ready() = Unit
 
   override fun closed(reason: CloseReason, itemId: String?) = Unit
+
+  override fun itemRefused(refusal: Refusal) {
+    for (action in ledger.onRefused(refusal.item)) {
+      if (action is LedgerAction.SetAside && action.item.kind == ItemKind.ROUTE) {
+        val revision = routes.setAsideIfOffered(action.item.id, refusal.revision) ?: continue
+        onRouteSetAside(action.item.id, revision)
+      }
+    }
+  }
 
   override fun closedWith(info: CloseInfo) {
     for (action in ledger.onClosed(info)) {

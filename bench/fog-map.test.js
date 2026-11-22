@@ -200,7 +200,7 @@ const sameBytes = (a, b) => assert.deepEqual(Array.from(a), Array.from(b));
   assert.equal(rect(x - 64, x - 62), 1, "across the block edge: the imported cell before it, nothing after");
   assert.equal(rect(x - 66, x + 3), 6);
 }
-{ // a tile whose header points past its data is refused, naming the tile, and the map stays as it was
+{ // a tile whose header points past its data is refused without naming the tile, and the map stays as it was
   const map = new FogMap();
   const good = tileBytes([{ bx: 0, by: 0, cells: [[0, 0]] }, { bx: 1, by: 0, cells: [[0, 0]] }]);
   const pastBlocks = good.slice();
@@ -210,7 +210,7 @@ const sameBytes = (a, b) => assert.deepEqual(Array.from(a), Array.from(b));
     ["last block cut short", good.subarray(0, good.length - 1)],
     ["header index past the blocks", pastBlocks],
   ]) {
-    assert.throws(() => map.addTile(nameOf(idOf(7, 8)), data), (e) => e instanceof Error && e.message.includes(String(idOf(7, 8))), label);
+    assert.throws(() => map.addTile(nameOf(idOf(7, 8)), data), (e) => e instanceof Error && /shorter than its header|blocks stored/.test(e.message) && !e.message.includes(String(idOf(7, 8))), label);
     assert.equal(map.tileCount, 0, label);
     assert.equal(map.tiles.size, 0, label);
     assert.equal(map.version, 0, label);

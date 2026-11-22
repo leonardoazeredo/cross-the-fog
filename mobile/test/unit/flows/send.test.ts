@@ -45,6 +45,18 @@ describe("start", () => {
     stop(); // a stop after the run ended does nothing
   });
 
+  it("a stop handed out earlier does not end the run that replaced it", async () => {
+    const { link, sent, flow, stop } = setup();
+    stop();
+    flow.start();
+    stop(); // the first run's stop, called late: the live run stays the running one
+    flow.start(); // so this adds no second set of listeners
+    sent.length = 0;
+    link.setStatus({ paired: true, reachable: true });
+    await flush();
+    expect(sent.filter((m) => m.type === "linkStatus")).toHaveLength(1);
+  });
+
   it("can start again after it was stopped", async () => {
     const { link, sent, flow, stop } = setup();
     stop();
