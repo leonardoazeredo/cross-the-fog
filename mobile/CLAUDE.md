@@ -7,7 +7,7 @@ Android only. iOS is paused until the Android phone app and the Wear OS app are 
 ## Commands
 
 - Unit tests: `pnpm test` (vitest, projects `unit` and `adapter`). One file: `npx vitest run test/unit/incoming.test.ts --reporter=dot`.
-- Typecheck: `pnpm typecheck` (it runs `pnpm generate` first). Lint: `pnpm lint` (`biome check . ../app/src/*.ts`) or `npx biome check <paths>`; existing warnings in `test/adapter/hooks.test.ts` are unrelated.
+- Typecheck: `pnpm typecheck` (it runs `pnpm generate` first). Lint: `pnpm lint` (`biome check . ../app/src/*.ts`) or `npx biome check <paths>`; it prints no warning, and `biome.json` turns `noNonNullAssertion` off under `test/**` only, so a non-null assertion in production code is a lint warning.
 - Full gate: `pnpm verify`.
 - Builds: use `pnpm android`; it regenerates the web bundle first. A raw `npx expo run:*` does not.
 - Android builds need JDK 21 (`JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home`), `ANDROID_HOME=$HOME/Library/Android/sdk`, and `--device <AVD name>`, not the adb serial.
