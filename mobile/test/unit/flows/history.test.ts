@@ -235,7 +235,34 @@ describe("history", () => {
     expect(sent).toEqual([]);
   });
 
-  it("does not reject when sending fails midway through a track's chunks", async () => {
+  it("tells the page the track failed when sending fails midway through its chunks, so it stops waiting", async () => {
+    const { activities } = setup();
+    await activities.add(activity({ id: ID(1), track: longTrack(4500) }));
+    const sent: NativeToWeb[] = [];
+    let calls = 0;
+    const flow = createHistoryFlow({
+      activities,
+      routes: createMemoryRouteStore(),
+      send: (m) => {
+        if (calls++ === 1) throw new Error("no web view");
+        sent.push(m);
+      },
+    });
+    await expect(flow.needTrack(ID(1))).resolves.toBeUndefined();
+    // The first chunk went out whole and said how many there were; the failed second is not retried.
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({ type: "track", activityId: ID(1), index: 0, total: 3 });
+    expect((sent[0] as Extract<NativeToWeb, { type: "track" }>).points).toHaveLength(2000);
+    expect(sent[1]).toEqual({
+      v: 1,
+      type: "trackUnavailable",
+      activityId: ID(1),
+      reason: "readFailed",
+    });
+    valid(sent);
+  });
+
+  it("does not reject when the failure notice cannot be sent either", async () => {
     const { activities } = setup();
     await activities.add(activity({ id: ID(1), track: longTrack(4500) }));
     const sent: NativeToWeb[] = [];
@@ -248,10 +275,26 @@ describe("history", () => {
       },
     });
     await expect(flow.needTrack(ID(1))).resolves.toBeUndefined();
-    // The first chunk went out whole and said how many there were; the failed second one is not retried or replaced.
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ type: "track", activityId: ID(1), index: 0, total: 3 });
-    expect((sent[0] as Extract<NativeToWeb, { type: "track" }>).points).toHaveLength(2000);
+  });
+
+  it("tells the page the track failed when even the first chunk cannot be sent", async () => {
+    const { activities } = setup();
+    await activities.add(activity({ id: ID(1) }));
+    const sent: NativeToWeb[] = [];
+    let calls = 0;
+    const flow = createHistoryFlow({
+      activities,
+      routes: createMemoryRouteStore(),
+      send: (m) => {
+        if (calls++ === 0) throw new Error("no web view");
+        sent.push(m);
+      },
+    });
+    await expect(flow.needTrack(ID(1))).resolves.toBeUndefined();
+    expect(sent).toEqual([
+      { v: 1, type: "trackUnavailable", activityId: ID(1), reason: "readFailed" },
+    ]);
   });
 
   it("does not reject when the page cannot be told", async () => {

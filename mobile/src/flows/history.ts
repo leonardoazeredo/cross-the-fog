@@ -99,6 +99,11 @@ export function createHistoryFlow(deps: HistoryDeps): HistoryFlow {
         for (const msg of messages) send(msg);
       } catch (e) {
         warn("could not send a track", e);
+        // The page waits for the chunks it was promised; chunks that went out are dropped by the adapter when this
+        // arrives. An answer that already was a trackUnavailable is not turned into another reason.
+        if (messages[0]?.type === "track") {
+          trySend({ v: 1, type: "trackUnavailable", activityId: id, reason: "readFailed" });
+        }
       }
     },
 

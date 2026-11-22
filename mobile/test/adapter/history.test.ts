@@ -471,6 +471,24 @@ describe("a track asked for twice (the fog and the History panel)", () => {
     expect(visitedAt(fogMap, 50)).toBe(true);
   });
 
+  it("drops the chunks that arrived before a trackUnavailable, so the next answer completes on its own", async () => {
+    const { sync, lists, fogMap, history } = await setup();
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    // Chunk 1 of 3 arrives, then the phone says the rest will not come.
+    sync.onTrack({ activityId: WALKER, index: 1, total: 3, points: walk(0, 300).slice(20, 40) });
+    sync.onTrackUnavailable({ activityId: WALKER, reason: "readFailed" });
+    lists(WALKER);
+    sync.trackAsked(WALKER);
+    sendTrack(sync, WALKER, walk(1000, 1300), 200);
+    await sync.settled();
+
+    expect(history.setTrack).toHaveBeenCalledTimes(1);
+    expect(history.setTrack.mock.calls[0]?.[1]).toHaveLength(walk(1000, 1300).length);
+    expect(visitedAt(fogMap, 1050)).toBe(true);
+    expect(visitedAt(fogMap, 50)).toBe(false);
+  });
+
   it("starts the count over when a request nobody answered is forgotten", async () => {
     const { sync, lists, needTrack, fogMap } = await setup();
     lists(WALKER);
