@@ -8,7 +8,7 @@ import java.io.File
 /**
  * The phone's parser (mobile/src/history/gpx.ts) reads the GPX this encoder writes. This test encodes a small walk
  * with the shipping encoder and compares it byte for byte with mobile/test/fixtures/watch-encoded-walk.gpx, which
- * the phone's gpx.test.ts parses and hands off.
+ * the phone's gpx.test.ts parses and handOff.test.ts hands off.
  *
  * Regenerate with UPDATE_WATCH_GPX_FIXTURE=1 ./gradlew :app:testDebugUnitTest --tests '*TraceGpxPhoneFixtureTest*'.
  */
