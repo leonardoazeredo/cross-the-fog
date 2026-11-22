@@ -31,7 +31,7 @@ internal interface RouteIndex {
  * phone named, so a route is never confirmed on the strength of a file that differs from what was sent.
  * A route [isReadable] says the watch cannot read is refused for its content ([ItemRefusedException]) before
  * anything is written, so the phone sets it aside instead of resending it for ever; a check that cannot run
- * throws as any store failure does and the route is kept and retried. A route already held is not read again.
+ * throws as any store failure does and the route is kept and retried. A resend of the revision already held, with its file still there, is answered before the check runs.
  */
 internal class WatchRoutes(
     private val index: RouteIndex,
