@@ -7,7 +7,8 @@ interface Row {
   started_at: string;
   ended_at: string;
   route_id: string | null;
-  gpx_deflated: Uint8Array;
+  /** A TEXT value is a GPX that migration 2 could not deflate and kept as it was. */
+  gpx_deflated: Uint8Array | string;
   track_json: string;
   stats_json: string;
   received_at: string;
@@ -79,7 +80,8 @@ export function createActivityStore(db: SqlDriver): ActivityStore {
         "SELECT gpx_deflated FROM activities WHERE id = ?",
         [id],
       );
-      return r ? inflateGpx(r.gpx_deflated) : null;
+      if (!r) return null;
+      return typeof r.gpx_deflated === "string" ? r.gpx_deflated : inflateGpx(r.gpx_deflated);
     },
 
     async delete(id) {

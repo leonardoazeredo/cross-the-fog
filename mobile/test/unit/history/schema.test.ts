@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { SqlDriver, SqlTx } from "../../../src/db/driver.js";
 import { migrate, SCHEMA_VERSION } from "../../../src/db/schema.js";
 import { createActivityStore } from "../../../src/history/activityStore.js";
@@ -10,6 +10,18 @@ import { deflateGpx, inflateGpx } from "../../../src/history/gpxBlob.js";
 import { createRouteStore } from "../../../src/history/routeStore.js";
 import { createNodeSqliteDriver } from "../../support/nodeSqliteDriver.js";
 import { addOldRoutes, createV1Database, createV2Database } from "../../support/schemaV1.js";
+
+// A GPX holding the marker cannot be deflated, as when the process runs out of memory on a huge one.
+vi.mock("../../../src/history/gpxBlob.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../../src/history/gpxBlob.js")>();
+  return {
+    ...original,
+    deflateGpx: (gpx: string) => {
+      if (gpx.includes("UNDEFLATABLE")) throw new RangeError("Array buffer allocation failed");
+      return original.deflateGpx(gpx);
+    },
+  };
+});
 
 const tables = (db: ReturnType<typeof createNodeSqliteDriver>) =>
   db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name");
@@ -96,6 +108,42 @@ describe("migration 2: the GPX deflated at rest", () => {
       track: [{ t: 0, lat: 48.1, lon: 11.5 }],
       encoderVersion: "enc-1",
     });
+  });
+
+  it("keeps a row whose GPX cannot be deflated as it is, finishes the migration and loses no walk", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const db = createNodeSqliteDriver(":memory:");
+    const bad = `<gpx><!-- UNDEFLATABLE -->${GPX_A}</gpx>`;
+    await createV1Database(db, [
+      { id: IDS[0] as string, gpx: bad },
+      { id: IDS[1] as string, gpx: GPX_B },
+    ]);
+
+    expect(await migrate(db)).toBe(3);
+
+    const store = createActivityStore(db);
+    expect(await store.gpx(IDS[0] as string)).toBe(bad);
+    expect(await store.gpx(IDS[1] as string)).toBe(GPX_B);
+    expect((await store.list()).map((a) => a.id).sort()).toEqual(IDS);
+    const rows = await db.all<{ id: string; kind: string }>(
+      "SELECT id, typeof(gpx_deflated) AS kind FROM activities ORDER BY id",
+    );
+    expect(rows.map((r) => r.kind)).toEqual(["text", "blob"]);
+    warn.mockRestore();
+  });
+
+  it("logs the step and the error class of a skipped row, and nothing of the row", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const db = createNodeSqliteDriver(":memory:");
+    await createV1Database(db, [{ id: IDS[0] as string, gpx: `UNDEFLATABLE ${GPX_A}` }]);
+    await migrate(db);
+    const logged = warn.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(logged).toContain("step 1");
+    expect(logged).toContain("RangeError");
+    expect(logged).not.toContain("UNDEFLATABLE");
+    expect(logged).not.toContain("48.1");
+    expect(logged).not.toContain(IDS[0] as string);
+    warn.mockRestore();
   });
 
   it("migrates a schema-1 database with no activities", async () => {
