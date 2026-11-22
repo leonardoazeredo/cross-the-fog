@@ -434,6 +434,17 @@ const realFetch = global.fetch;
       global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => body }), [N]: answer });
       assert.deepEqual(await Overpass.post("data=x"), body, "no accept: any object is an answer");
     }
+    // an accept that throws refuses the answer like one that returns false: no stall, no hold, the next endpoint is asked
+    const throws = () => { throw new Error("x"); };
+    reset();
+    global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => ({ elements: [] }) }), [N]: good });
+    assert.deepEqual(await Overpass.post("data=x", { accept: (j) => (j.from ? true : throws()) }), fromN);
+    calls = [];
+    await Overpass.post("data=x", { accept: (j) => (j.from ? true : throws()) });
+    assert.deepEqual(calls, [M, N], "main is not on hold after an accept that threw");
+    reset();
+    global.fetch = routed({ [M]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => ({}) }), [N]: () => Promise.resolve({ ok: true, status: 200, headers: headers(), json: async () => ({}) }) });
+    assert.equal((await rejection(Overpass.post("data=x", { accept: throws }))).reason, "server", "every endpoint answered something accept threw on");
   }
   { // 15c. the parser's SyntaxError quotes the body; none of that text reaches the error a caller reads
     reset({ key: null });
